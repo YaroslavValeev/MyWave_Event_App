@@ -201,3 +201,79 @@ def test_heat_start_list_run_flow(client, db_session):
     checklist = client.get(f"/api/v1/events/{event_id}/checklist", headers=org)
     start_item = next(i for i in checklist.json()["items"] if i["code"] == "start_lists")
     assert start_item["is_done"] is True
+
+
+def test_fill_start_list_and_results_lifecycle(client, db_session):
+    from app.models.category import Category
+    from app.models.participant import Participant
+
+    org = auth_header(client, "fill-org@example.com", "organizer")
+    event_id = _create_published_event(client, org, "fill-event")
+
+    cat = Category(event_id=event_id, code="JR", title="Juniors", discipline="wakesurf")
+    db_session.add(cat)
+    db_session.flush()
+    for name in ("Alpha Rider", "Beta Rider"):
+        db_session.add(
+            Participant(
+                event_id=event_id,
+                category_id=cat.id,
+                full_name=name,
+                status="accepted",
+            )
+        )
+    db_session.commit()
+    category_id = cat.id
+
+    heat = client.post(
+        f"/api/v1/events/{event_id}/heats",
+        headers=org,
+        json={"code": "F1", "title": "Final", "heat_number": 1, "category_id": category_id},
+    )
+    heat_id = heat.json()["id"]
+    filled = client.post(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/fill",
+        headers=org,
+        json={"category_id": category_id},
+    )
+    assert filled.status_code == 201, filled.text
+    assert filled.json()["total"] == 2
+
+    parts = client.get(f"/api/v1/events/{event_id}/participants", headers=org).json()["items"]
+    pid = parts[0]["id"]
+    draft = client.post(
+        f"/api/v1/events/{event_id}/results",
+        headers=org,
+        json={"participant_id": pid, "score": 88.5, "place": 1, "heat_id": heat_id},
+    )
+    assert draft.status_code == 201, draft.text
+    result_id = draft.json()["id"]
+    assert draft.json()["status"] == "draft"
+
+    verified = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=org,
+        json={"status": "verified"},
+    )
+    assert verified.status_code == 200
+    published = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=org,
+        json={"status": "published"},
+    )
+    assert published.status_code == 200
+    assert published.json()["published_at"] is not None
+
+    history = client.get(
+        f"/api/v1/events/{event_id}/results/{result_id}/history",
+        headers=org,
+    )
+    assert history.status_code == 200
+    assert history.json()["total"] >= 2
+
+    blocked = client.post(
+        f"/api/v1/events/{event_id}/results",
+        headers=org,
+        json={"participant_id": pid, "score": 90, "place": 1, "heat_id": heat_id},
+    )
+    assert blocked.status_code == 409

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 — 2026-08-24
+
+- Bulk fill start list из roster/category (`POST .../start-list/fill`).
+- Results foundation: draft → verified → published → void + `result_history` audit.
+- UI: «Заполнить из roster», вкладка Results.
+
 ## 0.5.0 — 2026-08-24
 
 - Document upload/delete организатора (PDF/XLSX/XLS, ≤25 МБ, audit).

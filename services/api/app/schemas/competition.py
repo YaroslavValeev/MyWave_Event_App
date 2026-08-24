@@ -294,3 +294,65 @@ class RunOut(BaseModel):
 class RunListResponse(BaseModel):
     items: list[RunOut]
     total: int
+
+
+class StartListFillRequest(BaseModel):
+    category_id: int | None = None
+
+
+class ResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    participant_id: int
+    heat_id: int | None = None
+    run_id: int | None = None
+    category_id: int | None = None
+    attempt_no: int
+    status: str
+    score: float | None = None
+    place: int | None = None
+    notes: str | None = None
+    published_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResultDraftCreate(BaseModel):
+    participant_id: int
+    score: float | None = None
+    place: int | None = Field(default=None, ge=1, le=9999)
+    heat_id: int | None = None
+    run_id: int | None = None
+    attempt_no: int = Field(default=1, ge=1, le=99)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class ResultStatusUpdate(BaseModel):
+    status: str = Field(..., pattern=r"^(draft|verified|published|void)$")
+
+
+class ResultListResponse(BaseModel):
+    items: list[ResultOut]
+    total: int
+
+
+class ResultHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    result_id: int
+    event_id: int
+    from_status: str | None = None
+    to_status: str
+    score: float | None = None
+    place: int | None = None
+    actor_user_id: int | None = None
+    note: str | None = None
+    created_at: datetime
+
+
+class ResultHistoryListResponse(BaseModel):
+    items: list[ResultHistoryOut]
+    total: int

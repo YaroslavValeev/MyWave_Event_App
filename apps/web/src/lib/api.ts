@@ -655,6 +655,20 @@ export function addStartListEntry(
   );
 }
 
+export async function fillStartList(
+  token: string,
+  eventId: number | string,
+  heatId: number,
+  categoryId?: number | null,
+) {
+  const payload = await apiFetch<{ items: StartListEntryOut[]; total: number }>(
+    `/api/v1/events/${eventId}/heats/${heatId}/start-list/fill`,
+    { method: "POST", body: JSON.stringify({ category_id: categoryId ?? null }) },
+    token,
+  );
+  return payload;
+}
+
 export function updateStartListStatus(
   token: string,
   eventId: number | string,
@@ -664,6 +678,62 @@ export function updateStartListStatus(
 ) {
   return apiFetch<StartListEntryOut>(
     `/api/v1/events/${eventId}/heats/${heatId}/start-list/${entryId}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
+}
+
+export type ResultOut = {
+  id: number;
+  event_id: number;
+  participant_id: number;
+  heat_id: number | null;
+  run_id: number | null;
+  category_id: number | null;
+  attempt_no: number;
+  status: string;
+  score: number | null;
+  place: number | null;
+  notes: string | null;
+  published_at: string | null;
+};
+
+export async function listResults(token: string, eventId: number | string, status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const payload = await apiFetch<{ items: ResultOut[]; total: number }>(
+    `/api/v1/events/${eventId}/results${qs}`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function upsertResultDraft(
+  token: string,
+  eventId: number | string,
+  payload: {
+    participant_id: number;
+    score?: number | null;
+    place?: number | null;
+    heat_id?: number | null;
+    notes?: string | null;
+  },
+) {
+  return apiFetch<ResultOut>(
+    `/api/v1/events/${eventId}/results`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function updateResultStatus(
+  token: string,
+  eventId: number | string,
+  resultId: number,
+  status: "draft" | "verified" | "published" | "void",
+) {
+  return apiFetch<ResultOut>(
+    `/api/v1/events/${eventId}/results/${resultId}/status`,
     { method: "PATCH", body: JSON.stringify({ status }) },
     token,
   );

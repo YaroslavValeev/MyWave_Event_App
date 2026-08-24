@@ -28,11 +28,18 @@ from app.schemas.competition import (
     OfficialOut,
     ParticipantListResponse,
     ParticipantOut,
+    ResultDraftCreate,
+    ResultHistoryListResponse,
+    ResultHistoryOut,
+    ResultListResponse,
+    ResultOut,
+    ResultStatusUpdate,
     RunListResponse,
     RunOut,
     ScheduleHint,
     StartListEntryCreate,
     StartListEntryOut,
+    StartListFillRequest,
     StartListResponse,
     StartListStatusUpdate,
     TrainingSlotListResponse,
@@ -61,11 +68,18 @@ from app.services.document_service import delete_document, upload_document
 from app.services.heat_service import (
     add_start_list_entry,
     create_heat,
+    fill_start_list_from_roster,
     list_heats,
     list_runs_for_heat,
     list_start_list,
     update_heat_status,
     update_start_list_status,
+)
+from app.services.result_service import (
+    list_result_history,
+    list_results,
+    transition_result,
+    upsert_draft_result,
 )
 from app.services.event_service import EventServiceError, get_event
 
@@ -458,6 +472,36 @@ def post_start_list_entry(
     return StartListEntryOut.model_validate(entry)
 
 
+@router.post(
+    "/{event_id}/heats/{heat_id}/start-list/fill",
+    response_model=StartListResponse,
+    status_code=201,
+)
+def fill_start_list(
+    event_id: int,
+    heat_id: int,
+    body: StartListFillRequest,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> StartListResponse:
+    try:
+        created = fill_start_list_from_roster(
+            db,
+            event_id=event_id,
+            heat_id=heat_id,
+            actor=user,
+            category_id=body.category_id,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return StartListResponse(
+        items=[StartListEntryOut.model_validate(i) for i in created],
+        total=len(created),
+    )
+
+
 @router.patch(
     "/{event_id}/heats/{heat_id}/start-list/{entry_id}/status",
     response_model=StartListEntryOut,
@@ -498,6 +542,87 @@ def heat_runs(
     except EventServiceError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
     return RunListResponse(items=[RunOut.model_validate(i) for i in items], total=len(items))
+
+
+@router.get("/{event_id}/results", response_model=ResultListResponse)
+def results(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    status: str | None = Query(default=None),
+) -> ResultListResponse:
+    try:
+        items = list_results(db, event_id=event_id, actor=user, status=status)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ResultListResponse(items=[ResultOut.model_validate(i) for i in items], total=len(items))
+
+
+@router.post("/{event_id}/results", response_model=ResultOut, status_code=201)
+def post_result(
+    event_id: int,
+    body: ResultDraftCreate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> ResultOut:
+    try:
+        row = upsert_draft_result(
+            db,
+            event_id=event_id,
+            actor=user,
+            participant_id=body.participant_id,
+            score=body.score,
+            place=body.place,
+            heat_id=body.heat_id,
+            run_id=body.run_id,
+            attempt_no=body.attempt_no,
+            notes=body.notes,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ResultOut.model_validate(row)
+
+
+@router.patch("/{event_id}/results/{result_id}/status", response_model=ResultOut)
+def patch_result_status(
+    event_id: int,
+    result_id: int,
+    body: ResultStatusUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> ResultOut:
+    try:
+        row = transition_result(
+            db,
+            event_id=event_id,
+            result_id=result_id,
+            actor=user,
+            status=body.status,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ResultOut.model_validate(row)
+
+
+@router.get("/{event_id}/results/{result_id}/history", response_model=ResultHistoryListResponse)
+def result_history(
+    event_id: int,
+    result_id: int,
+    db: DbSession,
+    user: CurrentUser,
+) -> ResultHistoryListResponse:
+    try:
+        items = list_result_history(db, event_id=event_id, result_id=result_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ResultHistoryListResponse(
+        items=[ResultHistoryOut.model_validate(i) for i in items],
+        total=len(items),
+    )
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)

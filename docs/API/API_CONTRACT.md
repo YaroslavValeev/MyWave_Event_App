@@ -69,8 +69,13 @@
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/status` | Bearer organizer+ | planned\|ready\|on_water\|completed\|cancelled |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer | start list |
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer organizer+ | добавить участника |
+| POST | `/api/v1/events/{id}/heats/{heat_id}/start-list/fill` | Bearer organizer+ | bulk из roster (optional category_id) |
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
+| GET | `/api/v1/events/{id}/results` | Bearer | results (`?status=`) |
+| POST | `/api/v1/events/{id}/results` | Bearer organizer+ | upsert draft (score/place) |
+| PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer organizer+ | draft\|verified\|published\|void |
+| GET | `/api/v1/events/{id}/results/{result_id}/history` | Bearer | history/audit строки |
 | GET | `/api/v1/events/{id}/officials` | Bearer | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
 | GET | `/api/v1/events/{id}/schedule-hint` | Bearer | текстовая подсказка расписания |

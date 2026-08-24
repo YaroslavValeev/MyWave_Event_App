@@ -15,6 +15,7 @@ import {
   HeatOut,
   OfficialOut,
   ParticipantOut,
+  ResultOut,
   ScheduleHint,
   StartListEntryOut,
   TrainingSlotOut,
@@ -23,6 +24,7 @@ import {
   decideEventApplication,
   deleteDocument,
   documentDownloadUrl,
+  fillStartList,
   getEventDetail,
   getMyApplication,
   getScheduleHint,
@@ -35,17 +37,28 @@ import {
   listHeats,
   listOfficials,
   listParticipants,
+  listResults,
   listStartList,
   listTrainingSlots,
   submitApplication,
   updateChecklistItem,
   updateHeatStatus,
+  updateResultStatus,
   updateStartListStatus,
   uploadDocument,
+  upsertResultDraft,
 } from "@/lib/api";
 import styles from "../events.module.css";
 
-type TabId = "overview" | "checklist" | "participants" | "slots" | "docs" | "heats" | "apps";
+type TabId =
+  | "overview"
+  | "checklist"
+  | "participants"
+  | "slots"
+  | "docs"
+  | "heats"
+  | "results"
+  | "apps";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -78,6 +91,10 @@ export default function EventDetailPage() {
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadKind, setUploadKind] = useState("other");
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [results, setResults] = useState<ResultOut[]>([]);
+  const [resultParticipantId, setResultParticipantId] = useState("");
+  const [resultScore, setResultScore] = useState("");
+  const [resultPlace, setResultPlace] = useState("");
   const [officials, setOfficials] = useState<OfficialOut[]>([]);
   const [training, setTraining] = useState<TrainingSlotOut[]>([]);
   const [hint, setHint] = useState<ScheduleHint | null>(null);
@@ -108,7 +125,8 @@ export default function EventDetailPage() {
         return;
       }
       try {
-        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems] = await Promise.all([
+        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems] =
+          await Promise.all([
           getEventDetail(token, eventId),
           listCategories(token, eventId),
           listParticipants(token, eventId),
@@ -118,6 +136,7 @@ export default function EventDetailPage() {
           getMyApplication(token, eventId).catch(() => null),
           listChecklist(token, eventId).catch(() => ({ items: [], total: 0, done_count: 0 })),
           listHeats(token, eventId).catch(() => []),
+          listResults(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setDetail(d);
@@ -130,6 +149,7 @@ export default function EventDetailPage() {
         setChecklist(checks.items);
         setChecklistDone(checks.done_count);
         setHeats(heatItems);
+        setResults(resultItems);
         if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
         const stored = getStoredUser();
         if (
@@ -367,6 +387,57 @@ export default function EventDetailPage() {
     }
   }
 
+  async function onFillStartList() {
+    const token = getStoredToken();
+    if (!token || !canModerate || !selectedHeatId) return;
+    try {
+      await fillStartList(
+        token,
+        eventId,
+        selectedHeatId,
+        categoryId ? Number(categoryId) : null,
+      );
+      await loadStartList(selectedHeatId);
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось заполнить start list");
+    }
+  }
+
+  async function onSaveResultDraft() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    const pid = Number(resultParticipantId);
+    if (!pid) {
+      setError("Выберите участника для результата");
+      return;
+    }
+    try {
+      await upsertResultDraft(token, eventId, {
+        participant_id: pid,
+        score: resultScore ? Number(resultScore) : null,
+        place: resultPlace ? Number(resultPlace) : null,
+        heat_id: selectedHeatId,
+      });
+      setResults(await listResults(token, eventId));
+      setResultScore("");
+      setResultPlace("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось сохранить draft result");
+    }
+  }
+
+  async function onResultStatus(row: ResultOut, status: "verified" | "published" | "void" | "draft") {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    try {
+      await updateResultStatus(token, eventId, row.id, status);
+      setResults(await listResults(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось сменить статус результата");
+    }
+  }
+
   async function onEntryStatus(entry: StartListEntryOut, status: string) {
     const token = getStoredToken();
     if (!token || !canModerate || !selectedHeatId) return;
@@ -403,6 +474,7 @@ export default function EventDetailPage() {
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "heats", label: `Heats (${heats.length})` },
+    { id: "results", label: `Results (${results.length})` },
     {
       id: "apps",
       label: canModerate ? `Заявки (${pendingApps.length})` : "Моя заявка",
@@ -915,6 +987,14 @@ export default function EventDetailPage() {
                         >
                           В start list
                         </button>
+                        <button
+                          type="button"
+                          className={styles.linkBtn}
+                          style={{ marginLeft: "0.5rem" }}
+                          onClick={() => void onFillStartList()}
+                        >
+                          Заполнить из roster
+                        </button>
                       </div>
                     ) : null}
                     <ul className={styles.list}>
@@ -957,6 +1037,127 @@ export default function EventDetailPage() {
                     </ul>
                   </>
                 ) : null}
+              </>
+            ) : null}
+
+            {tab === "results" ? (
+              <>
+                <h2 className={styles.itemTitle}>Results</h2>
+                <p className={styles.muted}>
+                  Контур draft → verified → published (+ history/audit). Полный judge scoring —
+                  следующий шаг.
+                </p>
+                {canModerate ? (
+                  <div className={styles.panel}>
+                    <select
+                      value={resultParticipantId}
+                      onChange={(e) => setResultParticipantId(e.target.value)}
+                      style={{
+                        marginRight: "0.5rem",
+                        padding: "0.45rem 0.5rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "inherit",
+                      }}
+                    >
+                      <option value="">Участник…</option>
+                      {participants.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={resultScore}
+                      onChange={(e) => setResultScore(e.target.value)}
+                      placeholder="Score"
+                      style={{
+                        width: "5rem",
+                        marginRight: "0.5rem",
+                        padding: "0.45rem 0.5rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "inherit",
+                      }}
+                    />
+                    <input
+                      value={resultPlace}
+                      onChange={(e) => setResultPlace(e.target.value)}
+                      placeholder="Place"
+                      style={{
+                        width: "5rem",
+                        marginRight: "0.5rem",
+                        padding: "0.45rem 0.5rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "inherit",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() => void onSaveResultDraft()}
+                    >
+                      Save draft
+                    </button>
+                  </div>
+                ) : null}
+                <ul className={styles.list}>
+                  {results.length === 0 ? (
+                    <li className={styles.item}>
+                      <span className={styles.muted}>Результатов пока нет.</span>
+                    </li>
+                  ) : (
+                    results.map((r) => {
+                      const p = participants.find((x) => x.id === r.participant_id);
+                      return (
+                        <li key={r.id} className={styles.item}>
+                          <div className={styles.itemHead}>
+                            <strong>
+                              {p?.full_name || `#${r.participant_id}`} · {r.score ?? "—"} pts · place{" "}
+                              {r.place ?? "—"}
+                            </strong>
+                            <span className={styles.muted}>{r.status}</span>
+                          </div>
+                          {canModerate ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                              {r.status === "draft" ? (
+                                <button
+                                  type="button"
+                                  className={styles.linkBtn}
+                                  onClick={() => void onResultStatus(r, "verified")}
+                                >
+                                  Verify
+                                </button>
+                              ) : null}
+                              {r.status === "verified" ? (
+                                <button
+                                  type="button"
+                                  className={styles.linkBtn}
+                                  onClick={() => void onResultStatus(r, "published")}
+                                >
+                                  Publish
+                                </button>
+                              ) : null}
+                              {r.status !== "void" ? (
+                                <button
+                                  type="button"
+                                  className={styles.linkBtn}
+                                  onClick={() => void onResultStatus(r, "void")}
+                                >
+                                  Void
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })
+                  )}
+                </ul>
               </>
             ) : null}
 

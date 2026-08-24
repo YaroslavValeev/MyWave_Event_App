@@ -143,6 +143,7 @@ def add_start_list_entry(
     start_order: int,
     bib_number: str | None = None,
     audit_enabled: bool = True,
+    commit: bool = True,
 ) -> StartListEntry:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage start lists", 403)
@@ -200,9 +201,92 @@ def add_start_list_entry(
         },
         enabled=audit_enabled,
     )
-    db.commit()
-    db.refresh(entry)
+    if commit:
+        db.commit()
+        db.refresh(entry)
     return entry
+
+
+def fill_start_list_from_roster(
+    db: Session,
+    *,
+    event_id: int,
+    heat_id: int,
+    actor: User,
+    category_id: int | None = None,
+    audit_enabled: bool = True,
+) -> list[StartListEntry]:
+    """Append accepted/registered participants not yet on this heat."""
+    if not can_write_events(actor):
+        raise EventServiceError("forbidden", "Insufficient role to manage start lists", 403)
+    get_event(db, event_id=event_id, actor=actor)
+    heat = db.get(Heat, heat_id)
+    if heat is None or heat.event_id != event_id:
+        raise EventServiceError("not_found", "Heat not found", 404)
+
+    filter_cat = category_id if category_id is not None else heat.category_id
+    existing_ids = set(
+        db.scalars(
+            select(StartListEntry.participant_id).where(StartListEntry.heat_id == heat_id)
+        ).all()
+    )
+    stmt = (
+        select(Participant)
+        .where(
+            Participant.event_id == event_id,
+            Participant.status.in_(("accepted", "registered")),
+        )
+        .order_by(Participant.full_name, Participant.id)
+    )
+    if filter_cat is not None:
+        stmt = stmt.where(Participant.category_id == filter_cat)
+    candidates = [p for p in db.scalars(stmt).all() if p.id not in existing_ids]
+
+    max_order = db.scalar(
+        select(StartListEntry.start_order)
+        .where(StartListEntry.heat_id == heat_id)
+        .order_by(StartListEntry.start_order.desc())
+        .limit(1)
+    )
+    next_order = int(max_order or 0) + 1
+    created: list[StartListEntry] = []
+    for part in candidates:
+        entry = StartListEntry(
+            heat_id=heat_id,
+            event_id=event_id,
+            participant_id=part.id,
+            start_order=next_order,
+            status="scheduled",
+        )
+        db.add(entry)
+        db.flush()
+        db.add(
+            Run(
+                event_id=event_id,
+                heat_id=heat_id,
+                start_list_entry_id=entry.id,
+                participant_id=part.id,
+                attempt_no=1,
+                status="scheduled",
+            )
+        )
+        created.append(entry)
+        next_order += 1
+
+    append_audit(
+        db,
+        action="start_list.fill",
+        actor_user_id=actor.id,
+        actor_email=actor.email,
+        entity_type="heat",
+        entity_id=str(heat_id),
+        payload={"added": len(created), "category_id": filter_cat},
+        enabled=audit_enabled,
+    )
+    db.commit()
+    for entry in created:
+        db.refresh(entry)
+    return created
 
 
 def update_start_list_status(

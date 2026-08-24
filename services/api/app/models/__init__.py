@@ -10,6 +10,7 @@ from app.models.heat import Heat, Run, StartListEntry
 from app.models.notification import Notification
 from app.models.official import Official
 from app.models.participant import Participant
+from app.models.result import Result, ResultHistory
 from app.models.training_slot import TrainingSlot
 from app.models.user import User
 
@@ -32,4 +33,6 @@ __all__ = [
     "Heat",
     "StartListEntry",
     "Run",
+    "Result",
+    "ResultHistory",
 ]
