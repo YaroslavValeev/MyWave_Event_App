@@ -1,58 +1,45 @@
 # CURRENT_STATE
 
 Дата: 2026-08-24  
-Версия продукта: **0.4.0**  
-Путь до DoD v1 (аудит): ~**32%**
+Версия продукта: **0.5.0**  
+Путь до DoD v1 (аудит): ~**42%** (было ~32%; закрыт prep gap upload/checklist + foundation heats)
 
 ## Работает
 
 - Standalone продукт `MyWave_Event_App` (не плагин сайта).
-- **Phone auth:** регистрация, OTP (email + `data/mail_outbox`), JWT, **PATCH `/me`** (имя + телефон).
-- **Роли:** `participant` auto-approve; остальные → pending + approve (email confirm POST / UI `/admin/approvals`).
-- **Consent Stage 1:** обязательные `terms_of_use` + `privacy_policy` при регистрации; опциональные публикация имени и аналитика; профиль умеет grant/revoke опциональных; публичный roster маскирует self-serve ФИО без publish-consent.
-- **In-app уведомления:** журнал `/notifications` + API `/me/notifications` для статусов заявки и роли (без SMTP).
-- **Email approve:** GET только форма подтверждения; мутация через POST confirm. Pending list не отдаёт token.
-- **OTP rate limit:** не больше 5 запросов кода на номер за 10 минут.
-- **Production SECRET_KEY:** отказ стартовать с дефолтным/коротким ключом.
-- Seed Казань 2026 из **Google Form Excel** (primary): **97** заявок/участников, **17** кат., **51** медфлаг, **11** судей, **162** слота (35 booked), **83** phone-users; owner `y.valeev@gmail.com` ↔ `+79160117179`.
-- Web: `/`, `/login`, `/register`, `/legal/[purpose]`, `/profile`, `/notifications`, `/events`, `/events/new`, `/events/[id]`, `/admin/approvals`, `/health`.
-- Self-serve заявка: `POST .../applications` → pending → organizer accept/reject.
-- Публичный roster: `has_medical_cert` bool; **без** phone и **без** medical URL; self-serve без publish-consent → «Участник №id».
-- CI: `.github/workflows/ci.yml` (pytest + next build); release gate: `.github/workflows/release.yml` на tags `v*`.
-- Staging runbook: `docs/OPERATIONS/STAGING.md` + `docker-compose.staging.yml`.
-- Roadmap переведён на Competition Platform DoD v1 (`docs/PRODUCT/ROADMAP.md`).
+- Git remote: https://github.com/YaroslavValeev/MyWave_Event_App (private); tag `v0.4.0`; CI зелёный.
+- Phone auth, роли, consent, notifications, applications, roster, training slots.
+- **Document upload/delete** организатором (`POST/DELETE .../documents`).
+- **Event checklist** в Event App (`GET/PATCH .../checklist`) — сайт не SoT.
+- **Heats / start list / run** foundation API + UI вкладка Heats.
+- Seed Казань 2026 (Form Excel).
+- Staging runbook + compose; release discipline.
 
 ## Частично
 
-- OTP/approve без SMTP идут в outbox (нужен Gmail App Password для боевой почты).
-- Seed-пользователи: email `p{phone}@participants.mywave.local` (не личные почты спортсменов).
-- Тексты `docs/LEGAL/*` — рабочие редакции Stage 1, не юридическая экспертиза.
-- SMS-доставка OTP — позже.
-- Staging compose готов; remote host ещё не подключён.
-- Git remote: **https://github.com/YaroslavValeev/MyWave_Event_App** (private); tag `v0.4.0` запушен.
+- Heats: CRUD + статусы есть; нет массовой генерации start list из roster, judge scoring, published results.
+- OTP/approve без SMTP → outbox.
+- Staging compose готов; remote VPS ещё нет.
 
 ## Отсутствует
 
-- Production SMTP.
-- Remote staging deploy evidence (compose/runbook готовы).
-- Heats / start lists / competition day (≠ training slots).
+- Production SMTP; remote staging evidence.
 - Results / protocols / Athlete ID / media / archive / ParserNews / broadcast.
-- Транспорт продуктовой аналитики (согласие уже пишется).
+- Judge input + calculation + draft/verify/publish.
 
 ## Следующий P0 (owner)
 
-1. SMTP владельца (см. `OWNER_COMMANDS.md`)
-2. Поднять staging на VPS (см. `STAGING.md`) и записать evidence в CURRENT_STATE
-3. Убедиться, что GitHub Actions CI зелёный на `main`
+1. SMTP
+2. Staging на VPS
+3. `npm run reseed` после обновления API (новые таблицы create_all)
 
-## Следующий P0 (код, незаблокированный)
+## Следующий P0 (код)
 
-1. Document upload API организатора  
-2. Event checklist в Event App  
-3. Модель Heat / StartList / Run
+1. Bulk fill start list из roster/category
+2. Results draft → verify → publish + audit
+3. Athlete ID (без PII в самом ID)
 
 ## Проверки
 
-- `npm run reseed` — seed Form Excel + restart API
-- `pytest` в `services/api`: **36 passed** (Python 3.11)
-- Smoke: `/health`, `/login`, `/register`, `/legal/terms_of_use`, `/events/1`, `/profile`, `/notifications`
+- `pytest` в `services/api`: **40 passed**
+- Smoke: `/events/[id]` → Чеклист, Документы (upload), Heats

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi.responses import FileResponse, Response
 
 from app.api.deps import AppSettings, CurrentUser, DbSession
 from app.api.errors import raise_api_error
@@ -14,14 +14,27 @@ from app.schemas.competition import (
     ApplicationOut,
     CategoryListResponse,
     CategoryOut,
+    ChecklistItemOut,
+    ChecklistListResponse,
+    ChecklistUpdate,
     DocumentListResponse,
     DocumentOut,
     EventDetailOut,
+    HeatCreate,
+    HeatListResponse,
+    HeatOut,
+    HeatStatusUpdate,
     OfficialListResponse,
     OfficialOut,
     ParticipantListResponse,
     ParticipantOut,
+    RunListResponse,
+    RunOut,
     ScheduleHint,
+    StartListEntryCreate,
+    StartListEntryOut,
+    StartListResponse,
+    StartListStatusUpdate,
     TrainingSlotListResponse,
     TrainingSlotOut,
 )
@@ -34,6 +47,7 @@ from app.services.application_service import (
     get_my_application,
     list_applications,
 )
+from app.services.checklist_service import ensure_checklist, set_checklist_item
 from app.services.competition_service import (
     event_counts,
     get_document,
@@ -42,6 +56,16 @@ from app.services.competition_service import (
     list_officials,
     list_participants,
     list_training_slots,
+)
+from app.services.document_service import delete_document, upload_document
+from app.services.heat_service import (
+    add_start_list_entry,
+    create_heat,
+    list_heats,
+    list_runs_for_heat,
+    list_start_list,
+    update_heat_status,
+    update_start_list_status,
 )
 from app.services.event_service import EventServiceError, get_event
 
@@ -213,6 +237,58 @@ def documents(event_id: int, db: DbSession, user: CurrentUser) -> DocumentListRe
     return DocumentListResponse(items=[DocumentOut.model_validate(i) for i in items], total=len(items))
 
 
+@router.post("/{event_id}/documents", response_model=DocumentOut, status_code=201)
+async def post_document(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    kind: str = Form("other"),
+    language: str | None = Form(None),
+    description: str | None = Form(None),
+) -> DocumentOut:
+    try:
+        doc = upload_document(
+            db,
+            event_id=event_id,
+            actor=user,
+            file=file,
+            title=title,
+            kind=kind,
+            language=language,
+            description=description,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return DocumentOut.model_validate(doc)
+
+
+@router.delete("/{event_id}/documents/{document_id}", status_code=204)
+def remove_document(
+    event_id: int,
+    document_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> Response:
+    try:
+        delete_document(
+            db,
+            event_id=event_id,
+            document_id=document_id,
+            actor=user,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return Response(status_code=204)
+
+
 @router.get("/{event_id}/documents/{document_id}/file")
 def document_file(
     event_id: int,
@@ -239,6 +315,189 @@ def document_file(
         ".xls": "application/vnd.ms-excel",
     }.get(suffix, "application/octet-stream")
     return FileResponse(path, filename=doc.file_name, media_type=media)
+
+
+@router.get("/{event_id}/checklist", response_model=ChecklistListResponse)
+def checklist(event_id: int, db: DbSession, user: CurrentUser) -> ChecklistListResponse:
+    try:
+        items = ensure_checklist(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    out = [ChecklistItemOut.model_validate(i) for i in items]
+    return ChecklistListResponse(
+        items=out,
+        total=len(out),
+        done_count=sum(1 for i in out if i.is_done),
+    )
+
+
+@router.patch("/{event_id}/checklist/{item_id}", response_model=ChecklistItemOut)
+def patch_checklist(
+    event_id: int,
+    item_id: int,
+    body: ChecklistUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> ChecklistItemOut:
+    try:
+        item = set_checklist_item(
+            db,
+            event_id=event_id,
+            item_id=item_id,
+            actor=user,
+            is_done=body.is_done,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ChecklistItemOut.model_validate(item)
+
+
+@router.get("/{event_id}/heats", response_model=HeatListResponse)
+def heats(event_id: int, db: DbSession, user: CurrentUser) -> HeatListResponse:
+    try:
+        items = list_heats(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return HeatListResponse(items=[HeatOut.model_validate(i) for i in items], total=len(items))
+
+
+@router.post("/{event_id}/heats", response_model=HeatOut, status_code=201)
+def post_heat(
+    event_id: int,
+    body: HeatCreate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> HeatOut:
+    try:
+        heat = create_heat(
+            db,
+            event_id=event_id,
+            actor=user,
+            code=body.code,
+            title=body.title,
+            heat_number=body.heat_number,
+            category_id=body.category_id,
+            scheduled_at=body.scheduled_at,
+            notes=body.notes,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return HeatOut.model_validate(heat)
+
+
+@router.patch("/{event_id}/heats/{heat_id}/status", response_model=HeatOut)
+def patch_heat_status(
+    event_id: int,
+    heat_id: int,
+    body: HeatStatusUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> HeatOut:
+    try:
+        heat = update_heat_status(
+            db,
+            event_id=event_id,
+            heat_id=heat_id,
+            actor=user,
+            status=body.status,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return HeatOut.model_validate(heat)
+
+
+@router.get("/{event_id}/heats/{heat_id}/start-list", response_model=StartListResponse)
+def start_list(
+    event_id: int,
+    heat_id: int,
+    db: DbSession,
+    user: CurrentUser,
+) -> StartListResponse:
+    try:
+        items = list_start_list(db, event_id=event_id, heat_id=heat_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return StartListResponse(
+        items=[StartListEntryOut.model_validate(i) for i in items],
+        total=len(items),
+    )
+
+
+@router.post(
+    "/{event_id}/heats/{heat_id}/start-list",
+    response_model=StartListEntryOut,
+    status_code=201,
+)
+def post_start_list_entry(
+    event_id: int,
+    heat_id: int,
+    body: StartListEntryCreate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> StartListEntryOut:
+    try:
+        entry = add_start_list_entry(
+            db,
+            event_id=event_id,
+            heat_id=heat_id,
+            actor=user,
+            participant_id=body.participant_id,
+            start_order=body.start_order,
+            bib_number=body.bib_number,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return StartListEntryOut.model_validate(entry)
+
+
+@router.patch(
+    "/{event_id}/heats/{heat_id}/start-list/{entry_id}/status",
+    response_model=StartListEntryOut,
+)
+def patch_start_list_status(
+    event_id: int,
+    heat_id: int,
+    entry_id: int,
+    body: StartListStatusUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> StartListEntryOut:
+    try:
+        entry = update_start_list_status(
+            db,
+            event_id=event_id,
+            heat_id=heat_id,
+            entry_id=entry_id,
+            actor=user,
+            status=body.status,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return StartListEntryOut.model_validate(entry)
+
+
+@router.get("/{event_id}/heats/{heat_id}/runs", response_model=RunListResponse)
+def heat_runs(
+    event_id: int,
+    heat_id: int,
+    db: DbSession,
+    user: CurrentUser,
+) -> RunListResponse:
+    try:
+        items = list_runs_for_heat(db, event_id=event_id, heat_id=heat_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return RunListResponse(items=[RunOut.model_validate(i) for i in items], total=len(items))
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)

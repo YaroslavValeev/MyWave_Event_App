@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — 2026-08-24
+
+- Document upload/delete организатора (PDF/XLSX/XLS, ≤25 МБ, audit).
+- Event checklist внутри Event App (auto-seed + auto-tick по данным).
+- Foundation дня старта: Heat, StartListEntry, Run + статусы check-in/DNS/DNF/on-water.
+- UI: вкладки Чеклист / Документы (upload) / Heats.
+- Pytest: **40 passed**.
+
 ## 0.4.0 — 2026-08-24
 
 - Email-ссылки approve/reject больше не меняют статус по GET: нужна POST-форма подтверждения (ADR-0005).

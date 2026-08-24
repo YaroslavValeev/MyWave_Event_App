@@ -35,8 +35,31 @@
 | is_read | bool | ✓ | |
 | created_at | datetime | ✓ | |
 
+### EventChecklistItem (добавлено 2026-08-24)
 
-## 1. Принципы
+| Поле | Тип | Обяз. | Описание |
+|------|-----|-------|----------|
+| id | int | ✓ | |
+| event_id | int | ✓ | → Event |
+| code | string | ✓ | documents / categories / officials / … |
+| title | string | ✓ | |
+| is_done | bool | ✓ | |
+| sort_order | int | ✓ | |
+| done_at | datetime | | |
+| done_by_user_id | int | | → User |
+
+SoT подготовки — в Event App, не на сайте.
+
+### Heat / StartListEntry / Run (foundation, 2026-08-24)
+
+**Heat** (≠ TrainingSlot): `event_id`, `category_id?`, `code`, `title`, `heat_number`, `scheduled_at?`, `status` (`planned`\|`ready`\|`on_water`\|`completed`\|`cancelled`).
+
+**StartListEntry**: `heat_id`, `participant_id`, `start_order`, `bib_number?`, `status` (`scheduled`\|`checked_in`\|`ready`\|`on_water`\|`completed`\|`dns`\|`dnf`) + timestamps check-in/ready/on_water/completed.
+
+**Run**: attempt для entry (`attempt_no`, sync status с entry при смене статуса).
+
+Document upload пишет в существующую таблицу `documents` + файлы `data/documents/{slug}/`.
+
 
 - Один SoT на инсталляцию приложения.
 - UUID (строка) для публичных идентификаторов.

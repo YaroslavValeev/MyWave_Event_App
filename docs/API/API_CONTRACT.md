@@ -59,7 +59,18 @@
 | GET | `/api/v1/events/{id}/applications` | Bearer organizer+ | очередь заявок |
 | PATCH | `/api/v1/events/{id}/applications/{participant_id}` | Bearer organizer+ | accept/reject |
 | GET | `/api/v1/events/{id}/documents` | Bearer | документы |
+| POST | `/api/v1/events/{id}/documents` | Bearer organizer+ | upload (multipart: file, title, kind, language?, description?) |
+| DELETE | `/api/v1/events/{id}/documents/{doc_id}` | Bearer organizer+ | удалить документ + файл |
 | GET | `/api/v1/events/{id}/documents/{doc_id}/file` | Bearer | скачать файл |
+| GET | `/api/v1/events/{id}/checklist` | Bearer | чеклист подготовки (auto-seed + auto-tick) |
+| PATCH | `/api/v1/events/{id}/checklist/{item_id}` | Bearer organizer+ | `{"is_done": true\|false}` |
+| GET | `/api/v1/events/{id}/heats` | Bearer | heats (≠ training slots) |
+| POST | `/api/v1/events/{id}/heats` | Bearer organizer+ | создать heat |
+| PATCH | `/api/v1/events/{id}/heats/{heat_id}/status` | Bearer organizer+ | planned\|ready\|on_water\|completed\|cancelled |
+| GET | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer | start list |
+| POST | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer organizer+ | добавить участника |
+| PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
+| GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
 | GET | `/api/v1/events/{id}/officials` | Bearer | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
 | GET | `/api/v1/events/{id}/schedule-hint` | Bearer | текстовая подсказка расписания |

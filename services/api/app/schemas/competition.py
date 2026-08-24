@@ -179,3 +179,118 @@ class TrainingSlotListResponse(BaseModel):
 class ScheduleHint(BaseModel):
     summary: str
     notes: list[str] = Field(default_factory=list)
+
+
+class ChecklistItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    code: str
+    title: str
+    is_done: bool
+    sort_order: int
+    done_at: datetime | None = None
+    done_by_user_id: int | None = None
+    created_at: datetime
+
+
+class ChecklistListResponse(BaseModel):
+    items: list[ChecklistItemOut]
+    total: int
+    done_count: int
+
+
+class ChecklistUpdate(BaseModel):
+    is_done: bool
+
+
+class HeatOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    category_id: int | None = None
+    code: str
+    title: str
+    heat_number: int
+    scheduled_at: datetime | None = None
+    status: str
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class HeatCreate(BaseModel):
+    code: str = Field(..., min_length=1, max_length=64)
+    title: str = Field(..., min_length=1, max_length=255)
+    heat_number: int = Field(default=1, ge=1, le=9999)
+    category_id: int | None = None
+    scheduled_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class HeatStatusUpdate(BaseModel):
+    status: str = Field(..., pattern=r"^(planned|ready|on_water|completed|cancelled)$")
+
+
+class HeatListResponse(BaseModel):
+    items: list[HeatOut]
+    total: int
+
+
+class StartListEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    heat_id: int
+    event_id: int
+    participant_id: int
+    start_order: int
+    bib_number: str | None = None
+    status: str
+    checked_in_at: datetime | None = None
+    ready_at: datetime | None = None
+    on_water_at: datetime | None = None
+    completed_at: datetime | None = None
+    notes: str | None = None
+    created_at: datetime
+
+
+class StartListEntryCreate(BaseModel):
+    participant_id: int
+    start_order: int = Field(..., ge=1, le=9999)
+    bib_number: str | None = Field(default=None, max_length=32)
+
+
+class StartListStatusUpdate(BaseModel):
+    status: str = Field(
+        ...,
+        pattern=r"^(scheduled|checked_in|ready|on_water|completed|dns|dnf)$",
+    )
+
+
+class StartListResponse(BaseModel):
+    items: list[StartListEntryOut]
+    total: int
+
+
+class RunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    heat_id: int
+    start_list_entry_id: int
+    participant_id: int
+    attempt_no: int
+    status: str
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    notes: str | None = None
+    created_at: datetime
+
+
+class RunListResponse(BaseModel):
+    items: list[RunOut]
+    total: int

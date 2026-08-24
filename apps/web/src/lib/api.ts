@@ -500,6 +500,175 @@ export async function listDocuments(token: string, eventId: number | string) {
   return payload.items;
 }
 
+export async function uploadDocument(
+  token: string,
+  eventId: number | string,
+  file: File,
+  meta: { title: string; kind?: string; language?: string; description?: string },
+): Promise<DocumentOut> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", meta.title);
+  form.append("kind", meta.kind ?? "other");
+  if (meta.language) form.append("language", meta.language);
+  if (meta.description) form.append("description", meta.description);
+
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/documents`, {
+    method: "POST",
+    headers,
+    body: form,
+    cache: "no-store",
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as DocumentOut;
+}
+
+export function deleteDocument(token: string, eventId: number | string, documentId: number) {
+  return apiFetch<void>(
+    `/api/v1/events/${eventId}/documents/${documentId}`,
+    { method: "DELETE" },
+    token,
+  );
+}
+
+export type ChecklistItemOut = {
+  id: number;
+  event_id: number;
+  code: string;
+  title: string;
+  is_done: boolean;
+  sort_order: number;
+  done_at: string | null;
+  done_by_user_id: number | null;
+  created_at: string;
+};
+
+export async function listChecklist(token: string, eventId: number | string) {
+  return apiFetch<{ items: ChecklistItemOut[]; total: number; done_count: number }>(
+    `/api/v1/events/${eventId}/checklist`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function updateChecklistItem(
+  token: string,
+  eventId: number | string,
+  itemId: number,
+  is_done: boolean,
+) {
+  return apiFetch<ChecklistItemOut>(
+    `/api/v1/events/${eventId}/checklist/${itemId}`,
+    { method: "PATCH", body: JSON.stringify({ is_done }) },
+    token,
+  );
+}
+
+export type HeatOut = {
+  id: number;
+  event_id: number;
+  category_id: number | null;
+  code: string;
+  title: string;
+  heat_number: number;
+  scheduled_at: string | null;
+  status: string;
+  notes: string | null;
+};
+
+export type StartListEntryOut = {
+  id: number;
+  heat_id: number;
+  event_id: number;
+  participant_id: number;
+  start_order: number;
+  bib_number: string | null;
+  status: string;
+  checked_in_at: string | null;
+  ready_at: string | null;
+  on_water_at: string | null;
+  completed_at: string | null;
+};
+
+export async function listHeats(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: HeatOut[]; total: number }>(
+    `/api/v1/events/${eventId}/heats`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function createHeat(
+  token: string,
+  eventId: number | string,
+  payload: {
+    code: string;
+    title: string;
+    heat_number?: number;
+    category_id?: number | null;
+  },
+) {
+  return apiFetch<HeatOut>(
+    `/api/v1/events/${eventId}/heats`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function updateHeatStatus(
+  token: string,
+  eventId: number | string,
+  heatId: number,
+  status: string,
+) {
+  return apiFetch<HeatOut>(
+    `/api/v1/events/${eventId}/heats/${heatId}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
+}
+
+export async function listStartList(token: string, eventId: number | string, heatId: number) {
+  const payload = await apiFetch<{ items: StartListEntryOut[]; total: number }>(
+    `/api/v1/events/${eventId}/heats/${heatId}/start-list`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function addStartListEntry(
+  token: string,
+  eventId: number | string,
+  heatId: number,
+  payload: { participant_id: number; start_order: number; bib_number?: string },
+) {
+  return apiFetch<StartListEntryOut>(
+    `/api/v1/events/${eventId}/heats/${heatId}/start-list`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function updateStartListStatus(
+  token: string,
+  eventId: number | string,
+  heatId: number,
+  entryId: number,
+  status: string,
+) {
+  return apiFetch<StartListEntryOut>(
+    `/api/v1/events/${eventId}/heats/${heatId}/start-list/${entryId}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
+}
+
 export async function listOfficials(token: string, eventId: number | string) {
   const payload = await apiFetch<{ items: OfficialOut[]; total: number }>(
     `/api/v1/events/${eventId}/officials`,

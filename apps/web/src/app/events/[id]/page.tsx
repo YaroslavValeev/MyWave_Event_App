@@ -9,13 +9,19 @@ import {
   ApiError,
   ApplicationOut,
   CategoryOut,
+  ChecklistItemOut,
   DocumentOut,
   EventDetail,
+  HeatOut,
   OfficialOut,
   ParticipantOut,
   ScheduleHint,
+  StartListEntryOut,
   TrainingSlotOut,
+  addStartListEntry,
+  createHeat,
   decideEventApplication,
+  deleteDocument,
   documentDownloadUrl,
   getEventDetail,
   getMyApplication,
@@ -23,16 +29,23 @@ import {
   getStoredToken,
   getStoredUser,
   listCategories,
+  listChecklist,
   listDocuments,
   listEventApplications,
+  listHeats,
   listOfficials,
   listParticipants,
+  listStartList,
   listTrainingSlots,
   submitApplication,
+  updateChecklistItem,
+  updateHeatStatus,
+  updateStartListStatus,
+  uploadDocument,
 } from "@/lib/api";
 import styles from "../events.module.css";
 
-type TabId = "overview" | "participants" | "slots" | "docs" | "apps";
+type TabId = "overview" | "checklist" | "participants" | "slots" | "docs" | "heats" | "apps";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -54,6 +67,17 @@ export default function EventDetailPage() {
   const [categories, setCategories] = useState<CategoryOut[]>([]);
   const [participants, setParticipants] = useState<ParticipantOut[]>([]);
   const [documents, setDocuments] = useState<DocumentOut[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItemOut[]>([]);
+  const [checklistDone, setChecklistDone] = useState(0);
+  const [heats, setHeats] = useState<HeatOut[]>([]);
+  const [selectedHeatId, setSelectedHeatId] = useState<number | null>(null);
+  const [startList, setStartList] = useState<StartListEntryOut[]>([]);
+  const [heatCode, setHeatCode] = useState("");
+  const [heatTitle, setHeatTitle] = useState("");
+  const [addParticipantId, setAddParticipantId] = useState("");
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadKind, setUploadKind] = useState("other");
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [officials, setOfficials] = useState<OfficialOut[]>([]);
   const [training, setTraining] = useState<TrainingSlotOut[]>([]);
   const [hint, setHint] = useState<ScheduleHint | null>(null);
@@ -84,7 +108,7 @@ export default function EventDetailPage() {
         return;
       }
       try {
-        const [d, cats, parts, docs, offs, schedule, mine] = await Promise.all([
+        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems] = await Promise.all([
           getEventDetail(token, eventId),
           listCategories(token, eventId),
           listParticipants(token, eventId),
@@ -92,6 +116,8 @@ export default function EventDetailPage() {
           listOfficials(token, eventId),
           getScheduleHint(token, eventId),
           getMyApplication(token, eventId).catch(() => null),
+          listChecklist(token, eventId).catch(() => ({ items: [], total: 0, done_count: 0 })),
+          listHeats(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setDetail(d);
@@ -101,6 +127,10 @@ export default function EventDetailPage() {
         setOfficials(offs);
         setHint(schedule);
         setMyApp(mine);
+        setChecklist(checks.items);
+        setChecklistDone(checks.done_count);
+        setHeats(heatItems);
+        if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
         const stored = getStoredUser();
         if (
           stored &&
@@ -223,11 +253,156 @@ export default function EventDetailPage() {
     }
   }
 
+  async function refreshChecklist(token: string) {
+    const checks = await listChecklist(token, eventId);
+    setChecklist(checks.items);
+    setChecklistDone(checks.done_count);
+  }
+
+  async function onToggleChecklist(item: ChecklistItemOut) {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    try {
+      await updateChecklistItem(token, eventId, item.id, !item.is_done);
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить чеклист");
+    }
+  }
+
+  async function onUploadDoc(file: File | null) {
+    const token = getStoredToken();
+    if (!token || !file || !canModerate) return;
+    setUploadBusy(true);
+    setError(null);
+    try {
+      await uploadDocument(token, eventId, file, {
+        title: uploadTitle.trim() || file.name,
+        kind: uploadKind,
+        language: "ru",
+      });
+      setDocuments(await listDocuments(token, eventId));
+      setUploadTitle("");
+      await refreshChecklist(token);
+      const d = await getEventDetail(token, eventId);
+      setDetail(d);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить документ");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  async function onDeleteDoc(doc: DocumentOut) {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    if (!window.confirm(`Удалить «${doc.title}»?`)) return;
+    try {
+      await deleteDocument(token, eventId, doc.id);
+      setDocuments(await listDocuments(token, eventId));
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось удалить документ");
+    }
+  }
+
+  async function onCreateHeat() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    if (!heatCode.trim() || !heatTitle.trim()) {
+      setError("Укажите код и название heat");
+      return;
+    }
+    try {
+      const heat = await createHeat(token, eventId, {
+        code: heatCode.trim(),
+        title: heatTitle.trim(),
+        heat_number: heats.length + 1,
+        category_id: categoryId ? Number(categoryId) : null,
+      });
+      const items = await listHeats(token, eventId);
+      setHeats(items);
+      setSelectedHeatId(heat.id);
+      setHeatCode("");
+      setHeatTitle("");
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось создать heat");
+    }
+  }
+
+  async function loadStartList(heatId: number) {
+    const token = getStoredToken();
+    if (!token) return;
+    try {
+      setStartList(await listStartList(token, eventId, heatId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить start list");
+    }
+  }
+
+  async function onSelectHeat(heatId: number) {
+    setSelectedHeatId(heatId);
+    await loadStartList(heatId);
+  }
+
+  async function onAddToStartList() {
+    const token = getStoredToken();
+    if (!token || !canModerate || !selectedHeatId) return;
+    const pid = Number(addParticipantId);
+    if (!pid) {
+      setError("Выберите участника");
+      return;
+    }
+    try {
+      await addStartListEntry(token, eventId, selectedHeatId, {
+        participant_id: pid,
+        start_order: startList.length + 1,
+      });
+      await loadStartList(selectedHeatId);
+      setAddParticipantId("");
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось добавить в start list");
+    }
+  }
+
+  async function onEntryStatus(entry: StartListEntryOut, status: string) {
+    const token = getStoredToken();
+    if (!token || !canModerate || !selectedHeatId) return;
+    try {
+      await updateStartListStatus(token, eventId, selectedHeatId, entry.id, status);
+      await loadStartList(selectedHeatId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить статус");
+    }
+  }
+
+  async function onHeatStatus(heat: HeatOut, status: string) {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    try {
+      await updateHeatStatus(token, eventId, heat.id, status);
+      setHeats(await listHeats(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить heat");
+    }
+  }
+
+  useEffect(() => {
+    if (selectedHeatId != null) {
+      void loadStartList(selectedHeatId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedHeatId, eventId]);
+
   const tabs: { id: TabId; label: string; show?: boolean }[] = [
     { id: "overview", label: "Обзор" },
+    { id: "checklist", label: `Чеклист (${checklistDone}/${checklist.length || 7})` },
     { id: "participants", label: `Участники (${participants.length})` },
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
+    { id: "heats", label: `Heats (${heats.length})` },
     {
       id: "apps",
       label: canModerate ? `Заявки (${pendingApps.length})` : "Моя заявка",
@@ -499,28 +674,289 @@ export default function EventDetailPage() {
               </>
             ) : null}
 
-            {tab === "docs" ? (
+            {tab === "checklist" ? (
               <>
-                <h2 className={styles.itemTitle}>Документы</h2>
+                <h2 className={styles.itemTitle}>
+                  Подготовка события ({checklistDone}/{checklist.length})
+                </h2>
+                <p className={styles.muted}>
+                  Чеклист живёт в Event App (сайт — только витрина). Часть пунктов отмечается
+                  автоматически по данным события.
+                </p>
                 <ul className={styles.list}>
-                  {documents.map((d) => (
-                    <li key={d.id} className={styles.item}>
+                  {checklist.map((item) => (
+                    <li key={item.id} className={styles.item}>
                       <div className={styles.itemHead}>
-                        <strong>{d.title}</strong>
-                        <button
-                          type="button"
-                          className={styles.linkBtn}
-                          onClick={() => void downloadDoc(d)}
-                        >
-                          Скачать
-                        </button>
+                        <strong>
+                          {item.is_done ? "✓ " : "○ "}
+                          {item.title}
+                        </strong>
+                        {canModerate ? (
+                          <button
+                            type="button"
+                            className={styles.linkBtn}
+                            onClick={() => void onToggleChecklist(item)}
+                          >
+                            {item.is_done ? "Снять" : "Отметить"}
+                          </button>
+                        ) : null}
                       </div>
-                      <div className={styles.muted}>
-                        {d.kind} · {d.language || "—"} · {d.file_name}
-                      </div>
+                      <div className={styles.muted}>{item.code}</div>
                     </li>
                   ))}
                 </ul>
+              </>
+            ) : null}
+
+            {tab === "docs" ? (
+              <>
+                <h2 className={styles.itemTitle}>Документы</h2>
+                {canModerate ? (
+                  <div className={styles.panel}>
+                    <p className={styles.muted}>Загрузка PDF / XLSX / XLS (до 25 МБ).</p>
+                    <label className={styles.muted}>
+                      Название{" "}
+                      <input
+                        value={uploadTitle}
+                        onChange={(e) => setUploadTitle(e.target.value)}
+                        placeholder="Бюллетень №1"
+                        style={{
+                          marginLeft: "0.5rem",
+                          padding: "0.45rem 0.7rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line)",
+                          background: "rgba(0,0,0,0.25)",
+                          color: "inherit",
+                        }}
+                      />
+                    </label>{" "}
+                    <label className={styles.muted}>
+                      Тип{" "}
+                      <select
+                        value={uploadKind}
+                        onChange={(e) => setUploadKind(e.target.value)}
+                        style={{
+                          marginLeft: "0.35rem",
+                          padding: "0.45rem 0.5rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line)",
+                          background: "rgba(0,0,0,0.25)",
+                          color: "inherit",
+                        }}
+                      >
+                        <option value="bulletin">bulletin</option>
+                        <option value="protocol">protocol</option>
+                        <option value="schedule">schedule</option>
+                        <option value="rules">rules</option>
+                        <option value="start_list">start_list</option>
+                        <option value="other">other</option>
+                      </select>
+                    </label>{" "}
+                    <input
+                      type="file"
+                      accept=".pdf,.xlsx,.xls,application/pdf"
+                      disabled={uploadBusy}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        void onUploadDoc(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <ul className={styles.list}>
+                  {documents.length === 0 ? (
+                    <li className={styles.item}>
+                      <span className={styles.muted}>Документов пока нет.</span>
+                    </li>
+                  ) : (
+                    documents.map((d) => (
+                      <li key={d.id} className={styles.item}>
+                        <div className={styles.itemHead}>
+                          <strong>{d.title}</strong>
+                          <span>
+                            <button
+                              type="button"
+                              className={styles.linkBtn}
+                              onClick={() => void downloadDoc(d)}
+                            >
+                              Скачать
+                            </button>
+                            {canModerate ? (
+                              <button
+                                type="button"
+                                className={styles.linkBtn}
+                                onClick={() => void onDeleteDoc(d)}
+                                style={{ marginLeft: "0.5rem" }}
+                              >
+                                Удалить
+                              </button>
+                            ) : null}
+                          </span>
+                        </div>
+                        <div className={styles.muted}>
+                          {d.kind} · {d.language || "—"} · {d.file_name}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </>
+            ) : null}
+
+            {tab === "heats" ? (
+              <>
+                <h2 className={styles.itemTitle}>Heats / Start lists</h2>
+                <p className={styles.muted}>
+                  День старта: heat ≠ тренировочный слот. Статусы участника: check-in → ready →
+                  on-water → completed / DNS / DNF.
+                </p>
+                {canModerate ? (
+                  <div className={styles.panel}>
+                    <input
+                      value={heatCode}
+                      onChange={(e) => setHeatCode(e.target.value)}
+                      placeholder="Код (Q1)"
+                      style={{
+                        marginRight: "0.5rem",
+                        padding: "0.45rem 0.7rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "inherit",
+                      }}
+                    />
+                    <input
+                      value={heatTitle}
+                      onChange={(e) => setHeatTitle(e.target.value)}
+                      placeholder="Название heat"
+                      style={{
+                        marginRight: "0.5rem",
+                        padding: "0.45rem 0.7rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "inherit",
+                      }}
+                    />
+                    <button type="button" className={styles.linkBtn} onClick={() => void onCreateHeat()}>
+                      Создать heat
+                    </button>
+                  </div>
+                ) : null}
+                <ul className={styles.list}>
+                  {heats.length === 0 ? (
+                    <li className={styles.item}>
+                      <span className={styles.muted}>Heats ещё не созданы.</span>
+                    </li>
+                  ) : (
+                    heats.map((h) => (
+                      <li key={h.id} className={styles.item}>
+                        <div className={styles.itemHead}>
+                          <strong>
+                            #{h.heat_number} {h.code} — {h.title}
+                          </strong>
+                          <button
+                            type="button"
+                            className={styles.linkBtn}
+                            onClick={() => void onSelectHeat(h.id)}
+                          >
+                            {selectedHeatId === h.id ? "Открыт" : "Открыть"}
+                          </button>
+                        </div>
+                        <div className={styles.muted}>status: {h.status}</div>
+                        {canModerate ? (
+                          <div style={{ marginTop: "0.5rem", display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                            {["planned", "ready", "on_water", "completed"].map((st) => (
+                              <button
+                                key={st}
+                                type="button"
+                                className={styles.linkBtn}
+                                onClick={() => void onHeatStatus(h, st)}
+                              >
+                                {st}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </li>
+                    ))
+                  )}
+                </ul>
+
+                {selectedHeatId != null ? (
+                  <>
+                    <h2 className={styles.itemTitle}>Start list</h2>
+                    {canModerate ? (
+                      <div className={styles.panel}>
+                        <select
+                          value={addParticipantId}
+                          onChange={(e) => setAddParticipantId(e.target.value)}
+                          style={{
+                            marginRight: "0.5rem",
+                            padding: "0.45rem 0.5rem",
+                            borderRadius: "8px",
+                            border: "1px solid var(--line)",
+                            background: "rgba(0,0,0,0.25)",
+                            color: "inherit",
+                          }}
+                        >
+                          <option value="">Участник…</option>
+                          {participants.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.full_name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className={styles.linkBtn}
+                          onClick={() => void onAddToStartList()}
+                        >
+                          В start list
+                        </button>
+                      </div>
+                    ) : null}
+                    <ul className={styles.list}>
+                      {startList.length === 0 ? (
+                        <li className={styles.item}>
+                          <span className={styles.muted}>Список пуст.</span>
+                        </li>
+                      ) : (
+                        startList.map((e) => {
+                          const p = participants.find((x) => x.id === e.participant_id);
+                          return (
+                            <li key={e.id} className={styles.item}>
+                              <div className={styles.itemHead}>
+                                <strong>
+                                  {e.start_order}. {p?.full_name || `#${e.participant_id}`}
+                                  {e.bib_number ? ` · №${e.bib_number}` : ""}
+                                </strong>
+                                <span className={styles.muted}>{e.status}</span>
+                              </div>
+                              {canModerate ? (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                                  {["checked_in", "ready", "on_water", "completed", "dns", "dnf"].map(
+                                    (st) => (
+                                      <button
+                                        key={st}
+                                        type="button"
+                                        className={styles.linkBtn}
+                                        onClick={() => void onEntryStatus(e, st)}
+                                      >
+                                        {st}
+                                      </button>
+                                    ),
+                                  )}
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })
+                      )}
+                    </ul>
+                  </>
+                ) : null}
               </>
             ) : null}
 

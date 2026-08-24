@@ -27,29 +27,19 @@
 
 ## Этап 1 — Event preparation
 
-Довести в **Event App** (сайт = витрина/вход, не SoT чеклиста):
-
-- upload документов организатором
-- checklist внутри Event App
-- categories (нормализация)
-- officials
-- approvals
-- registration
-- roster
-
-Частично уже есть: event, роли, заявки, roster, seed docs, training slots, notifications.
+| Задача | Статус |
+|--------|--------|
+| upload документов | **done (0.5.0)** |
+| checklist в Event App | **done (0.5.0)** |
+| categories / officials / approvals / registration / roster | частично (read + seed; CRUD UI ограничен) |
 
 ## Этап 2 — День старта (главный функциональный разрыв)
 
-Сущности:
-
-- Heat
-- Start list
-- Run
-- Participant order
-- Status (DNS / DNF / check-in / ready / on-water / completed)
-
-Training slots ≠ competition heats.
+| Задача | Статус |
+|--------|--------|
+| Heat / StartList / Run foundation | **done (0.5.0)** |
+| bulk start list, live board, DNS/DNF UX polish | next |
+| Results scoring | отсутствует |
 
 ## Этап 3 — Results
 
@@ -106,6 +96,8 @@ Published result → ParserNews → draft article → Owner commentary → publi
 
 ## Следующий код P0 (после Этапа 0)
 
-1. Document upload API организатора
-2. Event checklist в Event App
-3. Модель Heat / StartList / Run (Этап 2)
+1. ~~Document upload API организатора~~ **done 0.5.0**
+2. ~~Event checklist в Event App~~ **done 0.5.0**
+3. ~~Модель Heat / StartList / Run (foundation)~~ **done 0.5.0**
+4. Bulk start list + results draft/publish
+5. Athlete ID
