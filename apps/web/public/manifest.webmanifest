@@ -1,0 +1,19 @@
+{
+  "name": "MyWave Event App",
+  "short_name": "MyWave Event",
+  "description": "Цифровая платформа соревнований MyWave",
+  "lang": "ru",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1c1f",
+  "theme_color": "#0d3d3f",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

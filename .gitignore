@@ -1,0 +1,56 @@
+# Secrets & local env
+.env
+.env.local
+.env.*.local
+!.env.example
+To4to.txt
+**/credentials.json
+**/service_account.json
+*.pem
+*.p12
+*.key
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local PII / analysis artifacts
+data/seed_analysis.json
+data/documents/
+data/mail_outbox/
+!data/mail_outbox/.gitkeep
+**/mywave_event.db
+services/api/data/*.db
+
+
+# Release binaries (never commit mobile builds)
+*.apk
+*.aab
+*.ipa
+*.mobileprovision

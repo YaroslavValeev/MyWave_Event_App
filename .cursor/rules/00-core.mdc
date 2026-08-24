@@ -1,0 +1,13 @@
+---
+description: Core rules for MyWave Event App agents
+alwaysApply: true
+---
+
+# Core
+
+- Product is standalone digital app `MyWave Event App`.
+- Do not couple core architecture to Site_MyWave, TGK bots, Telegram, or MAX.
+- Do not modify `releases/` archive packs unless explicitly asked.
+- No secrets in git. No fake APK/IPA.
+- Code + tests + docs transaction for critical changes.
+- Language with owner: Russian.

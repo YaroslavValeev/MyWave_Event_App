@@ -1,0 +1,80 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1rem 0 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--sand) 18%, transparent);
+}
+
+.brandRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 3.5vw, 1.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sand);
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--sand-bright);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--mist);
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+}
+
+.navLink {
+  color: var(--foam);
+  text-decoration: none;
+  font-size: 0.92rem;
+  padding: 0.35rem 0.15rem;
+  border-bottom: 2px solid transparent;
+}
+
+.navLink:hover {
+  color: var(--sand);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--sand);
+  outline-offset: 3px;
+}
+
+.session {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--mist);
+}
+
+.navButton {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--foam);
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.35rem 0.15rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.navButton:hover {
+  color: var(--sand);
+}

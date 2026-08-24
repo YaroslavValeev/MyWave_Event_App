@@ -1,0 +1,13 @@
+{
+  "name": "mywave-event-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MyWave Event App — root scripts",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev.ps1",
+    "dev:api": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-api.ps1",
+    "dev:web": "npm --prefix apps/web run dev -- --hostname 127.0.0.1 --port 3000",
+    "reseed": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/reseed.ps1",
+    "test:api": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location services/api; C:\\tmp\\mw_event_api_venv\\Scripts\\python.exe -m pytest -q\""
+  }
+}

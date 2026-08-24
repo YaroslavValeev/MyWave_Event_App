@@ -1,0 +1,14 @@
+---
+description: Архитектурные границы и ADR
+globs: docs/ARCHITECTURE/**/*,services/**/*,apps/**/*,packages/**/*
+alwaysApply: false
+---
+
+# 20 — Architecture
+
+- Следовать ADR-0001 (standalone), ADR-0002 (стек Stage 1), ADR-0003 (оркестратор = API services layer).
+- Source of Truth — БД за `services/api`; клиент не принимает финальные бизнес-решения.
+- Не превращать Telegram/MAX/сайт в оркестратор.
+- Offline sync — по `OFFLINE_SYNC.md`; Stage 1 = online-only.
+- Новые внешние системы — сначала `INTEGRATIONS.md` + feature flag.
+- Не тащить сюда merge-архитектуру Personal_Helper/Agents/Molt без отдельного ADR владельца этого продукта.

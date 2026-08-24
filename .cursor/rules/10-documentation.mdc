@@ -1,0 +1,15 @@
+---
+description: Правила ведения канонической документации
+globs: docs/**/*.md,README.md,AGENTS.md
+alwaysApply: false
+---
+
+# 10 — Documentation
+
+- Канонические документы живут в `docs/` по индексу `CANONICAL_DOCS_INDEX.md`.
+- Новые архитектурные решения — через ADR в `docs/ARCHITECTURE/decisions/`.
+- При изменении фактов продукта обновлять `docs/STATUS/CURRENT_STATE.md` и `CHANGELOG.md`.
+- Не смешивать runbook Download Center (архив) с SERVER_COMMANDS standalone app.
+- Писать конкретно: пути, роли, DoD; без философии.
+- Дата существенных обновлений — в шапке документа.
+- Глоссарий имён соблюдать; альтернативные маркетинговые названия не делать каноном путей/пакетов.

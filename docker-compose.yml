@@ -1,0 +1,74 @@
+# Stage 1 local stack — MyWave Event App
+# Default DB: SQLite (api container volume).
+# Optional Postgres: docker compose --profile postgres up --build
+
+services:
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: mwe-api
+    environment:
+      APP_NAME: MyWave Event App
+      APP_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DATABASE_URL: sqlite:////data/mywave_event.db
+      CORS_ORIGINS: http://127.0.0.1:3000,http://localhost:3000,http://web:3000
+      SECRET_KEY: dev-only-change-me
+      ENABLE_TELEGRAM_ADAPTER: "0"
+      ENABLE_MAX_ADAPTER: "0"
+      ENABLE_AUDIT_LOG: "1"
+    volumes:
+      - ./data:/data
+      - ./services/api:/app
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: mwe-web
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+      NEXT_PUBLIC_APP_NAME: MyWave Event App
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    container_name: mwe-postgres
+    environment:
+      POSTGRES_DB: mywave_event
+      POSTGRES_USER: mywave
+      POSTGRES_PASSWORD: mywave
+    ports:
+      - "5432:5432"
+    volumes:
+      - mwe_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mywave -d mywave_event"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mwe_pg_data:

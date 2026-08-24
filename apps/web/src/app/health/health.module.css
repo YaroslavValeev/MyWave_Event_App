@@ -1,0 +1,77 @@
+.main {
+  padding: 1.5rem 0 2rem;
+  max-width: 28rem;
+}
+
+.title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.4rem, 5vw, 1.75rem);
+}
+
+.base {
+  color: var(--mist);
+  font-size: 0.92rem;
+}
+
+.base code,
+.muted code {
+  color: var(--sand);
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+.muted {
+  color: var(--mist);
+}
+
+.panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--sand) 16%, transparent);
+}
+
+.badgeOk,
+.badgeWarn,
+.badgeError {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badgeOk {
+  background: color-mix(in srgb, var(--teal-mid) 40%, transparent);
+  color: var(--foam);
+  border: 1px solid var(--teal-mid);
+}
+
+.badgeWarn {
+  background: color-mix(in srgb, var(--sand) 25%, transparent);
+  color: var(--sand-bright);
+  border: 1px solid var(--sand);
+}
+
+.badgeError {
+  background: color-mix(in srgb, #8b3a3a 40%, transparent);
+  color: #f5c4c0;
+  border: 1px solid #c07070;
+}
+
+.grid {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.grid dt {
+  font-size: 0.8rem;
+  color: var(--mist);
+  font-weight: 500;
+}
+
+.grid dd {
+  margin: 0.15rem 0 0;
+  font-weight: 500;
+}

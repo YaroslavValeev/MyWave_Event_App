@@ -1,0 +1,2263 @@
+diff --git a/.env.example b/.env.example
+index 101de7fe..121a3cf9 100644
+--- a/.env.example
++++ b/.env.example
+@@ -141,6 +141,12 @@ ENABLE_ANALYTICS=True
+ 
+ ENABLE_RECOMMENDATIONS=True
+ 
++# --- MyWave Event app: реальные HTTPS URL или локальные /static/, /downloads/ ---
++MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL={{android_download_url}}
++MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL={{ios_testflight_url}}
++MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL={{source_archive_url}}
++MYWAVE_EVENT_APP_DOCUMENTATION_URL={{documentation_url}}
++
+ 
+ 
+ # --- Админка ---
+@@ -177,4 +183,3 @@ ALERT_TELEGRAM_BOT_TOKEN=
+ 
+ ALERT_TELEGRAM_CHAT_ID=
+ 
+-
+diff --git a/.env.sample b/.env.sample
+index 875d717a..a399c204 100644
+--- a/.env.sample
++++ b/.env.sample
+@@ -53,6 +53,12 @@ SENTRY_DSN=
+ # Sentry traces sample rate (float 0.0 - 1.0) used for performance tracing
+ SENTRY_TRACES_SAMPLE_RATE=0.1
+ 
++# MyWave Event app release artifacts (replace placeholders with real targets)
++MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL={{android_download_url}}
++MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL={{ios_testflight_url}}
++MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL={{source_archive_url}}
++MYWAVE_EVENT_APP_DOCUMENTATION_URL={{documentation_url}}
++
+ # Enable AI health check inside /api/health (set to 1 to perform a lightweight ping)
+ ENABLE_AI_HEALTH_CHECK=0
+ 
+diff --git a/app/routes/wake_industry.py b/app/routes/wake_industry.py
+index febb3fb7..f05d505e 100644
+--- a/app/routes/wake_industry.py
++++ b/app/routes/wake_industry.py
+@@ -1,14 +1,95 @@
+ """
+ Blueprint для страницы "Индустрия вейка" с чеклистом условий для соревнований.
+ """
+-from flask import Blueprint, render_template, Response, jsonify
++
+ from io import BytesIO
+ 
++from flask import Blueprint, Response, jsonify, render_template, request
++
++from app.extensions import csrf, limiter
++from app.services.event_app_downloads import (
++    DownloadConfigurationError,
++    build_handoff,
++    build_public_manifest,
++    build_unavailable_manifest,
++    get_artifact_status,
++)
++from app.services.rate_limit import limit_by_config
++
+ wake_industry_bp = Blueprint("wake_industry", __name__)
+ 
++
++@wake_industry_bp.app_context_processor
++def inject_event_app_downloads():
++    """Provide release metadata only to the canonical checklist page."""
++    if request.path.rstrip("/") != "/projects/checklist-org":
++        return {}
++    try:
++        manifest = build_public_manifest()
++    except DownloadConfigurationError:
++        manifest = build_unavailable_manifest()
++    return {"event_app_downloads": manifest}
++
++
++def _handoff_rate_limit(view_func):
++    return limit_by_config(limiter, "20 per minute", methods=["POST"])(view_func)
++
++
++@wake_industry_bp.after_request
++def protect_download_api(response):
++    if request.path.startswith("/api/event-app-downloads/"):
++        response.headers["Cache-Control"] = "no-store, max-age=0"
++        response.headers["X-Content-Type-Options"] = "nosniff"
++        response.headers["Referrer-Policy"] = "same-origin"
++    return response
++
++
++@wake_industry_bp.get("/api/event-app-downloads/manifest")
++def event_app_manifest():
++    try:
++        return jsonify(build_public_manifest())
++    except DownloadConfigurationError:
++        return (
++            jsonify(
++                error="manifest_unavailable", message="Каталог временно недоступен."
++            ),
++            503,
++        )
++
++
++@wake_industry_bp.get("/api/event-app-downloads/<artifact_id>/status")
++def event_app_artifact_status(artifact_id):
++    try:
++        artifact = get_artifact_status(artifact_id)
++    except KeyError:
++        return jsonify(error="artifact_not_found", message="Формат не найден."), 404
++    except DownloadConfigurationError:
++        return (
++            jsonify(
++                error="manifest_unavailable", message="Каталог временно недоступен."
++            ),
++            503,
++        )
++    status_code = 503 if artifact["state"] == "error" else 200
++    return jsonify(artifact), status_code
++
++
++@wake_industry_bp.post("/api/event-app-downloads/<artifact_id>/handoff")
++@csrf.exempt
++@_handoff_rate_limit
++def event_app_artifact_handoff(artifact_id):
++    try:
++        return jsonify(build_handoff(artifact_id))
++    except KeyError:
++        return jsonify(error="artifact_not_found", message="Формат не найден."), 404
++    except DownloadConfigurationError as exc:
++        return jsonify(error="artifact_unavailable", message=str(exc)), 503
++
++
+ # Опциональный импорт weasyprint
+ try:
+     from weasyprint import HTML
++
+     WEASYPRINT_AVAILABLE = True
+ except ImportError:
+     WEASYPRINT_AVAILABLE = False
+@@ -18,39 +99,46 @@ except ImportError:
+ def wake_industry_redirect():
+     """Legacy: редирект на канонический URL чеклиста."""
+     from flask import redirect
+-    return redirect('/projects/checklist-org', code=301)
++
++    return redirect("/projects/checklist-org", code=301)
+ 
+ 
+ @wake_industry_bp.get("/wake-industry/download")
+ def download_checklist_pdf():
+     """Генерация и скачивание PDF версии чеклиста."""
+     if not WEASYPRINT_AVAILABLE:
+-        return jsonify({
+-            "error": "PDF генерация недоступна. Установите weasyprint: pip install weasyprint"
+-        }), 500
+-    
++        return (
++            jsonify(
++                {
++                    "error": (
++                        "PDF генерация недоступна. Установите weasyprint: "
++                        "pip install weasyprint"
++                    )
++                }
++            ),
++            500,
++        )
++
+     try:
+         # Рендерим HTML для PDF
+         html_content = render_template("wake_industry/checklist_pdf.html")
+-        
++
+         # Генерируем PDF
+         pdf_file = BytesIO()
+         HTML(string=html_content).write_pdf(pdf_file)
+         pdf_file.seek(0)
+-        
++
+         # Возвращаем PDF как ответ
+         return Response(
+             pdf_file.getvalue(),
+-            mimetype='application/pdf',
++            mimetype="application/pdf",
+             headers={
+-                'Content-Disposition': 'attachment; filename=wake-industry-checklist.pdf'
+-            }
++                "Content-Disposition": "attachment; filename=wake-industry-checklist.pdf"
++            },
+         )
+     except Exception as e:
+         from app.modules.logger import get_logger
++
+         logger = get_logger(__name__)
+         logger.error(f"Ошибка генерации PDF: {e}", exc_info=True)
+-        return jsonify({
+-            "error": f"Ошибка генерации PDF: {str(e)}"
+-        }), 500
+-
++        return jsonify({"error": f"Ошибка генерации PDF: {str(e)}"}), 500
+diff --git a/app/services/event_app_downloads.py b/app/services/event_app_downloads.py
+new file mode 100644
+index 00000000..a036efce
+--- /dev/null
++++ b/app/services/event_app_downloads.py
+@@ -0,0 +1,208 @@
++"""Public manifest and safe handoff for MyWave Event app release artifacts."""
++
++from __future__ import annotations
++
++import ipaddress
++import os
++from copy import deepcopy
++from datetime import datetime, timezone
++from pathlib import Path, PurePosixPath
++from typing import Any
++from urllib.parse import urlsplit
++
++import yaml
++
++ARTIFACT_IDS = ("android", "ios", "source", "documentation")
++ARTIFACT_FALLBACKS = (
++    ("android", "Android", "Android", "APK / AAB"),
++    ("ios", "iOS / TestFlight", "iOS", "TestFlight"),
++    ("source", "Исходный код", "Разработка", "ZIP"),
++    ("documentation", "Документация", "Все платформы", "PDF / HTML / ZIP"),
++)
++DEFAULT_CONFIG_PATH = (
++    Path(__file__).resolve().parents[2] / "configs" / "event_app_downloads.yaml"
++)
++
++
++class DownloadConfigurationError(ValueError):
++    """The release artifact configuration is incomplete or unsafe."""
++
++
++def build_unavailable_manifest() -> dict[str, Any]:
++    """Keep the page usable when the YAML catalog itself cannot be read."""
++    artifacts = []
++    for artifact_id, label, platform, file_format in ARTIFACT_FALLBACKS:
++        artifacts.append(
++            {
++                "id": artifact_id,
++                "label": label,
++                "platform": platform,
++                "format": file_format,
++                "version": "Не опубликована",
++                "size": None,
++                "last_updated": "Не указана",
++                "action_label": "Скачать",
++                "requirements": [],
++                "state": "error",
++                "message": "Каталог временно недоступен.",
++            }
++        )
++    return {
++        "app": {
++            "id": "mywave-event-app",
++            "name": "MyWave Event app",
++            "short_description": "Мобильный помощник участника и организатора MyWave.",
++            "features": [],
++            "version": "Не опубликована",
++            "last_updated": "Не указана",
++            "platforms": [item[1] for item in ARTIFACT_FALLBACKS],
++            "readiness": "Каталог временно недоступен",
++            "available_count": 0,
++        },
++        "artifacts": artifacts,
++        "generated_at": datetime.now(timezone.utc).isoformat(),
++    }
++
++
++def _load_config(config_path: str | Path | None = None) -> dict[str, Any]:
++    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
++    try:
++        payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
++    except (OSError, yaml.YAMLError) as exc:
++        raise DownloadConfigurationError("Не удалось прочитать конфигурацию") from exc
++
++    if not isinstance(payload.get("app"), dict) or not isinstance(
++        payload.get("artifacts"), list
++    ):
++        raise DownloadConfigurationError("Некорректная структура конфигурации")
++    return payload
++
++
++def _artifact_map(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
++    result: dict[str, dict[str, Any]] = {}
++    for artifact in config.get("artifacts", []):
++        if not isinstance(artifact, dict):
++            continue
++        artifact_id = str(artifact.get("id") or "").strip()
++        if artifact_id in ARTIFACT_IDS and artifact_id not in result:
++            result[artifact_id] = artifact
++    return result
++
++
++def _target_for(artifact: dict[str, Any]) -> str:
++    env_name = str(artifact.get("target_env") or "").strip()
++    if not env_name:
++        return ""
++    return (os.getenv(env_name) or "").strip()
++
++
++def _validate_target(target: str) -> str:
++    """Allow HTTPS or explicit site-local release paths; reject SSRF-like targets."""
++    value = (target or "").strip()
++    if not value or "{{" in value or "}}" in value:
++        raise DownloadConfigurationError("Файл ещё не подключён")
++
++    if value.startswith("/"):
++        parsed_path = PurePosixPath(value.split("?", 1)[0].split("#", 1)[0])
++        if ".." in parsed_path.parts or not value.startswith(
++            ("/static/", "/downloads/")
++        ):
++            raise DownloadConfigurationError("Недопустимый локальный путь")
++        return value
++
++    parsed = urlsplit(value)
++    if (
++        parsed.scheme != "https"
++        or not parsed.hostname
++        or parsed.username
++        or parsed.password
++    ):
++        raise DownloadConfigurationError("Разрешены только публичные HTTPS-ссылки")
++    hostname = parsed.hostname.lower().rstrip(".")
++    if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(
++        ".local"
++    ):
++        raise DownloadConfigurationError("Локальный адрес запрещён")
++    try:
++        address = ipaddress.ip_address(hostname)
++    except ValueError:
++        address = None
++    if address and not address.is_global:
++        raise DownloadConfigurationError("Непубличный IP-адрес запрещён")
++    return value
++
++
++def _public_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
++    target = _target_for(artifact)
++    state = "unavailable"
++    message = "Файл временно недоступен: ссылка ещё не подключена."
++    if target:
++        try:
++            _validate_target(target)
++            state = "available"
++            message = "Файл доступен для скачивания."
++        except DownloadConfigurationError:
++            state = "error"
++            message = "Ошибка конфигурации файла. Повторите позже."
++
++    return {
++        "id": str(artifact.get("id") or ""),
++        "label": str(artifact.get("label") or ""),
++        "platform": str(artifact.get("platform") or ""),
++        "format": str(artifact.get("format") or ""),
++        "version": str(artifact.get("version") or "Не опубликована"),
++        "size": artifact.get("size") or None,
++        "last_updated": str(artifact.get("last_updated") or "Не указана"),
++        "action_label": str(artifact.get("action_label") or "Скачать"),
++        "requirements": [
++            str(item) for item in artifact.get("requirements", []) if str(item).strip()
++        ],
++        "state": state,
++        "message": message,
++    }
++
++
++def build_public_manifest(config_path: str | Path | None = None) -> dict[str, Any]:
++    """Return UI-safe metadata without release target URLs or environment names."""
++    config = _load_config(config_path)
++    app = deepcopy(config["app"])
++    artifacts = [_public_artifact(item) for item in _artifact_map(config).values()]
++    available_count = sum(item["state"] == "available" for item in artifacts)
++    app["readiness"] = (
++        "Файлы доступны"
++        if available_count
++        else "Интеграция готова — файлы ожидают подключения"
++    )
++    app["available_count"] = available_count
++    return {
++        "app": app,
++        "artifacts": artifacts,
++        "generated_at": datetime.now(timezone.utc).isoformat(),
++    }
++
++
++def get_artifact_status(
++    artifact_id: str, config_path: str | Path | None = None
++) -> dict[str, Any]:
++    config = _load_config(config_path)
++    artifact = _artifact_map(config).get(artifact_id)
++    if artifact is None:
++        raise KeyError(artifact_id)
++    return _public_artifact(artifact)
++
++
++def build_handoff(
++    artifact_id: str, config_path: str | Path | None = None
++) -> dict[str, Any]:
++    """Resolve a validated target only after an explicit user confirmation."""
++    config = _load_config(config_path)
++    artifact = _artifact_map(config).get(artifact_id)
++    if artifact is None:
++        raise KeyError(artifact_id)
++    target = _validate_target(_target_for(artifact))
++    return {
++        "artifact_id": artifact_id,
++        "location": target,
++        "open_in_new_tab": bool(artifact.get("open_in_new_tab")),
++        "message": "Скачивание успешно запущено.",
++    }
+diff --git a/configs/event_app_downloads.yaml b/configs/event_app_downloads.yaml
+new file mode 100644
+index 00000000..5407bf48
+--- /dev/null
++++ b/configs/event_app_downloads.yaml
+@@ -0,0 +1,83 @@
++app:
++  id: mywave-event-app
++  name: MyWave Event app
++  short_description: >-
++    Мобильный помощник участника и организатора соревнований MyWave:
++    программа события, документы, уведомления и материалы в одном месте.
++  features:
++    - Программа соревнований и оперативные обновления
++    - Профили участников, организаторов и судей
++    - Документы, регламенты и медиаматериалы
++    - Уведомления об изменениях и статусах
++    - Подготовка к офлайн-режиму и мобильным оболочкам
++  version: Не опубликована
++  last_updated: "2026-08-02"
++  platforms:
++    - Android
++    - iOS / TestFlight
++    - Исходный код
++    - Документация
++
++artifacts:
++  - id: android
++    label: Android
++    platform: Android
++    format: APK / AAB
++    target_env: MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL
++    placeholder: "{{android_download_url}}"
++    version: Не опубликована
++    size: null
++    last_updated: "2026-08-02"
++    action_label: Скачать Android-сборку
++    open_in_new_tab: false
++    requirements:
++      - Android 9 или новее
++      - Не менее 250 МБ свободного места
++      - Разрешение установки из доверенного источника для APK
++
++  - id: ios
++    label: iOS / TestFlight
++    platform: iOS
++    format: TestFlight
++    target_env: MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL
++    placeholder: "{{ios_testflight_url}}"
++    version: Не опубликована
++    size: null
++    last_updated: "2026-08-02"
++    action_label: Открыть TestFlight
++    open_in_new_tab: true
++    requirements:
++      - iOS 16 или новее
++      - Установленное приложение TestFlight
++      - Apple ID с доступом к тестированию
++
++  - id: source
++    label: Исходный код
++    platform: Разработка
++    format: ZIP
++    target_env: MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL
++    placeholder: "{{source_archive_url}}"
++    version: Не опубликована
++    size: null
++    last_updated: "2026-08-02"
++    action_label: Скачать исходный код
++    open_in_new_tab: false
++    requirements:
++      - Git 2.40 или новее
++      - Node.js и SDK согласно README архива
++      - Переменные окружения проекта
++
++  - id: documentation
++    label: Документация
++    platform: Все платформы
++    format: PDF / HTML / ZIP
++    target_env: MYWAVE_EVENT_APP_DOCUMENTATION_URL
++    placeholder: "{{documentation_url}}"
++    version: Не опубликована
++    size: null
++    last_updated: "2026-08-02"
++    action_label: Скачать документацию
++    open_in_new_tab: true
++    requirements:
++      - Современный браузер или PDF-просмотрщик
++      - Доступ к конфигурации окружения для запуска
+diff --git a/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_PRD.md b/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_PRD.md
+new file mode 100644
+index 00000000..145f3abe
+--- /dev/null
++++ b/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_PRD.md
+@@ -0,0 +1,113 @@
++# PRD: MyWave Event app Download Center
++
++Статус документа: канонический для реализации 1.0
++
++Дата: 2026-08-02
++
++Владелец продукта: MyWave
++
++Точка входа: `/projects/checklist-org#mywave-event-app`
++
++## 1. Проблема
++
++Организатору нужен один понятный и безопасный центр выдачи готового решения MyWave Event app. На момент подготовки документа фактические APK/AAB, TestFlight URL, архив мобильных исходников и пользовательская документация в репозитории отсутствуют. Интерфейс не должен выдавать фиктивные ссылки или создавать впечатление, что отсутствующий файл опубликован.
++
++## 2. Цель
++
++Добавить в «Проекты → Чек-лист организатора» карточку приложения, которая:
++
++- описывает продукт и его основные возможности;
++- показывает статус, версию, платформы, размер и дату обновления;
++- даёт выбрать Android, iOS/TestFlight, исходный код или документацию;
++- перед скачиванием показывает версию и системные требования;
++- безопасно выдаёт реальную ссылку только после подтверждения;
++- корректно сообщает о загрузке, доступности, временной недоступности, ошибке и успешном старте;
++- отправляет продуктовую аналитику.
++
++## 3. Пользователи
++
++- организатор соревнований;
++- представитель клуба или федерации;
++- технический администратор мероприятия;
++- разработчик или интегратор приложения.
++
++## 4. Пользовательский сценарий
++
++1. Пользователь открывает чек-лист организатора и видит карточку MyWave Event app.
++2. Выбирает платформу или формат.
++3. Интерфейс проверяет доступность выбранного артефакта.
++4. Для доступного файла пользователь нажимает кнопку скачивания.
++5. Модальное окно показывает версию, формат, размер и требования.
++6. После подтверждения сервер валидирует целевой URL и возвращает handoff.
++7. Браузер начинает скачивание либо открывает TestFlight/документацию.
++8. При ошибке пользователь получает понятное уведомление и повторную попытку.
++
++## 5. Функциональные требования
++
++### Карточка
++
++- Название: MyWave Event app.
++- Краткое описание и перечень возможностей.
++- Общий статус готовности.
++- Версия и дата обновления без выдуманных значений.
++- Поддерживаемые платформы и форматы.
++- Размер — «Уточняется», пока он не передан.
++
++### Артефакты
++
++| ID | Канал | Источник URL |
++|---|---|---|
++| `android` | APK/AAB | `MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL` |
++| `ios` | TestFlight | `MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL` |
++| `source` | ZIP исходников | `MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL` |
++| `documentation` | PDF/HTML/ZIP | `MYWAVE_EVENT_APP_DOCUMENTATION_URL` |
++
++Пустой URL или литерал вида `{{...}}` означает `unavailable`. Некорректный или небезопасный URL означает `error`. Реальный HTTPS URL или разрешённый локальный путь `/static/`/`/downloads/` означает `available`.
++
++### Состояния
++
++- `loading`: идёт загрузка манифеста или проверка статуса;
++- `available`: конфигурация артефакта валидна;
++- `unavailable`: файл не подключён;
++- `error`: каталог, статус или handoff завершились ошибкой;
++- `success`: сервер подтвердил успешный старт выдачи.
++
++### Аналитика
++
++- `mywave_event_app_card_viewed`;
++- `mywave_event_app_platform_selected`;
++- `mywave_event_app_download_clicked`;
++- `mywave_event_app_download_succeeded`;
++- `mywave_event_app_download_failed`.
++
++Событие `download_succeeded` означает успешный handoff и начало скачивания/перехода. Браузер не предоставляет надёжного способа подтвердить полную загрузку стороннего файла.
++
++## 6. Нефункциональные требования
++
++- Адаптивность от 320 px до desktop.
++- Управление вкладками стрелками, Home/End, Tab/Shift+Tab.
++- Фокус-трап и Escape в модальном окне.
++- Семантические `tablist`, `tab`, `tabpanel`, `dialog`, `status`, `aria-live`.
++- Контрастный текст и заметный `focus-visible`.
++- URL артефактов отсутствуют в HTML, манифесте и статусном API.
++- Handoff ограничен по частоте и принимает только публичный HTTPS либо контролируемый локальный путь.
++- Отсутствующая конфигурация закрывает выдачу по fail-closed модели.
++
++## 7. Вне объёма версии 1.0
++
++- создание мобильного приложения без переданных исходников;
++- подпись APK/AAB/IPA и публикация в магазинах;
++- создание TestFlight-группы;
++- хранение бинарных файлов внутри Git;
++- подтверждение завершения загрузки стороннего файла.
++
++## 8. Критерии приёмки
++
++- Карточка видима в нужном разделе и сохраняет стиль MyWave.
++- Все четыре варианта переключаются мышью и клавиатурой.
++- Не подключённый файл отображается как временно недоступный.
++- Реальный URL, заданный в окружении, становится доступным без попадания в публичный manifest/status.
++- Перед handoff показываются версия и требования.
++- Ошибка даёт уведомление и повторную попытку.
++- Все пять событий аналитики присутствуют в клиентском коде.
++- Unit/API тесты, lint-проверки и production smoke-test проходят.
+diff --git a/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_TECHNICAL_DESIGN.md b/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_TECHNICAL_DESIGN.md
+new file mode 100644
+index 00000000..739b7424
+--- /dev/null
++++ b/docs/products/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_TECHNICAL_DESIGN.md
+@@ -0,0 +1,64 @@
++# Technical Design: MyWave Event app Download Center
++
++## Архитектура
++
++Решение расширяет существующий Flask-монолит и шаблон чек-листа. Отдельное приложение, новый router или параллельная дизайн-система не создаются.
++
++```text
++configs/event_app_downloads.yaml
++        │ metadata + env names
++        ▼
++app/services/event_app_downloads.py
++        │ safe public model / validated handoff
++        ├── GET /api/event-app-downloads/manifest
++        ├── GET /api/event-app-downloads/<id>/status
++        └── POST /api/event-app-downloads/<id>/handoff
++                         │
++                         ▼
++template partial + event_app_downloads.js
++```
++
++## Компоненты
++
++### Конфигурация
++
++`configs/event_app_downloads.yaml` содержит только отображаемые метаданные и имена переменных окружения. Секреты и реальные release URL в Git не сохраняются.
++
++### Сервис
++
++`app/services/event_app_downloads.py`:
++
++- читает YAML;
++- формирует публичный manifest без URL и имён env;
++- вычисляет `available`, `unavailable`, `error`;
++- разрешает только HTTPS, `/static/` и `/downloads/`;
++- блокирует credentials в URL, localhost, `.local`, непубличные literal IP и path traversal;
++- возвращает target только в handoff после явного подтверждения.
++
++### API
++
++- Manifest отдаёт метаданные всех вариантов.
++- Status повторно проверяет конкретный вариант.
++- Handoff повторно валидирует target, имеет rate limit `20 per minute`, `no-store`, `nosniff` и `same-origin` referrer policy.
++- Handoff освобождён от CSRF, поскольку не изменяет состояние и дополнительно ограничен по частоте. Он не выполняет серверный запрос к целевому URL.
++
++### Клиент
++
++`static/js/event_app_downloads.js` не зависит от фреймворка. Он управляет вкладками, состояниями, подтверждением, live-region, аналитикой и выдачей ссылки. Серверный partial остаётся содержательным до выполнения JavaScript.
++
++### Стили
++
++`static/css/event_app_downloads.css` использует текущие `--mw-*` токены и изолированный BEM namespace. Breakpoints: 860 px и 560 px.
++
++## Модель безопасности
++
++1. URL хранится только в окружении сервера.
++2. Public manifest/status не содержат target.
++3. Handoff возвращает target только после пользовательского действия.
++4. Сервер не делает HEAD/GET к target, что исключает SSRF и зависимость страницы от внешнего хранилища.
++5. Клиент не исполняет HTML из API; все значения вставляются через `textContent`.
++6. При любой неполной или подозрительной конфигурации выдача закрывается.
++
++## Известная граница
++
++Состояние `available` подтверждает корректно настроенный target, но не существование удалённого объекта в конкретную секунду. Проверка фактической доступности должна выполняться CI/CD или мониторингом хранилища. Полное завершение браузерной загрузки для cross-origin URL не наблюдаемо; аналитика фиксирует успешный handoff.
+diff --git a/docs/releases/MYWAVE_EVENT_APP_READY_FILES_MANIFEST.md b/docs/releases/MYWAVE_EVENT_APP_READY_FILES_MANIFEST.md
+new file mode 100644
+index 00000000..f0b18424
+--- /dev/null
++++ b/docs/releases/MYWAVE_EVENT_APP_READY_FILES_MANIFEST.md
+@@ -0,0 +1,27 @@
++# Манифест готовых и ожидаемых файлов MyWave Event app
++
++Дата упаковки: 2026-08-02
++
++## Входит в готовый релизный комплект
++
++- серверный Download Center для существующего Flask-сайта;
++- адаптивный и доступный UI;
++- безопасная конфигурация четырёх каналов выдачи;
++- API manifest/status/handoff;
++- клиентская аналитика и обработка состояний;
++- автоматические тесты;
++- PRD, Technical Design, Runbook и Implementation Report;
++- patch относительно актуального `origin/main`;
++- контрольные суммы файлов комплекта;
++- локальные скриншоты desktop/mobile после тестового запуска.
++
++## Не входит: исходные данные не предоставлены
++
++| Ожидаемый файл | Статус | Что требуется |
++|---|---|---|
++| Android APK/AAB | Не предоставлен | Подписанная сборка, версия, SHA-256, min Android, размер |
++| iOS/TestFlight | Не предоставлен | Реальный invite URL, версия/build, min iOS, доступ группы |
++| ZIP мобильных исходников | Не предоставлен | Очищенный архив и README сборки |
++| Документация приложения | Не предоставлена | Инструкция пользователя и инструкция разработчика |
++
++Комплект намеренно не содержит фиктивных бинарников, пустых APK/IPA или тестовых внешних ссылок.
+diff --git a/docs/releases/MYWAVE_EVENT_APP_RELEASE_MANIFEST.json b/docs/releases/MYWAVE_EVENT_APP_RELEASE_MANIFEST.json
+new file mode 100644
+index 00000000..f6a5d3d9
+--- /dev/null
++++ b/docs/releases/MYWAVE_EVENT_APP_RELEASE_MANIFEST.json
+@@ -0,0 +1,34 @@
++{
++  "release_id": "mywave-event-app-download-center-2026-08-02",
++  "release_pack_version": "1.0.0",
++  "base_commit": "a08a468b58b29db7aebde916d13620a6b753cbc9",
++  "branch": "agent/mywave-event-app-release-pack",
++  "deployment_ready": true,
++  "mobile_binary_included": false,
++  "mobile_source_included": false,
++  "download_center": {
++    "route": "/projects/checklist-org#mywave-event-app",
++    "artifacts": ["android", "ios", "source", "documentation"],
++    "states": ["loading", "available", "unavailable", "error", "success"],
++    "analytics_events": [
++      "mywave_event_app_card_viewed",
++      "mywave_event_app_platform_selected",
++      "mywave_event_app_download_clicked",
++      "mywave_event_app_download_succeeded",
++      "mywave_event_app_download_failed"
++    ]
++  },
++  "external_artifacts": {
++    "android": "not_provided",
++    "ios_testflight": "not_provided",
++    "mobile_source": "not_provided",
++    "application_documentation": "not_provided"
++  },
++  "validation": {
++    "feature_and_related_tests": "35 passed, 1 skipped",
++    "format_lint_compile": "passed",
++    "gunicorn_http_smoke": "passed",
++    "full_repository_collection": "blocked by 7 pre-existing errors",
++    "browser_visual_test": "blocked by unavailable Chromium on runner"
++  }
++}
+diff --git a/docs/releases/MYWAVE_EVENT_APP_RELEASE_PACK_README_RU.md b/docs/releases/MYWAVE_EVENT_APP_RELEASE_PACK_README_RU.md
+new file mode 100644
+index 00000000..c1691263
+--- /dev/null
++++ b/docs/releases/MYWAVE_EVENT_APP_RELEASE_PACK_README_RU.md
+@@ -0,0 +1,47 @@
++# MyWave Event app — готовый релизный комплект Download Center
++
++Этот комплект предназначен для локальной проверки и последующего внедрения блока скачивания в существующий сайт MyWave. Он подготовлен относительно актуального `origin/main` на дату 2026-08-02.
++
++## Что можно запустить сразу
++
++- карточку приложения в `/projects/checklist-org#mywave-event-app`;
++- четыре канала: Android, iOS/TestFlight, исходный код, документация;
++- API manifest/status/handoff;
++- все состояния интерфейса и повторную попытку;
++- аналитику и доступную клавиатурную навигацию;
++- тесты без реальных release URL.
++
++## Что нельзя считать мобильной сборкой
++
++ZIP релизного комплекта — это готовая интеграция выдачи файлов для сайта, а не APK/IPA. Реальные мобильные исходники и подписанные сборки не были предоставлены. Их нельзя корректно восстановить по продуктовым документам, поэтому фиктивные бинарники не создавались.
++
++## Структура ZIP
++
++- `README_RU.md` — этот документ;
++- `source-files/` — полный код изменённых и новых файлов с путями репозитория;
++- `patch/mywave-event-app-download-center.patch` — единый patch;
++- `docs/` — PRD, Technical Design, Runbook, Implementation Report и манифест артефактов;
++- `test-results/VALIDATION_REPORT.md` — результаты локальных проверок;
++- `release/RELEASE_MANIFEST.json` — машинный манифест;
++- `CHECKSUMS.sha256` — контрольные суммы содержимого.
++
++## Применение patch
++
++```bash
++cd /path/to/TGK_MyWave_Site
++git fetch origin
++git switch -c feature/mywave-event-app-download-center origin/main
++git apply --check /path/to/mywave-event-app-download-center.patch
++git apply /path/to/mywave-event-app-download-center.patch
++```
++
++Затем выполните локальную проверку из runbook. На сервер изменения не отправляются автоматически.
++
++## Подключение реальных файлов
++
++1. Разместите проверенные артефакты на HTTPS CDN/S3 либо в контролируемом локальном `/downloads/`.
++2. Обновите version, size, last_updated и requirements в `configs/event_app_downloads.yaml`.
++3. Заполните четыре `MYWAVE_EVENT_APP_*_URL` в server `.env`.
++4. Перезапустите приложение и выполните HTTP/manual smoke-test.
++
++Точные переменные и команды приведены в `docs/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_RUNBOOK.md`.
+diff --git a/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_IMPLEMENTATION_REPORT.md b/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_IMPLEMENTATION_REPORT.md
+new file mode 100644
+index 00000000..ed27d796
+--- /dev/null
++++ b/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_IMPLEMENTATION_REPORT.md
+@@ -0,0 +1,57 @@
++# Implementation Report: MyWave Event app Download Center
++
++Дата: 2026-08-02
++
++Ветка: `agent/mywave-event-app-release-pack`
++
++## Реализовано
++
++- Добавлен блок MyWave Event app в каноническую страницу чек-листа организатора.
++- Добавлены метаданные продукта, возможности, статус, версия, платформы и дата обновления.
++- Реализован выбор Android, iOS/TestFlight, исходников и документации.
++- Добавлено подтверждение с требованиями до скачивания.
++- Реализованы loading, available, unavailable, error и success.
++- Добавлены retry, live-region и понятные сообщения.
++- Добавлены keyboard tabs, focus trap, Escape и ARIA-связи.
++- Реальные URL вынесены в env и не попадают в HTML/manifest/status.
++- Добавлен серверный validated handoff и rate limit.
++- Добавлены пять продуктовых событий аналитики.
++- Добавлены unit/API/security/template tests.
++
++## Фактическая готовность мобильных файлов
++
++В исходном репозитории и предоставленных данных не найдено подтверждённых APK/AAB/IPA, TestFlight invite, мобильного исходного проекта или финальной документации. Поэтому значения версии и размера не выдуманы, а все каналы по умолчанию безопасно закрыты до подключения реальных файлов.
++
++Релизный ZIP содержит готовую интеграцию выдачи, конфигурацию, документацию, патч и результаты локальных проверок. Он не является APK/IPA и не обозначается как мобильная сборка.
++
++## Оставшиеся действия владельца релиза
++
++1. Передать подписанные и проверенные мобильные артефакты.
++2. Передать TestFlight URL и подтвердить состав группы тестирования.
++3. Утвердить номер версии, build number, размер и минимальные OS.
++4. Разместить файлы в production-хранилище.
++5. Заполнить четыре env URL и обновить YAML metadata.
++6. Выполнить ручной smoke-test на реальных устройствах.
++
++## Проверки
++
++- Black/isort/flake8: passed.
++- Python compileall, Node syntax, YAML/Jinja/CSS smoke, pip check: passed.
++- Gunicorn config и реальный HTTP smoke-test: passed.
++- Feature + related regression: 35 passed, 1 skipped.
++- Полная collection: остановлена 7 существующими ошибками репозитория; подробности в Validation Report.
++- Docker build/typecheck: соответствующие исполняемый Docker и script typecheck на стенде отсутствуют.
++- Browser screenshot/axe: Chromium недоступен, загрузка браузера заблокирована сетью стенда; требуется ручная проверка.
++
++## Изменённые и созданные файлы
++
++- `.env.example`, `.env.sample`;
++- `app/routes/wake_industry.py`;
++- `app/services/event_app_downloads.py`;
++- `configs/event_app_downloads.yaml`;
++- `templates/wake_industry/checklist.html`;
++- `templates/wake_industry/partials/_event_app_download_center.html`;
++- `static/css/event_app_downloads.css`;
++- `static/js/event_app_downloads.js`;
++- `tests/test_event_app_downloads.py`;
++- канонические документы в `docs/products`, `docs/runbooks`, `docs/reports`, `docs/releases`.
+diff --git a/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_VALIDATION_REPORT.md b/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_VALIDATION_REPORT.md
+new file mode 100644
+index 00000000..bc2c14dc
+--- /dev/null
++++ b/docs/reports/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_VALIDATION_REPORT.md
+@@ -0,0 +1,79 @@
++# Validation Report: MyWave Event app Download Center
++
++Дата проверки: 2026-08-02
++
++База: `a08a468b58b29db7aebde916d13620a6b753cbc9`
++
++Ветка: `agent/mywave-event-app-release-pack`
++
++## Автоматические проверки
++
++| Проверка | Результат |
++|---|---|
++| Black для изменённых Python-файлов | PASS |
++| isort `--profile black` | PASS |
++| flake8 `--max-line-length=100` | PASS |
++| Python `compileall app` | PASS |
++| Node `--check` для Download Center JS | PASS |
++| YAML parse | PASS |
++| Jinja parse/render | PASS |
++| CSS balance/syntax smoke | PASS |
++| `pip check` | PASS, broken requirements: 0 |
++| Gunicorn `--check-config main:app` | PASS |
++| Feature + related regression tests | 35 passed, 1 skipped |
++
++Тестовый набор:
++
++```text
++tests/test_event_app_downloads.py
++tests/integration/test_projects_display.py
++tests/integration/test_analytics_api.py
++tests/unit/test_booking_phase1.py
++```
++
++## HTTP smoke-test
++
++Gunicorn: 1 eventlet worker, `127.0.0.1:5055`, testing config.
++
++- `GET /projects/checklist-org` → 200, 142124 bytes;
++- HTML содержит `#mywave-event-app`, `role=tablist`, readiness и JS bundle;
++- manifest содержит 4 формата и не содержит `location`;
++- тестовая документация `/static/css/branding.css` → `available`;
++- handoff документации возвращает только ожидаемый локальный target;
++- Android без target → 503 `artifact_unavailable`.
++
++## Полная коллекция репозитория
++
++`pytest --collect-only -q` обнаруживает 7 существующих ошибок, не относящихся к этому изменению:
++
++1. одинаковое имя `test_booking_flow.py` в e2e/integration/ui вызывает import mismatch;
++2. синтаксическая ошибка в `tests/playwright_booking_test.py:95`;
++3. `test_ai_concierge_endpoint.py` вызывает `create_default_gateway()` без обязательного `app`;
++4. три AI-теста импортируют отсутствующие `CoreAIGateway`/`ToolDefinition`.
++
++Эти файлы не изменялись. Целевая и связанная выборка проходит полностью, кроме одного штатного skip аналитики.
++
++## Ограничения стенда
++
++- В `package.json` отсутствуют scripts `build` и `typecheck`; выполнить их невозможно.
++- Docker CLI на стенде отсутствует; вместо Docker build выполнены compile, Gunicorn config и реальный HTTP smoke-test.
++- Chromium не установлен. Попытка установить Playwright browser остановлена сетевым шлюзом, поэтому новый browser screenshot/axe-run для этой пересборки не создан.
++- Responsive и accessibility покрыты структурой HTML/CSS, keyboard-кодом и статическими/route-тестами; окончательная ручная проверка на реальных устройствах остаётся обязательной.
++
++## Чек-лист ручной проверки
++
++- [ ] Desktop: 1440×900, карточка без горизонтального overflow.
++- [ ] Tablet: 768×1024, две колонки выбора складываются корректно.
++- [ ] Mobile: 390×844 и 320×568, все кнопки доступны и не обрезаны.
++- [ ] Tab проходит по четырём форматам и кнопкам.
++- [ ] Стрелки/Home/End переключают вкладки с корректным `aria-selected`.
++- [ ] Модальное окно удерживает фокус, Escape закрывает его и возвращает фокус.
++- [ ] Screen reader объявляет loading/unavailable/error/success.
++- [ ] Без env URL все варианты временно недоступны, страница не ломается.
++- [ ] С каждым реальным URL status становится available.
++- [ ] Перед handoff показаны правильные version, format, size и requirements.
++- [ ] Android начинает загрузку реального APK; AAB не обозначен как устанавливаемый APK.
++- [ ] TestFlight открывает правильную invite-страницу.
++- [ ] Source/docs скачиваются и совпадают с опубликованным SHA-256.
++- [ ] При удалённом/просроченном URL видна ошибка и работает повторная попытка.
++- [ ] В аналитике появляются все пять `mywave_event_app_*` событий.
+diff --git a/docs/runbooks/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_RUNBOOK.md b/docs/runbooks/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_RUNBOOK.md
+new file mode 100644
+index 00000000..8655c90a
+--- /dev/null
++++ b/docs/runbooks/MYWAVE_EVENT_APP_DOWNLOAD_CENTER_RUNBOOK.md
+@@ -0,0 +1,64 @@
++# Runbook: подключение файлов MyWave Event app
++
++## 1. Подготовить артефакты
++
++Перед публикацией владелец сборки передаёт:
++
++- подписанный Android APK или ссылку Google Play; AAB допустим для дистрибуции разработчикам, но не устанавливается напрямую;
++- публичную/групповую TestFlight invite URL и подтверждённую совместимость iOS;
++- очищенный ZIP исходников без `.env`, ключей подписи, provisioning profiles и credentials;
++- пользовательскую и техническую документацию.
++
++Для каждого файла зафиксировать: version, build number, SHA-256, byte size, дату сборки, минимальную OS и срок действия ссылки.
++
++## 2. Разместить файлы
++
++Предпочтительный вариант — S3/CDN с HTTPS, версионированными неизменяемыми именами и корректным `Content-Disposition`.
++
++Допустимый локальный вариант — файл внутри `/static/` или отдельного Nginx location `/downloads/`. Не хранить мобильные бинарники в Git.
++
++## 3. Обновить метаданные
++
++В `configs/event_app_downloads.yaml` заменить значения `version`, `size`, `last_updated` и `requirements` для опубликованных артефактов. Непроверенные значения не заполнять.
++
++## 4. Настроить окружение
++
++В production `.env`:
++
++```dotenv
++MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL=https://cdn.example/releases/mywave-event-1.0.0.apk
++MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL=https://testflight.apple.com/join/REAL_CODE
++MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL=https://cdn.example/releases/mywave-event-source-1.0.0.zip
++MYWAVE_EVENT_APP_DOCUMENTATION_URL=https://cdn.example/docs/mywave-event-1.0.0.pdf
++```
++
++Не оставлять литералы `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}`, `{{documentation_url}}`: они специально распознаются как отсутствующая конфигурация.
++
++## 5. Локальная проверка
++
++```bash
++cd /path/to/TGK_MyWave_Site
++python3 -m venv .venv
++source .venv/bin/activate
++pip install -r requirements.txt
++export ENABLE_GOOGLE_SERVICES=0
++export DISABLE_TELEGRAM=1
++pytest -q tests/test_event_app_downloads.py
++python main.py
++```
++
++Открыть `http://127.0.0.1:5000/projects/checklist-org#mywave-event-app`.
++
++## 6. Проверка production-конфигурации до релиза
++
++```bash
++curl -fsS http://127.0.0.1:5000/api/event-app-downloads/manifest | python3 -m json.tool
++curl -fsS http://127.0.0.1:5000/api/event-app-downloads/android/status | python3 -m json.tool
++curl -fsS -X POST http://127.0.0.1:5000/api/event-app-downloads/android/handoff | python3 -m json.tool
++```
++
++Проверить, что manifest и status не содержат URL, а handoff содержит ожидаемый URL только для выбранного артефакта.
++
++## 7. Откат
++
++Самый быстрый безопасный откат артефакта — очистить соответствующую переменную окружения и перезапустить приложение. UI перейдёт в «Файл временно недоступен», не ломая страницу чек-листа.
+diff --git a/docs/runbooks/MYWAVE_EVENT_APP_SERVER_COMMANDS.md b/docs/runbooks/MYWAVE_EVENT_APP_SERVER_COMMANDS.md
+new file mode 100644
+index 00000000..13759997
+--- /dev/null
++++ b/docs/runbooks/MYWAVE_EVENT_APP_SERVER_COMMANDS.md
+@@ -0,0 +1,109 @@
++# Точные команды для последующей установки на сервер
++
++Команды рассчитаны на структуру проекта из production-шаблона: `/var/www/mywave`, systemd unit `mywave-site`, Nginx перед Gunicorn. Не запускать до локальной приёмки и подключения реальных URL.
++
++## 1. Передать архив на сервер
++
++С рабочей машины:
++
++```bash
++scp MyWave_Event_App_Download_Center_Release_Pack_2026-08-02.zip root@SERVER_IP:/tmp/
++```
++
++## 2. Распаковать и проверить patch
++
++На сервере:
++
++```bash
++set -euo pipefail
++APP_DIR=/var/www/mywave
++PACK_ZIP=/tmp/MyWave_Event_App_Download_Center_Release_Pack_2026-08-02.zip
++PACK_DIR=/tmp/mywave-event-app-release-2026-08-02
++SERVICE_NAME=mywave-site
++
++test -d "$APP_DIR/.git"
++test -f "$PACK_ZIP"
++mkdir -p "$PACK_DIR"
++unzip -q "$PACK_ZIP" -d "$PACK_DIR"
++cd "$PACK_DIR/MyWave_Event_App_Download_Center_Release_Pack_2026-08-02"
++sha256sum -c CHECKSUMS.sha256
++
++cd "$APP_DIR"
++git status --short
++git fetch origin main
++git switch -c feature/mywave-event-app-download-center origin/main
++git apply --check "$PACK_DIR/MyWave_Event_App_Download_Center_Release_Pack_2026-08-02/patch/mywave-event-app-download-center.patch"
++```
++
++Если `git status --short` показывает чужие изменения в затрагиваемых файлах, остановитесь и сначала сохраните/согласуйте их.
++
++## 3. Применить и протестировать без публикации
++
++```bash
++set -euo pipefail
++APP_DIR=/var/www/mywave
++PACK_DIR=/tmp/mywave-event-app-release-2026-08-02/MyWave_Event_App_Download_Center_Release_Pack_2026-08-02
++
++cd "$APP_DIR"
++git apply "$PACK_DIR/patch/mywave-event-app-download-center.patch"
++source .venv/bin/activate
++python -m pip install -r requirements.txt
++export SECRET_KEY=test-secret-key-for-predeploy-only
++export FLASK_CONFIG=testing
++export ENABLE_GOOGLE_SERVICES=0
++export DISABLE_TELEGRAM=1
++pytest -q tests/test_event_app_downloads.py
++python -m compileall -q app
++gunicorn --check-config main:app
++unset SECRET_KEY FLASK_CONFIG ENABLE_GOOGLE_SERVICES DISABLE_TELEGRAM
++```
++
++## 4. Подключить реальные release URL
++
++Отредактировать `/var/www/mywave/.env` и заменить значения на фактические HTTPS URL:
++
++```dotenv
++MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL={{android_download_url}}
++MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL={{ios_testflight_url}}
++MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL={{source_archive_url}}
++MYWAVE_EVENT_APP_DOCUMENTATION_URL={{documentation_url}}
++```
++
++Литералы `{{...}}` оставляют файл недоступным и безопасны до получения реальных ссылок.
++
++## 5. Перезапустить и проверить
++
++```bash
++set -euo pipefail
++sudo systemctl restart mywave-site
++sudo systemctl is-active --quiet mywave-site
++curl -fsS http://127.0.0.1:5000/health
++curl -fsS http://127.0.0.1:5000/api/event-app-downloads/manifest | python3 -m json.tool
++curl -fsS http://127.0.0.1:5000/api/event-app-downloads/android/status | python3 -m json.tool
++curl -fsS https://mywavewake.ru/projects/checklist-org >/dev/null
++sudo journalctl -u mywave-site -n 100 --no-pager
++```
++
++## 6. Зафиксировать после приёмки
++
++```bash
++cd /var/www/mywave
++git add .env.example .env.sample app/routes/wake_industry.py app/services/event_app_downloads.py configs/event_app_downloads.yaml docs static/css/event_app_downloads.css static/js/event_app_downloads.js templates/wake_industry tests/test_event_app_downloads.py
++git commit -m "feat(projects): add MyWave Event app download center"
++```
++
++`.env` не добавлять в Git.
++
++## 7. Безопасный откат patch до commit
++
++```bash
++set -euo pipefail
++APP_DIR=/var/www/mywave
++PACK_DIR=/tmp/mywave-event-app-release-2026-08-02/MyWave_Event_App_Download_Center_Release_Pack_2026-08-02
++
++cd "$APP_DIR"
++git apply -R --check "$PACK_DIR/patch/mywave-event-app-download-center.patch"
++git apply -R "$PACK_DIR/patch/mywave-event-app-download-center.patch"
++sudo systemctl restart mywave-site
++sudo systemctl is-active --quiet mywave-site
++```
+diff --git a/static/css/event_app_downloads.css b/static/css/event_app_downloads.css
+new file mode 100644
+index 00000000..d3ba256a
+--- /dev/null
++++ b/static/css/event_app_downloads.css
+@@ -0,0 +1,423 @@
++.event-app-download {
++  --event-app-accent: var(--mw-brand, #1596a6);
++  --event-app-accent-dark: #0a6571;
++  --event-app-ink: var(--mw-text, #17222a);
++  --event-app-muted: var(--mw-muted, #56606b);
++}
++
++.event-app-download__card {
++  position: relative;
++  overflow: hidden;
++  border: 1px solid rgba(43, 151, 163, 0.24);
++  border-radius: clamp(18px, 3vw, 28px);
++  background: #fff;
++  box-shadow: 0 20px 55px rgba(20, 53, 61, 0.12);
++}
++
++.event-app-download__hero {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 1.5rem;
++  padding: clamp(1.25rem, 3vw, 2rem);
++  color: #fff;
++  background:
++    radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.2), transparent 32%),
++    linear-gradient(135deg, #093e49 0%, #117b88 58%, #25b6c2 100%);
++}
++
++.event-app-download__eyebrow {
++  display: inline-block;
++  margin-bottom: 0.65rem;
++  font-size: 0.78rem;
++  font-weight: 800;
++  letter-spacing: 0.09em;
++  text-transform: uppercase;
++}
++
++.event-app-download__title-row {
++  display: flex;
++  align-items: center;
++  gap: 1rem;
++}
++
++.event-app-download__mark {
++  display: grid;
++  flex: 0 0 58px;
++  width: 58px;
++  height: 58px;
++  place-items: center;
++  border: 1px solid rgba(255, 255, 255, 0.42);
++  border-radius: 17px;
++  background: rgba(255, 255, 255, 0.15);
++  font-weight: 900;
++  letter-spacing: -0.05em;
++  backdrop-filter: blur(8px);
++}
++
++.mw-section .event-app-download__hero h2 {
++  margin: 0 0 0.35rem !important;
++  color: #fff;
++  font-size: clamp(1.5rem, 3vw, 2.25rem);
++}
++
++.event-app-download__hero p {
++  max-width: 62ch;
++  margin: 0;
++  color: rgba(255, 255, 255, 0.9);
++  line-height: 1.55;
++}
++
++.event-app-download__readiness {
++  display: inline-flex;
++  align-items: center;
++  flex: 0 0 auto;
++  gap: 0.5rem;
++  max-width: 260px;
++  padding: 0.65rem 0.85rem;
++  border: 1px solid rgba(255, 255, 255, 0.36);
++  border-radius: 999px;
++  background: rgba(0, 29, 34, 0.28);
++  font-size: 0.82rem;
++  font-weight: 750;
++  line-height: 1.3;
++}
++
++.event-app-download__status-dot {
++  width: 9px;
++  height: 9px;
++  border-radius: 50%;
++  background: #ffe28a;
++  box-shadow: 0 0 0 4px rgba(255, 226, 138, 0.16);
++}
++
++.event-app-download__overview {
++  display: grid;
++  grid-template-columns: minmax(0, 1.25fr) minmax(270px, 0.75fr);
++  gap: clamp(1.25rem, 3vw, 2.5rem);
++  padding: clamp(1.25rem, 3vw, 2rem);
++  border-bottom: 1px solid rgba(43, 76, 83, 0.12);
++}
++
++.event-app-download__overview h3,
++.event-app-download__chooser h3 {
++  color: var(--event-app-ink);
++  font-size: 1.05rem;
++}
++
++.event-app-download__features {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 0.65rem 1rem;
++  margin: 0.8rem 0 0;
++  padding: 0;
++  list-style: none;
++}
++
++.event-app-download__features li {
++  position: relative;
++  padding-left: 1.4rem;
++  color: var(--event-app-muted);
++  line-height: 1.45;
++}
++
++.event-app-download__features li::before {
++  content: "✓";
++  position: absolute;
++  left: 0;
++  color: var(--event-app-accent-dark);
++  font-weight: 900;
++}
++
++.event-app-download__meta,
++.event-app-download__artifact-meta,
++.event-app-download__confirm-meta {
++  display: grid;
++  gap: 0.65rem;
++  margin: 0;
++}
++
++.event-app-download__meta div,
++.event-app-download__artifact-meta div,
++.event-app-download__confirm-meta div {
++  display: flex;
++  justify-content: space-between;
++  gap: 1rem;
++}
++
++.event-app-download dt {
++  color: var(--event-app-muted);
++  font-size: 0.84rem;
++}
++
++.event-app-download dd {
++  margin: 0;
++  color: var(--event-app-ink);
++  font-weight: 700;
++  text-align: right;
++}
++
++.event-app-download__chooser {
++  padding: 1.25rem clamp(1.25rem, 3vw, 2rem) 0;
++}
++
++.event-app-download__tabs {
++  display: grid;
++  grid-template-columns: repeat(4, minmax(0, 1fr));
++  gap: 0.65rem;
++  margin-top: 0.75rem;
++}
++
++.event-app-download__tab {
++  min-height: 64px;
++  padding: 0.7rem 0.85rem;
++  border: 1px solid rgba(83, 108, 115, 0.24);
++  border-radius: 13px;
++  color: var(--event-app-ink);
++  background: #fff;
++  cursor: pointer;
++  text-align: left;
++  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
++}
++
++.event-app-download__tab span,
++.event-app-download__tab small {
++  display: block;
++}
++
++.event-app-download__tab span {
++  font-weight: 800;
++}
++
++.event-app-download__tab small {
++  margin-top: 0.2rem;
++  color: var(--event-app-muted);
++}
++
++.event-app-download__tab:hover,
++.event-app-download__tab.is-active {
++  border-color: var(--event-app-accent);
++  background: rgba(37, 182, 194, 0.07);
++  box-shadow: 0 0 0 2px rgba(37, 182, 194, 0.12);
++}
++
++.event-app-download__tab:focus-visible,
++.event-app-download button:focus-visible {
++  outline: 3px solid #0b7480;
++  outline-offset: 3px;
++}
++
++.event-app-download__panel {
++  margin: 1rem clamp(1.25rem, 3vw, 2rem);
++  padding: clamp(1rem, 2.5vw, 1.5rem);
++  border: 1px solid rgba(43, 151, 163, 0.2);
++  border-radius: 17px;
++  background: #f6fafb;
++}
++
++.event-app-download__artifact-heading {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 1rem;
++}
++
++.event-app-download__format {
++  color: var(--event-app-accent-dark);
++  font-size: 0.78rem;
++  font-weight: 850;
++  letter-spacing: 0.07em;
++  text-transform: uppercase;
++}
++
++.mw-section .event-app-download__artifact-heading h3 {
++  margin: 0.15rem 0 0 !important;
++  color: var(--event-app-ink);
++  font-size: 1.3rem;
++}
++
++.event-app-download__file-state {
++  display: inline-flex;
++  align-items: center;
++  gap: 0.45rem;
++  padding: 0.45rem 0.65rem;
++  border-radius: 999px;
++  color: #53430b;
++  background: #fff1bd;
++  font-size: 0.82rem;
++  font-weight: 750;
++}
++
++.event-app-download__file-state.is-available,
++.event-app-download__file-state.is-success {
++  color: #14572d;
++  background: #dff5e7;
++}
++
++.event-app-download__file-state.is-unavailable,
++.event-app-download__file-state.is-error {
++  color: #80251e;
++  background: #fbe3df;
++}
++
++.event-app-download__spinner {
++  width: 13px;
++  height: 13px;
++  border: 2px solid currentColor;
++  border-right-color: transparent;
++  border-radius: 50%;
++  animation: event-app-spin 750ms linear infinite;
++}
++
++.event-app-download__file-state:not(.is-loading) .event-app-download__spinner {
++  display: none;
++}
++
++@keyframes event-app-spin { to { transform: rotate(360deg); } }
++
++.event-app-download__artifact-meta {
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  margin-top: 1rem;
++}
++
++.event-app-download__artifact-meta div {
++  display: block;
++  padding: 0.75rem;
++  border-radius: 11px;
++  background: #fff;
++}
++
++.event-app-download__artifact-meta dd {
++  margin-top: 0.25rem;
++  text-align: left;
++}
++
++.event-app-download__requirements {
++  margin-top: 1rem;
++}
++
++.event-app-download__requirements h4 {
++  margin: 0 0 0.45rem;
++  color: var(--event-app-ink);
++}
++
++.event-app-download__requirements ul {
++  margin: 0;
++  padding-left: 1.2rem;
++  color: var(--event-app-muted);
++}
++
++.event-app-download__requirements li + li { margin-top: 0.25rem; }
++
++.event-app-download__actions,
++.event-app-download__modal-actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.7rem;
++  margin-top: 1rem;
++}
++
++.event-app-download__download:disabled {
++  cursor: not-allowed;
++  opacity: 0.58;
++}
++
++.event-app-download__notice {
++  margin: 0 clamp(1.25rem, 3vw, 2rem) 1.5rem !important;
++  color: var(--event-app-muted);
++  font-size: 0.82rem;
++}
++
++.event-app-download__live {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  overflow: hidden;
++  clip: rect(0, 0, 0, 0);
++  white-space: nowrap;
++}
++
++.event-app-download__modal[hidden] { display: none; }
++
++.event-app-download__modal {
++  position: fixed;
++  z-index: 10050;
++  inset: 0;
++  display: grid;
++  place-items: center;
++  padding: 1rem;
++}
++
++.event-app-download__modal-backdrop {
++  position: absolute;
++  inset: 0;
++  background: rgba(5, 19, 23, 0.76);
++  backdrop-filter: blur(4px);
++}
++
++.event-app-download__modal-dialog {
++  position: relative;
++  z-index: 1;
++  width: min(560px, 100%);
++  max-height: min(720px, calc(100vh - 2rem));
++  overflow-y: auto;
++  padding: clamp(1.25rem, 4vw, 2rem);
++  border-radius: 20px;
++  background: #fff;
++  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.36);
++}
++
++.event-app-download__modal-close {
++  position: absolute;
++  top: 0.8rem;
++  right: 0.8rem;
++  width: 40px;
++  height: 40px;
++  border: 0;
++  border-radius: 50%;
++  color: #26383d;
++  background: #edf3f4;
++  cursor: pointer;
++  font-size: 1.5rem;
++}
++
++.mw-section .event-app-download__modal-dialog h3 {
++  margin: 0 2.5rem 0.5rem 0 !important;
++  color: var(--event-app-ink);
++}
++
++.event-app-download__confirm-meta {
++  margin-top: 1rem;
++  padding: 0.9rem;
++  border-radius: 12px;
++  background: #f4f8f9;
++}
++
++body.event-app-modal-open { overflow: hidden; }
++
++@media (max-width: 860px) {
++  .event-app-download__hero,
++  .event-app-download__artifact-heading {
++    align-items: stretch;
++    flex-direction: column;
++  }
++  .event-app-download__readiness { max-width: none; align-self: flex-start; }
++  .event-app-download__overview { grid-template-columns: 1fr; }
++  .event-app-download__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++}
++
++@media (max-width: 560px) {
++  .event-app-download__title-row { align-items: flex-start; }
++  .event-app-download__mark { flex-basis: 48px; width: 48px; height: 48px; border-radius: 14px; }
++  .event-app-download__features,
++  .event-app-download__tabs,
++  .event-app-download__artifact-meta { grid-template-columns: 1fr; }
++  .event-app-download__tab { min-height: 58px; }
++  .event-app-download__actions > *,
++  .event-app-download__modal-actions > * { width: 100%; }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .event-app-download__spinner { animation-duration: 1.5s; }
++  .event-app-download__tab { transition: none; }
++}
+diff --git a/static/js/event_app_downloads.js b/static/js/event_app_downloads.js
+new file mode 100644
+index 00000000..145618b3
+--- /dev/null
++++ b/static/js/event_app_downloads.js
+@@ -0,0 +1,322 @@
++(function () {
++  "use strict";
++
++  var analyticsEvents = {
++    view: "mywave_event_app_card_viewed",
++    select: "mywave_event_app_platform_selected",
++    click: "mywave_event_app_download_clicked",
++    success: "mywave_event_app_download_succeeded",
++    error: "mywave_event_app_download_failed"
++  };
++
++  function DownloadCenter(root) {
++    this.root = root;
++    this.manifestUrl = root.dataset.manifestUrl;
++    this.analyticsUrl = root.dataset.analyticsUrl || "/analytics/log";
++    this.apiBase = this.manifestUrl.replace(/\/manifest\/?$/, "");
++    this.artifacts = {};
++    this.selectedId = null;
++    this.previousFocus = null;
++    this.viewTracked = false;
++    this.bindElements();
++    this.bindEvents();
++    this.observeView();
++    this.loadManifest();
++  }
++
++  DownloadCenter.prototype.bindElements = function () {
++    this.tabs = Array.prototype.slice.call(this.root.querySelectorAll("[data-artifact-id]"));
++    this.panel = this.root.querySelector("[data-artifact-panel]");
++    this.fileState = this.root.querySelector("[data-file-state]");
++    this.fileStateText = this.root.querySelector("[data-file-state-text]");
++    this.downloadButton = this.root.querySelector("[data-download-button]");
++    this.retryButton = this.root.querySelector("[data-retry-button]");
++    this.liveRegion = this.root.querySelector("[data-live-region]");
++    this.modal = this.root.querySelector("[data-download-modal]");
++    this.confirmButton = this.root.querySelector("[data-confirm-download]");
++  };
++
++  DownloadCenter.prototype.bindEvents = function () {
++    var self = this;
++    this.tabs.forEach(function (tab, index) {
++      tab.addEventListener("click", function () {
++        self.selectArtifact(tab.dataset.artifactId, true);
++      });
++      tab.addEventListener("keydown", function (event) {
++        var nextIndex;
++        if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (index + 1) % self.tabs.length;
++        if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index - 1 + self.tabs.length) % self.tabs.length;
++        if (event.key === "Home") nextIndex = 0;
++        if (event.key === "End") nextIndex = self.tabs.length - 1;
++        if (typeof nextIndex === "number") {
++          event.preventDefault();
++          self.tabs[nextIndex].focus();
++          self.selectArtifact(self.tabs[nextIndex].dataset.artifactId, true);
++        }
++      });
++    });
++    this.downloadButton.addEventListener("click", function () { self.openConfirm(); });
++    this.retryButton.addEventListener("click", function () { self.refreshStatus(); });
++    this.confirmButton.addEventListener("click", function () { self.startDownload(); });
++    this.root.querySelectorAll("[data-modal-close]").forEach(function (button) {
++      button.addEventListener("click", function () { self.closeConfirm(); });
++    });
++    this.modal.addEventListener("keydown", function (event) { self.handleModalKeydown(event); });
++  };
++
++  DownloadCenter.prototype.observeView = function () {
++    var self = this;
++    if (!("IntersectionObserver" in window)) {
++      this.track(analyticsEvents.view, {});
++      this.viewTracked = true;
++      return;
++    }
++    var observer = new IntersectionObserver(function (entries) {
++      if (!self.viewTracked && entries.some(function (entry) { return entry.isIntersecting; })) {
++        self.viewTracked = true;
++        self.track(analyticsEvents.view, {});
++        observer.disconnect();
++      }
++    }, { threshold: 0.35 });
++    observer.observe(this.root);
++  };
++
++  DownloadCenter.prototype.track = function (eventName, meta) {
++    var payload = JSON.stringify({
++      event: eventName,
++      context: "projects/checklist-org",
++      channel: "web",
++      meta: Object.assign({ app_id: "mywave-event-app" }, meta || {})
++    });
++    try {
++      fetch(this.analyticsUrl, {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: payload,
++        keepalive: true,
++        credentials: "same-origin"
++      }).catch(function () {});
++    } catch (_error) {}
++  };
++
++  DownloadCenter.prototype.loadManifest = function () {
++    var self = this;
++    this.setState("loading", "Загружаем варианты…");
++    fetch(this.manifestUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" })
++      .then(function (response) {
++        if (!response.ok) throw new Error("manifest_" + response.status);
++        return response.json();
++      })
++      .then(function (manifest) {
++        (manifest.artifacts || []).forEach(function (artifact) { self.artifacts[artifact.id] = artifact; });
++        var readiness = self.root.querySelector("[data-app-readiness-text]");
++        var appStatus = self.root.querySelector("[data-app-status]");
++        if (manifest.app && manifest.app.readiness) {
++          readiness.textContent = manifest.app.readiness;
++          appStatus.textContent = manifest.app.readiness;
++        }
++        var first = self.tabs.length ? self.tabs[0].dataset.artifactId : null;
++        if (first) self.selectArtifact(first, false);
++      })
++      .catch(function () {
++        self.setState("error", "Не удалось загрузить каталог файлов.");
++        self.retryButton.hidden = false;
++        self.downloadButton.disabled = true;
++        self.downloadButton.textContent = "Каталог недоступен";
++        self.announce("Ошибка загрузки каталога. Нажмите «Повторить проверку».");
++        self.track(analyticsEvents.error, { stage: "manifest" });
++      });
++  };
++
++  DownloadCenter.prototype.selectArtifact = function (artifactId, shouldTrack) {
++    if (!this.artifacts[artifactId]) return;
++    this.selectedId = artifactId;
++    this.tabs.forEach(function (tab) {
++      var active = tab.dataset.artifactId === artifactId;
++      tab.classList.toggle("is-active", active);
++      tab.setAttribute("aria-selected", active ? "true" : "false");
++      tab.tabIndex = active ? 0 : -1;
++    });
++    this.panel.setAttribute("aria-labelledby", "event-app-tab-" + artifactId);
++    this.renderArtifact(this.artifacts[artifactId]);
++    if (shouldTrack) this.track(analyticsEvents.select, { artifact_id: artifactId });
++    this.refreshStatus();
++  };
++
++  DownloadCenter.prototype.renderArtifact = function (artifact) {
++    this.root.querySelector("[data-artifact-label]").textContent = artifact.label;
++    this.root.querySelector("[data-artifact-format]").textContent = artifact.format;
++    this.root.querySelector("[data-artifact-version]").textContent = artifact.version || "Не опубликована";
++    this.root.querySelector("[data-artifact-size]").textContent = artifact.size || "Уточняется";
++    this.root.querySelector("[data-artifact-updated]").textContent = artifact.last_updated || "Не указана";
++    this.fillList(this.root.querySelector("[data-artifact-requirements]"), artifact.requirements || []);
++  };
++
++  DownloadCenter.prototype.refreshStatus = function () {
++    var self = this;
++    var artifactId = this.selectedId;
++    if (!artifactId) {
++      this.loadManifest();
++      return;
++    }
++    this.setState("loading", "Проверяем доступность…");
++    this.retryButton.hidden = true;
++    this.downloadButton.disabled = true;
++    this.downloadButton.textContent = "Проверяем файл…";
++    fetch(this.apiBase + "/" + encodeURIComponent(artifactId) + "/status", {
++      headers: { Accept: "application/json" },
++      credentials: "same-origin"
++    })
++      .then(function (response) {
++        return response.json().then(function (body) {
++          if (!response.ok) throw new Error(body.message || "status_" + response.status);
++          return body;
++        });
++      })
++      .then(function (artifact) {
++        if (self.selectedId !== artifactId) return;
++        self.artifacts[artifactId] = artifact;
++        self.renderArtifact(artifact);
++        self.setState(artifact.state, artifact.message);
++        if (artifact.state === "available") {
++          self.downloadButton.disabled = false;
++          self.downloadButton.textContent = artifact.action_label;
++        } else {
++          self.downloadButton.disabled = true;
++          self.downloadButton.textContent = "Файл временно недоступен";
++        }
++      })
++      .catch(function () {
++        if (self.selectedId !== artifactId) return;
++        self.setState("error", "Ошибка проверки доступности.");
++        self.downloadButton.disabled = true;
++        self.downloadButton.textContent = "Не удалось проверить файл";
++        self.retryButton.hidden = false;
++        self.announce("Ошибка проверки файла. Доступна повторная попытка.");
++        self.track(analyticsEvents.error, { artifact_id: artifactId, stage: "status" });
++      });
++  };
++
++  DownloadCenter.prototype.setState = function (state, message) {
++    this.fileState.className = "event-app-download__file-state is-" + state;
++    this.fileStateText.textContent = message;
++  };
++
++  DownloadCenter.prototype.openConfirm = function () {
++    var artifact = this.artifacts[this.selectedId];
++    if (!artifact || artifact.state !== "available") return;
++    this.track(analyticsEvents.click, { artifact_id: artifact.id, version: artifact.version });
++    this.root.querySelector("[data-confirm-title]").textContent = "Скачать " + artifact.label;
++    this.root.querySelector("[data-confirm-description]").textContent =
++      "Вы выбрали " + artifact.platform + ". После подтверждения начнётся скачивание или откроется страница установки.";
++    this.root.querySelector("[data-confirm-version]").textContent = artifact.version || "Не опубликована";
++    this.root.querySelector("[data-confirm-format]").textContent = artifact.format;
++    this.root.querySelector("[data-confirm-size]").textContent = artifact.size || "Уточняется";
++    this.fillList(this.root.querySelector("[data-confirm-requirements]"), artifact.requirements || []);
++    this.previousFocus = document.activeElement;
++    this.modal.hidden = false;
++    document.body.classList.add("event-app-modal-open");
++    this.confirmButton.disabled = false;
++    this.confirmButton.textContent = "Начать скачивание";
++    this.modal.querySelector(".event-app-download__modal-close").focus();
++  };
++
++  DownloadCenter.prototype.closeConfirm = function () {
++    if (this.modal.hidden) return;
++    this.modal.hidden = true;
++    document.body.classList.remove("event-app-modal-open");
++    if (this.previousFocus && this.previousFocus.focus) this.previousFocus.focus();
++  };
++
++  DownloadCenter.prototype.handleModalKeydown = function (event) {
++    if (event.key === "Escape") {
++      event.preventDefault();
++      this.closeConfirm();
++      return;
++    }
++    if (event.key !== "Tab") return;
++    var focusable = Array.prototype.slice.call(
++      this.modal.querySelectorAll("button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])")
++    ).filter(function (element) { return !element.hidden; });
++    if (!focusable.length) return;
++    var first = focusable[0];
++    var last = focusable[focusable.length - 1];
++    if (event.shiftKey && document.activeElement === first) {
++      event.preventDefault();
++      last.focus();
++    } else if (!event.shiftKey && document.activeElement === last) {
++      event.preventDefault();
++      first.focus();
++    }
++  };
++
++  DownloadCenter.prototype.startDownload = function () {
++    var self = this;
++    var artifact = this.artifacts[this.selectedId];
++    if (!artifact) return;
++    this.confirmButton.disabled = true;
++    this.confirmButton.textContent = "Запускаем…";
++    fetch(this.apiBase + "/" + encodeURIComponent(artifact.id) + "/handoff", {
++      method: "POST",
++      headers: { Accept: "application/json", "Content-Type": "application/json" },
++      body: "{}",
++      credentials: "same-origin"
++    })
++      .then(function (response) {
++        return response.json().then(function (body) {
++          if (!response.ok || !body.location) throw new Error(body.message || "handoff_" + response.status);
++          return body;
++        });
++      })
++      .then(function (handoff) {
++        self.track(analyticsEvents.success, { artifact_id: artifact.id, version: artifact.version });
++        self.closeConfirm();
++        self.setState("success", handoff.message || "Скачивание успешно запущено.");
++        self.announce("Скачивание успешно запущено.");
++        window.setTimeout(function () {
++          var link = document.createElement("a");
++          link.href = handoff.location;
++          link.rel = "noopener noreferrer";
++          if (!handoff.open_in_new_tab) link.setAttribute("download", "");
++          if (handoff.open_in_new_tab) link.target = "_blank";
++          document.body.appendChild(link);
++          link.click();
++          link.remove();
++        }, 250);
++      })
++      .catch(function (error) {
++        self.closeConfirm();
++        self.setState("error", "Ошибка скачивания. Повторите попытку.");
++        self.retryButton.hidden = false;
++        self.downloadButton.disabled = false;
++        self.downloadButton.textContent = "Повторить скачивание";
++        self.announce("Не удалось начать скачивание. Попробуйте ещё раз.");
++        self.track(analyticsEvents.error, {
++          artifact_id: artifact.id,
++          stage: "handoff",
++          reason: String(error.message || "unknown").slice(0, 80)
++        });
++      });
++  };
++
++  DownloadCenter.prototype.fillList = function (list, items) {
++    list.textContent = "";
++    items.forEach(function (item) {
++      var li = document.createElement("li");
++      li.textContent = item;
++      list.appendChild(li);
++    });
++  };
++
++  DownloadCenter.prototype.announce = function (message) {
++    this.liveRegion.textContent = "";
++    var self = this;
++    window.setTimeout(function () { self.liveRegion.textContent = message; }, 20);
++  };
++
++  document.addEventListener("DOMContentLoaded", function () {
++    document.querySelectorAll("[data-event-app-download]").forEach(function (root) {
++      new DownloadCenter(root);
++    });
++  });
++})();
+diff --git a/templates/wake_industry/checklist.html b/templates/wake_industry/checklist.html
+index 605e5427..18ae8ed9 100644
+--- a/templates/wake_industry/checklist.html
++++ b/templates/wake_industry/checklist.html
+@@ -22,6 +22,7 @@
+ {# v= — сброс кэша браузера при правках чек-листа #}
+ <link rel="stylesheet" href="{{ url_for('static', filename='css/checklist.css') }}?v=card-readability2">
+ <link rel="stylesheet" href="{{ url_for('static', filename='css/rules-downloads.css') }}?v=2">
++<link rel="stylesheet" href="{{ url_for('static', filename='css/event_app_downloads.css') }}?v=1">
+ <meta name="description" content="Готовый чек-лист для организаторов соревнований по вейксерфингу. Структурированный контроль: судьи, документы, тайминг, безопасность. Скачайте PDF.">
+ <link rel="canonical" href="{{ request.url }}">
+ {% endblock %}
+@@ -58,6 +59,8 @@
+ 
+ {% include 'partials/rules_downloads.html' %}
+ 
++{% include 'wake_industry/partials/_event_app_download_center.html' %}
++
+ {# Что это #}
+ <section class="mw-section" id="about">
+   <div class="mw-container">
+@@ -1046,5 +1049,5 @@
+   });
+ </script>
+ <script src="{{ url_for('static', filename='js/checklist.js') }}?v=card-readability2"></script>
++<script src="{{ url_for('static', filename='js/event_app_downloads.js') }}?v=1" defer></script>
+ {% endblock %}
+-
+diff --git a/templates/wake_industry/partials/_event_app_download_center.html b/templates/wake_industry/partials/_event_app_download_center.html
+new file mode 100644
+index 00000000..1e4d5bae
+--- /dev/null
++++ b/templates/wake_industry/partials/_event_app_download_center.html
+@@ -0,0 +1,156 @@
++{% set download_app = event_app_downloads.app %}
++{% set download_artifacts = event_app_downloads.artifacts %}
++<section class="mw-section event-app-download" id="mywave-event-app" aria-labelledby="event-app-title">
++  <div class="mw-container">
++    <article
++      class="event-app-download__card"
++      data-event-app-download
++      data-manifest-url="{{ url_for('wake_industry.event_app_manifest') }}"
++      data-analytics-url="{{ url_for('analytics_log') }}"
++    >
++      <div class="event-app-download__hero">
++        <div class="event-app-download__identity">
++          <span class="event-app-download__eyebrow">Готовое решение</span>
++          <div class="event-app-download__title-row">
++            <span class="event-app-download__mark" aria-hidden="true">MW</span>
++            <div>
++              <h2 id="event-app-title">{{ download_app.name }}</h2>
++              <p>{{ download_app.short_description }}</p>
++            </div>
++          </div>
++        </div>
++        <div class="event-app-download__readiness" data-app-readiness>
++          <span class="event-app-download__status-dot" aria-hidden="true"></span>
++          <span data-app-readiness-text>{{ download_app.readiness }}</span>
++        </div>
++      </div>
++
++      <div class="event-app-download__overview">
++        <div>
++          <h3>Основные возможности</h3>
++          <ul class="event-app-download__features">
++            {% for feature in download_app.features %}
++            <li>{{ feature }}</li>
++            {% endfor %}
++          </ul>
++        </div>
++        <dl class="event-app-download__meta" aria-label="Информация о версии">
++          <div>
++            <dt>Статус</dt>
++            <dd data-app-status>{{ download_app.readiness }}</dd>
++          </div>
++          <div>
++            <dt>Версия</dt>
++            <dd data-app-version>{{ download_app.version }}</dd>
++          </div>
++          <div>
++            <dt>Платформы</dt>
++            <dd>{{ download_app.platforms | join(', ') }}</dd>
++          </div>
++          <div>
++            <dt>Обновлено</dt>
++            <dd data-app-updated>{{ download_app.last_updated }}</dd>
++          </div>
++        </dl>
++      </div>
++
++      <div class="event-app-download__chooser">
++        <h3>Выберите платформу или формат</h3>
++        <div class="event-app-download__tabs" role="tablist" aria-label="Варианты скачивания">
++          {% for artifact in download_artifacts %}
++          <button
++            type="button"
++            class="event-app-download__tab{% if loop.first %} is-active{% endif %}"
++            role="tab"
++            id="event-app-tab-{{ artifact.id }}"
++            aria-controls="event-app-artifact-panel"
++            aria-selected="{{ 'true' if loop.first else 'false' }}"
++            tabindex="{{ '0' if loop.first else '-1' }}"
++            data-artifact-id="{{ artifact.id }}"
++          >
++            <span>{{ artifact.label }}</span>
++            <small>{{ artifact.format }}</small>
++          </button>
++          {% endfor %}
++        </div>
++      </div>
++
++      <div
++        class="event-app-download__panel"
++        id="event-app-artifact-panel"
++        role="tabpanel"
++        aria-labelledby="event-app-tab-{{ download_artifacts[0].id }}"
++        data-artifact-panel
++      >
++        <div class="event-app-download__artifact-heading">
++          <div>
++            <span class="event-app-download__format" data-artifact-format>
++              {{ download_artifacts[0].format }}
++            </span>
++            <h3 data-artifact-label>{{ download_artifacts[0].label }}</h3>
++          </div>
++          <div class="event-app-download__file-state is-loading" data-file-state role="status">
++            <span class="event-app-download__spinner" aria-hidden="true"></span>
++            <span data-file-state-text>Проверяем доступность…</span>
++          </div>
++        </div>
++
++        <dl class="event-app-download__artifact-meta">
++          <div><dt>Версия</dt><dd data-artifact-version>—</dd></div>
++          <div><dt>Размер</dt><dd data-artifact-size>Уточняется</dd></div>
++          <div><dt>Обновлено</dt><dd data-artifact-updated>—</dd></div>
++        </dl>
++
++        <div class="event-app-download__requirements">
++          <h4>Системные требования</h4>
++          <ul data-artifact-requirements></ul>
++        </div>
++
++        <div class="event-app-download__actions">
++          <button type="button" class="btn-primary event-app-download__download" data-download-button disabled>
++            Проверяем файл…
++          </button>
++          <button type="button" class="btn-secondary btn-ghost" data-retry-button hidden>
++            Повторить проверку
++          </button>
++        </div>
++      </div>
++
++      <p class="event-app-download__notice">
++        Перед скачиванием будет показана выбранная версия и требования. Ссылки на файлы
++        не публикуются в коде страницы и выдаются только после подтверждения.
++      </p>
++
++      <div class="event-app-download__live" aria-live="polite" aria-atomic="true" data-live-region></div>
++
++      <div class="event-app-download__modal" data-download-modal hidden>
++        <div class="event-app-download__modal-backdrop" data-modal-close></div>
++        <div
++          class="event-app-download__modal-dialog"
++          role="dialog"
++          aria-modal="true"
++          aria-labelledby="event-app-confirm-title"
++          aria-describedby="event-app-confirm-description"
++        >
++          <button type="button" class="event-app-download__modal-close" data-modal-close aria-label="Закрыть окно">×</button>
++          <span class="event-app-download__eyebrow">Подтверждение скачивания</span>
++          <h3 id="event-app-confirm-title" data-confirm-title>MyWave Event app</h3>
++          <p id="event-app-confirm-description" data-confirm-description></p>
++          <dl class="event-app-download__confirm-meta">
++            <div><dt>Версия</dt><dd data-confirm-version></dd></div>
++            <div><dt>Формат</dt><dd data-confirm-format></dd></div>
++            <div><dt>Размер</dt><dd data-confirm-size></dd></div>
++          </dl>
++          <div class="event-app-download__requirements">
++            <h4>Проверьте требования</h4>
++            <ul data-confirm-requirements></ul>
++          </div>
++          <div class="event-app-download__modal-actions">
++            <button type="button" class="btn-secondary btn-ghost" data-modal-close>Отмена</button>
++            <button type="button" class="btn-primary" data-confirm-download>Начать скачивание</button>
++          </div>
++        </div>
++      </div>
++    </article>
++  </div>
++</section>
+diff --git a/tests/test_event_app_downloads.py b/tests/test_event_app_downloads.py
+new file mode 100644
+index 00000000..0881a358
+--- /dev/null
++++ b/tests/test_event_app_downloads.py
+@@ -0,0 +1,158 @@
++"""Contract tests for the MyWave Event app Download Center."""
++
++from __future__ import annotations
++
++import json
++
++import pytest
++
++from app.services.event_app_downloads import (
++    ARTIFACT_IDS,
++    DownloadConfigurationError,
++    build_handoff,
++    build_public_manifest,
++    build_unavailable_manifest,
++    get_artifact_status,
++)
++
++TARGET_ENV_NAMES = (
++    "MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL",
++    "MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL",
++    "MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL",
++    "MYWAVE_EVENT_APP_DOCUMENTATION_URL",
++)
++
++
++@pytest.fixture(autouse=True)
++def clear_download_targets(monkeypatch):
++    for env_name in TARGET_ENV_NAMES:
++        monkeypatch.delenv(env_name, raising=False)
++
++
++def test_manifest_is_fail_closed_and_contains_all_formats():
++    manifest = build_public_manifest()
++
++    assert manifest["app"]["name"] == "MyWave Event app"
++    assert tuple(item["id"] for item in manifest["artifacts"]) == ARTIFACT_IDS
++    assert all(item["state"] == "unavailable" for item in manifest["artifacts"])
++    assert all("target_env" not in item for item in manifest["artifacts"])
++    assert "Интеграция готова" in manifest["app"]["readiness"]
++
++
++def test_fallback_manifest_keeps_all_download_options_visible():
++    manifest = build_unavailable_manifest()
++
++    assert tuple(item["id"] for item in manifest["artifacts"]) == ARTIFACT_IDS
++    assert all(item["state"] == "error" for item in manifest["artifacts"])
++
++
++def test_real_https_target_becomes_available_without_leaking_url(monkeypatch):
++    target = "https://downloads.example.org/releases/mywave-event-1.0.0.apk"
++    monkeypatch.setenv("MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL", target)
++
++    status = get_artifact_status("android")
++    manifest_json = json.dumps(build_public_manifest(), ensure_ascii=False)
++
++    assert status["state"] == "available"
++    assert target not in manifest_json
++    assert "location" not in status
++
++
++@pytest.mark.parametrize(
++    "target",
++    (
++        "http://downloads.example.org/app.apk",
++        "https://localhost/app.apk",
++        "https://127.0.0.1/app.apk",
++        "file:///tmp/app.apk",
++        "/etc/passwd",
++        "/static/../instance/secret",
++        "{{android_download_url}}",
++    ),
++)
++def test_unsafe_or_placeholder_targets_are_rejected(monkeypatch, target):
++    monkeypatch.setenv("MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL", target)
++
++    assert get_artifact_status("android")["state"] == "error"
++    with pytest.raises(DownloadConfigurationError):
++        build_handoff("android")
++
++
++def test_handoff_returns_target_only_after_explicit_request(monkeypatch):
++    target = "/static/css/branding.css"
++    monkeypatch.setenv("MYWAVE_EVENT_APP_DOCUMENTATION_URL", target)
++
++    handoff = build_handoff("documentation")
++
++    assert handoff["location"] == target
++    assert handoff["artifact_id"] == "documentation"
++    assert handoff["open_in_new_tab"] is True
++
++
++def test_unknown_artifact_is_not_exposed():
++    with pytest.raises(KeyError):
++        get_artifact_status("unknown")
++    with pytest.raises(KeyError):
++        build_handoff("unknown")
++
++
++def test_checklist_page_contains_accessible_download_center(client):
++    response = client.get("/projects/checklist-org")
++    html = response.get_data(as_text=True)
++
++    assert response.status_code == 200
++    assert 'id="mywave-event-app"' in html
++    assert 'role="tablist"' in html
++    assert 'aria-live="polite"' in html
++    assert "MyWave Event app" in html
++    assert "{{android_download_url}}" not in html
++
++
++def test_manifest_api_does_not_expose_configured_target(client, monkeypatch):
++    target = "https://downloads.example.org/mywave-event.apk"
++    monkeypatch.setenv("MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL", target)
++
++    response = client.get("/api/event-app-downloads/manifest")
++    payload = response.get_json()
++
++    assert response.status_code == 200
++    assert payload["artifacts"][0]["state"] == "available"
++    assert target not in response.get_data(as_text=True)
++    assert response.headers["Cache-Control"].startswith("no-store")
++
++
++def test_status_api_reports_unavailable_without_target(client):
++    response = client.get("/api/event-app-downloads/android/status")
++
++    assert response.status_code == 200
++    assert response.get_json()["state"] == "unavailable"
++
++
++def test_handoff_api_rejects_missing_target(client):
++    response = client.post("/api/event-app-downloads/android/handoff", json={})
++
++    assert response.status_code == 503
++    assert response.get_json()["error"] == "artifact_unavailable"
++
++
++def test_handoff_api_returns_validated_target(client, monkeypatch):
++    target = "https://testflight.apple.com/join/example"
++    monkeypatch.setenv("MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL", target)
++
++    response = client.post("/api/event-app-downloads/ios/handoff", json={})
++
++    assert response.status_code == 200
++    assert response.get_json()["location"] == target
++
++
++def test_frontend_defines_required_analytics_events():
++    source = open("static/js/event_app_downloads.js", encoding="utf-8").read()
++
++    for event_name in (
++        "mywave_event_app_card_viewed",
++        "mywave_event_app_platform_selected",
++        "mywave_event_app_download_clicked",
++        "mywave_event_app_download_succeeded",
++        "mywave_event_app_download_failed",
++    ):
++        assert event_name in source

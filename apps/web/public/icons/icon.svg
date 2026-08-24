@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MyWave Event App">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1c1f"/>
+      <stop offset="55%" stop-color="#0d3d3f"/>
+      <stop offset="100%" stop-color="#144e52"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <path d="M96 300c48-96 88-144 136-144s88 48 136 144" fill="none" stroke="#f0d9a8" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="256" cy="196" r="28" fill="#f0d9a8"/>
+</svg>

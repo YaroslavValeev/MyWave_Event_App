@@ -1,0 +1,611 @@
+import type { EventStatus, Role } from "./roles";
+
+const TOKEN_KEY = "mywave_event_access_token";
+const USER_KEY = "mywave_event_user";
+
+export function getApiBaseUrl(): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+  return base.replace(/\/$/, "");
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export type HealthResponse = {
+  status: string;
+  app: string;
+  env: string;
+  time: string;
+  db_ok: boolean;
+};
+
+export type UserOut = {
+  id: string;
+  email: string;
+  display_name: string;
+  role: Role;
+  status?: string;
+  phone?: string | null;
+  created_at?: string;
+};
+
+export type TokenResponse = {
+  access_token: string;
+  token_type: string;
+  role: Role;
+  email: string;
+  user_id: number;
+  status?: string;
+  phone?: string | null;
+  display_name?: string | null;
+  user: UserOut;
+};
+
+type ApiTokenPayload = {
+  access_token: string;
+  token_type: string;
+  role: Role;
+  email: string;
+  user_id: number;
+  status?: string;
+  phone?: string | null;
+  display_name?: string | null;
+};
+
+function toTokenResponse(payload: ApiTokenPayload): TokenResponse {
+  return {
+    ...payload,
+    user: {
+      id: String(payload.user_id),
+      email: payload.email,
+      display_name: payload.display_name ?? payload.email,
+      role: payload.role,
+      status: payload.status ?? "active",
+      phone: payload.phone ?? null,
+    },
+  };
+}
+
+export type EventOut = {
+  id: number | string;
+  slug: string;
+  title: string;
+  description: string | null;
+  city?: string | null;
+  location?: string | null;
+  venue?: string | null;
+  disciplines?: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  status: EventStatus | string;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type EventDetail = EventOut & {
+  categories_count: number;
+  participants_count: number;
+  documents_count: number;
+  officials_count?: number;
+  training_slots_count?: number;
+};
+
+export type OfficialOut = {
+  id: number;
+  event_id: number;
+  sort_order: number;
+  full_name: string;
+  position: string;
+  region: string | null;
+  judge_category: string | null;
+  notes: string | null;
+  user_id: number | null;
+};
+
+export type TrainingSlotOut = {
+  id: number;
+  event_id: number;
+  discipline: string;
+  venue: string | null;
+  slot_date: string;
+  slot_time: string | null;
+  status: string;
+  athlete_name: string | null;
+  notes: string | null;
+  sort_order: number;
+};
+
+export type CategoryOut = {
+  id: number;
+  event_id: number;
+  code: string;
+  title: string;
+  discipline: string | null;
+  notes: string | null;
+};
+
+export type ParticipantOut = {
+  id: number;
+  event_id: number;
+  category_id: number | null;
+  full_name: string;
+  gender: string | null;
+  birth_year: number | null;
+  club: string | null;
+  region: string | null;
+  city: string | null;
+  federation: string | null;
+  has_medical_cert?: boolean;
+  status: string;
+};
+
+export type DocumentOut = {
+  id: number;
+  event_id: number;
+  title: string;
+  kind: string;
+  language: string | null;
+  file_name: string;
+  description: string | null;
+};
+
+type ErrorPayload = {
+  error?: { code?: string; message?: string };
+  detail?: { code?: string; message?: string } | string;
+};
+
+async function parseError(res: Response): Promise<ApiError> {
+  let message = `Ошибка API (${res.status})`;
+  let code: string | undefined;
+  try {
+    const body = (await res.json()) as ErrorPayload;
+    if (body.error?.message) {
+      message = body.error.message;
+      code = body.error.code;
+    } else if (typeof body.detail === "string") {
+      message = body.detail;
+    } else if (body.detail && typeof body.detail === "object" && body.detail.message) {
+      message = body.detail.message;
+      code = body.detail.code;
+    }
+  } catch {
+    /* keep default */
+  }
+  return new ApiError(message, res.status, code);
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string | null,
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseError(res);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  return (await res.json()) as T;
+}
+
+export function getHealth(): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/health");
+}
+
+export async function devLogin(payload: {
+  email: string;
+  role: Role;
+  display_name?: string;
+}): Promise<TokenResponse> {
+  const raw = await apiFetch<ApiTokenPayload>("/api/v1/auth/dev-login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return toTokenResponse(raw);
+}
+
+export type RegisterPayload = {
+  phone: string;
+  email: string;
+  display_name: string;
+  requested_role: Role;
+  accept_terms: boolean;
+  accept_privacy: boolean;
+  accept_publish_name?: boolean;
+  accept_analytics?: boolean;
+};
+
+export type LegalDocument = {
+  purpose: string;
+  title: string;
+  version: string;
+  required: boolean;
+  revocable: boolean;
+  summary: string;
+  body?: string | null;
+};
+
+export type ConsentItem = {
+  purpose: string;
+  title: string;
+  version: string;
+  required: boolean;
+  revocable: boolean;
+  granted: boolean;
+  granted_at: string | null;
+  current_document_version: string;
+};
+
+export function fetchLegalDocuments() {
+  return apiFetch<{ items: LegalDocument[]; current_version: string }>("/api/v1/legal/documents");
+}
+
+export function fetchLegalDocument(purpose: string) {
+  return apiFetch<LegalDocument>(`/api/v1/legal/documents/${purpose}`);
+}
+
+export function fetchMyConsents(token: string) {
+  return apiFetch<{ items: ConsentItem[] }>("/api/v1/me/consents", { method: "GET" }, token);
+}
+
+export function grantMyConsent(token: string, purpose: string, version?: string) {
+  return apiFetch<ConsentItem>(
+    "/api/v1/me/consents",
+    { method: "POST", body: JSON.stringify({ purpose, version }) },
+    token,
+  );
+}
+
+export function revokeMyConsent(token: string, purpose: string) {
+  return apiFetch<ConsentItem>(
+    `/api/v1/me/consents/${purpose}/revoke`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export type RegisterResponse = {
+  user_id: number;
+  email: string;
+  phone: string;
+  role: Role;
+  requested_role: Role;
+  status: string;
+  message: string;
+  access_token: string | null;
+  token_type: string | null;
+};
+
+export function registerAccount(payload: RegisterPayload): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>("/api/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export type OtpRequestResponse = {
+  ok: boolean;
+  phone_masked: string;
+  message: string;
+  expires_in_seconds: number;
+  dev_otp?: string | null;
+};
+
+export function requestPhoneOtp(phone: string): Promise<OtpRequestResponse> {
+  return apiFetch<OtpRequestResponse>("/api/v1/auth/phone/request-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function verifyPhoneOtp(phone: string, code: string): Promise<TokenResponse> {
+  const raw = await apiFetch<ApiTokenPayload>("/api/v1/auth/phone/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
+  });
+  return toTokenResponse(raw);
+}
+
+export type PendingApproval = {
+  approval_id: number;
+  token: string;
+  user_id: number;
+  email: string;
+  display_name: string | null;
+  phone_masked: string | null;
+  requested_role: Role;
+  status: string;
+  created_at: string;
+  expires_at: string;
+};
+
+export async function listPendingApprovals(token: string): Promise<PendingApproval[]> {
+  const payload = await apiFetch<{ items: PendingApproval[]; total: number }>(
+    "/api/v1/auth/approvals/pending",
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function decidePendingApproval(
+  token: string,
+  approvalToken: string,
+  decision: "approve" | "reject",
+) {
+  return apiFetch<{
+    ok: boolean;
+    user_id: number;
+    email: string;
+    role: Role;
+    status: string;
+    message: string;
+  }>(`/api/v1/auth/approvals/${approvalToken}/${decision}`, { method: "POST" }, token);
+}
+
+export type ScheduleHint = {
+  summary: string;
+  notes: string[];
+};
+
+export function getScheduleHint(token: string, eventId: number | string) {
+  return apiFetch<ScheduleHint>(
+    `/api/v1/events/${eventId}/schedule-hint`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export type EventCreatePayload = {
+  slug: string;
+  title: string;
+  description?: string | null;
+  city?: string | null;
+  location?: string | null;
+  venue?: string | null;
+  disciplines?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  status?: EventStatus | string;
+};
+
+export function createEvent(token: string, payload: EventCreatePayload) {
+  return apiFetch<EventOut>("/api/v1/events", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export type EventListResponse = {
+  items: EventOut[];
+  total: number;
+};
+
+export async function listEvents(token: string): Promise<EventOut[]> {
+  const payload = await apiFetch<EventListResponse | EventOut[]>(
+    "/api/v1/events",
+    { method: "GET" },
+    token,
+  );
+  // API returns { items, total }; tolerate a bare array for older mocks.
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (payload && Array.isArray(payload.items)) {
+    return payload.items;
+  }
+  return [];
+}
+
+export function getEventDetail(token: string, eventId: number | string) {
+  return apiFetch<EventDetail>(`/api/v1/events/${eventId}/detail`, { method: "GET" }, token);
+}
+
+export async function listCategories(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: CategoryOut[]; total: number }>(
+    `/api/v1/events/${eventId}/categories`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function listParticipants(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: ParticipantOut[]; total: number }>(
+    `/api/v1/events/${eventId}/participants`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function listDocuments(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: DocumentOut[]; total: number }>(
+    `/api/v1/events/${eventId}/documents`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function listOfficials(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: OfficialOut[]; total: number }>(
+    `/api/v1/events/${eventId}/officials`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function listTrainingSlots(
+  token: string,
+  eventId: number | string,
+  opts?: { onlyBooked?: boolean; discipline?: string },
+) {
+  const params = new URLSearchParams();
+  if (opts?.onlyBooked) params.set("only_booked", "true");
+  if (opts?.discipline) params.set("discipline", opts.discipline);
+  const qs = params.toString();
+  const payload = await apiFetch<{ items: TrainingSlotOut[]; total: number }>(
+    `/api/v1/events/${eventId}/training-slots${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export type ApplicationOut = {
+  id: number;
+  event_id: number;
+  category_id: number | null;
+  user_id: number | null;
+  full_name: string;
+  club: string | null;
+  region: string | null;
+  city: string | null;
+  gender: string | null;
+  birth_year: number | null;
+  status: string;
+  created_at: string;
+};
+
+export type ApplicationCreatePayload = {
+  category_id?: number | null;
+  club?: string | null;
+  region?: string | null;
+  city?: string | null;
+  gender?: string | null;
+  birth_year?: number | null;
+};
+
+export function submitApplication(
+  token: string,
+  eventId: number | string,
+  payload: ApplicationCreatePayload,
+) {
+  return apiFetch<ApplicationOut>(
+    `/api/v1/events/${eventId}/applications`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function getMyApplication(token: string, eventId: number | string) {
+  return apiFetch<ApplicationOut | null>(
+    `/api/v1/events/${eventId}/applications/me`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export async function listEventApplications(
+  token: string,
+  eventId: number | string,
+  status = "pending",
+) {
+  const payload = await apiFetch<{ items: ApplicationOut[]; total: number }>(
+    `/api/v1/events/${eventId}/applications?status=${encodeURIComponent(status)}`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function decideEventApplication(
+  token: string,
+  eventId: number | string,
+  participantId: number,
+  status: "accepted" | "rejected",
+) {
+  return apiFetch<ApplicationOut>(
+    `/api/v1/events/${eventId}/applications/${participantId}`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
+}
+
+export type MeResponse = {
+  id: number;
+  email: string;
+  phone: string | null;
+  role: Role;
+  requested_role: Role | null;
+  status: string;
+  display_name: string | null;
+};
+
+export function fetchMe(token: string): Promise<MeResponse> {
+  return apiFetch<MeResponse>("/api/v1/me", { method: "GET" }, token);
+}
+
+export function updateMyProfile(
+  token: string,
+  payload: { display_name?: string; phone?: string },
+): Promise<MeResponse> {
+  return apiFetch<MeResponse>(
+    "/api/v1/me",
+    { method: "PATCH", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function documentDownloadUrl(eventId: number | string, documentId: number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/documents/${documentId}/file`;
+}
+
+export function saveSession(token: string, user: UserOut): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredUser(): UserOut | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as UserOut;
+  } catch {
+    return null;
+  }
+}

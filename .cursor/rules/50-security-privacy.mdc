@@ -1,0 +1,14 @@
+---
+description: Security и privacy
+globs: docs/SECURITY/**/*,services/api/**/*,apps/web/**/*
+alwaysApply: false
+---
+
+# 50 — Security / Privacy
+
+- Следовать `SECURITY.md`, `PRIVACY_AND_CONSENT.md`, `THREAT_MODEL.md`.
+- PII минимизировать в логах и analytics props.
+- Согласия — через ConsentRecord purposes; публикация имён/результатов — отдельный purpose.
+- Uploads: MIME whitelist, size limits.
+- Rate-limit auth endpoints.
+- Не ослаблять authz «для удобства демо» в общем коде без явного dev-only flag.

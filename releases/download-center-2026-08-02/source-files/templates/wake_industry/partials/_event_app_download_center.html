@@ -1,0 +1,156 @@
+{% set download_app = event_app_downloads.app %}
+{% set download_artifacts = event_app_downloads.artifacts %}
+<section class="mw-section event-app-download" id="mywave-event-app" aria-labelledby="event-app-title">
+  <div class="mw-container">
+    <article
+      class="event-app-download__card"
+      data-event-app-download
+      data-manifest-url="{{ url_for('wake_industry.event_app_manifest') }}"
+      data-analytics-url="{{ url_for('analytics_log') }}"
+    >
+      <div class="event-app-download__hero">
+        <div class="event-app-download__identity">
+          <span class="event-app-download__eyebrow">Готовое решение</span>
+          <div class="event-app-download__title-row">
+            <span class="event-app-download__mark" aria-hidden="true">MW</span>
+            <div>
+              <h2 id="event-app-title">{{ download_app.name }}</h2>
+              <p>{{ download_app.short_description }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="event-app-download__readiness" data-app-readiness>
+          <span class="event-app-download__status-dot" aria-hidden="true"></span>
+          <span data-app-readiness-text>{{ download_app.readiness }}</span>
+        </div>
+      </div>
+
+      <div class="event-app-download__overview">
+        <div>
+          <h3>Основные возможности</h3>
+          <ul class="event-app-download__features">
+            {% for feature in download_app.features %}
+            <li>{{ feature }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <dl class="event-app-download__meta" aria-label="Информация о версии">
+          <div>
+            <dt>Статус</dt>
+            <dd data-app-status>{{ download_app.readiness }}</dd>
+          </div>
+          <div>
+            <dt>Версия</dt>
+            <dd data-app-version>{{ download_app.version }}</dd>
+          </div>
+          <div>
+            <dt>Платформы</dt>
+            <dd>{{ download_app.platforms | join(', ') }}</dd>
+          </div>
+          <div>
+            <dt>Обновлено</dt>
+            <dd data-app-updated>{{ download_app.last_updated }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="event-app-download__chooser">
+        <h3>Выберите платформу или формат</h3>
+        <div class="event-app-download__tabs" role="tablist" aria-label="Варианты скачивания">
+          {% for artifact in download_artifacts %}
+          <button
+            type="button"
+            class="event-app-download__tab{% if loop.first %} is-active{% endif %}"
+            role="tab"
+            id="event-app-tab-{{ artifact.id }}"
+            aria-controls="event-app-artifact-panel"
+            aria-selected="{{ 'true' if loop.first else 'false' }}"
+            tabindex="{{ '0' if loop.first else '-1' }}"
+            data-artifact-id="{{ artifact.id }}"
+          >
+            <span>{{ artifact.label }}</span>
+            <small>{{ artifact.format }}</small>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div
+        class="event-app-download__panel"
+        id="event-app-artifact-panel"
+        role="tabpanel"
+        aria-labelledby="event-app-tab-{{ download_artifacts[0].id }}"
+        data-artifact-panel
+      >
+        <div class="event-app-download__artifact-heading">
+          <div>
+            <span class="event-app-download__format" data-artifact-format>
+              {{ download_artifacts[0].format }}
+            </span>
+            <h3 data-artifact-label>{{ download_artifacts[0].label }}</h3>
+          </div>
+          <div class="event-app-download__file-state is-loading" data-file-state role="status">
+            <span class="event-app-download__spinner" aria-hidden="true"></span>
+            <span data-file-state-text>Проверяем доступность…</span>
+          </div>
+        </div>
+
+        <dl class="event-app-download__artifact-meta">
+          <div><dt>Версия</dt><dd data-artifact-version>—</dd></div>
+          <div><dt>Размер</dt><dd data-artifact-size>Уточняется</dd></div>
+          <div><dt>Обновлено</dt><dd data-artifact-updated>—</dd></div>
+        </dl>
+
+        <div class="event-app-download__requirements">
+          <h4>Системные требования</h4>
+          <ul data-artifact-requirements></ul>
+        </div>
+
+        <div class="event-app-download__actions">
+          <button type="button" class="btn-primary event-app-download__download" data-download-button disabled>
+            Проверяем файл…
+          </button>
+          <button type="button" class="btn-secondary btn-ghost" data-retry-button hidden>
+            Повторить проверку
+          </button>
+        </div>
+      </div>
+
+      <p class="event-app-download__notice">
+        Перед скачиванием будет показана выбранная версия и требования. Ссылки на файлы
+        не публикуются в коде страницы и выдаются только после подтверждения.
+      </p>
+
+      <div class="event-app-download__live" aria-live="polite" aria-atomic="true" data-live-region></div>
+
+      <div class="event-app-download__modal" data-download-modal hidden>
+        <div class="event-app-download__modal-backdrop" data-modal-close></div>
+        <div
+          class="event-app-download__modal-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="event-app-confirm-title"
+          aria-describedby="event-app-confirm-description"
+        >
+          <button type="button" class="event-app-download__modal-close" data-modal-close aria-label="Закрыть окно">×</button>
+          <span class="event-app-download__eyebrow">Подтверждение скачивания</span>
+          <h3 id="event-app-confirm-title" data-confirm-title>MyWave Event app</h3>
+          <p id="event-app-confirm-description" data-confirm-description></p>
+          <dl class="event-app-download__confirm-meta">
+            <div><dt>Версия</dt><dd data-confirm-version></dd></div>
+            <div><dt>Формат</dt><dd data-confirm-format></dd></div>
+            <div><dt>Размер</dt><dd data-confirm-size></dd></div>
+          </dl>
+          <div class="event-app-download__requirements">
+            <h4>Проверьте требования</h4>
+            <ul data-confirm-requirements></ul>
+          </div>
+          <div class="event-app-download__modal-actions">
+            <button type="button" class="btn-secondary btn-ghost" data-modal-close>Отмена</button>
+            <button type="button" class="btn-primary" data-confirm-download>Начать скачивание</button>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>

@@ -1,0 +1,15 @@
+---
+description: Frontend / PWA правила Stage 1
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# 30 — Frontend / Mobile
+
+- Stage 1 клиент: `apps/web` (Next.js + TypeScript). Нативных мобильных сборок нет.
+- Не создавать фиктивные APK/IPA/AAB.
+- UI на русском; a11y baseline из `docs/QUALITY/ACCESSIBILITY.md`.
+- Бизнес-правила дублировать на сервере; UI — только UX-ограничения.
+- API base URL из `NEXT_PUBLIC_API_BASE_URL`.
+- PWA install/offline — Stage 3; не обещать offline-first в UI copy Stage 1.
+- Не встраивать логику Flask Download Center в web app.

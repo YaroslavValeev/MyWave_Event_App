@@ -1,0 +1,99 @@
+:root {
+  --night: #071214;
+  --ink: #0b1c1f;
+  --teal-deep: #0d3d3f;
+  --teal-mid: #1a6a6e;
+  --foam: #d8ebe9;
+  --mist: #9db8b5;
+  --sand: #e8c992;
+  --sand-bright: #f0d9a8;
+  --focus: #f0d9a8;
+
+  /* Offline-safe stack: no Google Fonts fetch at build time (CI / restricted DNS). */
+  --font-display: "Candara", "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-body: "Calibri", "Segoe UI", "Helvetica Neue", sans-serif;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--foam);
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -10%, rgba(26, 106, 110, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 95% 5%, rgba(232, 201, 146, 0.12), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(13, 61, 63, 0.65), transparent 55%),
+    linear-gradient(165deg, var(--night) 0%, var(--ink) 45%, #0a2428 100%);
+  background-attachment: fixed;
+}
+
+a {
+  color: var(--sand);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.shell {
+  width: min(100% - 1.5rem, 52rem);
+  margin-inline: auto;
+  padding: 0.5rem 0 3rem;
+}
+
+.skipLink {
+  position: absolute;
+  left: 0.75rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.85rem;
+  background: var(--sand);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0.35rem;
+}
+
+.skipLink:focus {
+  top: 0.75rem;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}

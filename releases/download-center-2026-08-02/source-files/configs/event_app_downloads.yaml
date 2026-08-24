@@ -1,0 +1,83 @@
+app:
+  id: mywave-event-app
+  name: MyWave Event app
+  short_description: >-
+    Мобильный помощник участника и организатора соревнований MyWave:
+    программа события, документы, уведомления и материалы в одном месте.
+  features:
+    - Программа соревнований и оперативные обновления
+    - Профили участников, организаторов и судей
+    - Документы, регламенты и медиаматериалы
+    - Уведомления об изменениях и статусах
+    - Подготовка к офлайн-режиму и мобильным оболочкам
+  version: Не опубликована
+  last_updated: "2026-08-02"
+  platforms:
+    - Android
+    - iOS / TestFlight
+    - Исходный код
+    - Документация
+
+artifacts:
+  - id: android
+    label: Android
+    platform: Android
+    format: APK / AAB
+    target_env: MYWAVE_EVENT_APP_ANDROID_DOWNLOAD_URL
+    placeholder: "{{android_download_url}}"
+    version: Не опубликована
+    size: null
+    last_updated: "2026-08-02"
+    action_label: Скачать Android-сборку
+    open_in_new_tab: false
+    requirements:
+      - Android 9 или новее
+      - Не менее 250 МБ свободного места
+      - Разрешение установки из доверенного источника для APK
+
+  - id: ios
+    label: iOS / TestFlight
+    platform: iOS
+    format: TestFlight
+    target_env: MYWAVE_EVENT_APP_IOS_TESTFLIGHT_URL
+    placeholder: "{{ios_testflight_url}}"
+    version: Не опубликована
+    size: null
+    last_updated: "2026-08-02"
+    action_label: Открыть TestFlight
+    open_in_new_tab: true
+    requirements:
+      - iOS 16 или новее
+      - Установленное приложение TestFlight
+      - Apple ID с доступом к тестированию
+
+  - id: source
+    label: Исходный код
+    platform: Разработка
+    format: ZIP
+    target_env: MYWAVE_EVENT_APP_SOURCE_ARCHIVE_URL
+    placeholder: "{{source_archive_url}}"
+    version: Не опубликована
+    size: null
+    last_updated: "2026-08-02"
+    action_label: Скачать исходный код
+    open_in_new_tab: false
+    requirements:
+      - Git 2.40 или новее
+      - Node.js и SDK согласно README архива
+      - Переменные окружения проекта
+
+  - id: documentation
+    label: Документация
+    platform: Все платформы
+    format: PDF / HTML / ZIP
+    target_env: MYWAVE_EVENT_APP_DOCUMENTATION_URL
+    placeholder: "{{documentation_url}}"
+    version: Не опубликована
+    size: null
+    last_updated: "2026-08-02"
+    action_label: Скачать документацию
+    open_in_new_tab: true
+    requirements:
+      - Современный браузер или PDF-просмотрщик
+      - Доступ к конфигурации окружения для запуска

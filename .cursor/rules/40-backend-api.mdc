@@ -1,0 +1,15 @@
+---
+description: Backend API и контракты
+globs: services/api/**/*,docs/API/**/*
+alwaysApply: false
+---
+
+# 40 — Backend / API
+
+- FastAPI в `services/api`; публичный контракт — `/api/v1` + OpenAPI.
+- Сверять изменения с `docs/API/API_CONTRACT.md` и `DATA_MODEL.md`.
+- AuthZ на каждом protected route (membership/role); fail-closed.
+- SQLite default local; Postgres через `DATABASE_URL` / compose profile.
+- Миграции — Alembic (целевой стандарт); bootstrap допустим на раннем Stage 1.
+- Audit на критичных действиях (`ENABLE_AUDIT_LOG`).
+- Не писать секреты в код; использовать env.

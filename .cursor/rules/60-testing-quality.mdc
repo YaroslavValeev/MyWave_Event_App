@@ -1,0 +1,14 @@
+---
+description: Тесты и качество
+globs: **/tests/**/*,**/*test*.*,docs/QUALITY/**/*
+alwaysApply: false
+---
+
+# 60 — Testing / Quality
+
+- Следовать `docs/QUALITY/TESTING.md`.
+- Новый API behavior — pytest (unit/integration) в том же изменении, где возможно.
+- Authz regression: запрещённые роли получают 403.
+- Не считать Download Center validation отчёты доказательством готовности Event App.
+- a11y P0 дефекты на критичных формах — блокируют UI merge.
+- Честный STATUS: не отмечать e2e зелёным без реально существующих тестов.

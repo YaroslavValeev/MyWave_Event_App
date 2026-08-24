@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mywave.local/schemas/stage1.json",
+  "title": "MyWave Event App Stage 1 Shared Schema",
+  "description": "Canonical enums and entity sketches for Stage 1. Implementation lives in services/api models.",
+  "definitions": {
+    "Role": {
+      "type": "string",
+      "enum": [
+        "participant",
+        "organizer",
+        "judge",
+        "commentator",
+        "media",
+        "support",
+        "federation_manager",
+        "event_admin",
+        "platform_admin"
+      ]
+    },
+    "EventStatus": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "registration_open",
+        "live",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "Event": {
+      "type": "object",
+      "required": ["id", "slug", "title", "status", "created_at", "updated_at"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "description": { "type": ["string", "null"] },
+        "starts_at": { "type": ["string", "null"], "format": "date-time" },
+        "ends_at": { "type": ["string", "null"], "format": "date-time" },
+        "status": { "$ref": "#/definitions/EventStatus" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AuditEvent": {
+      "type": "object",
+      "required": ["id", "action", "actor_id", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "actor_id": { "type": ["string", "null"] },
+        "resource_type": { "type": ["string", "null"] },
+        "resource_id": { "type": ["string", "null"] },
+        "payload": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ConsentPurpose": {
+      "type": "string",
+      "enum": [
+        "terms_of_use",
+        "privacy_policy",
+        "publish_name_and_results",
+        "product_analytics"
+      ]
+    },
+    "ConsentRecord": {
+      "type": "object",
+      "required": ["id", "user_id", "purpose", "version", "granted_at"],
+      "properties": {
+        "id": { "type": "integer" },
+        "user_id": { "type": "integer" },
+        "purpose": { "$ref": "#/definitions/ConsentPurpose" },
+        "version": { "type": "string" },
+        "source": { "type": "string" },
+        "granted_at": { "type": "string", "format": "date-time" },
+        "revoked_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    }
+  }
+}

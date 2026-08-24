@@ -1,0 +1,52 @@
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.draft {
+  color: var(--mist);
+  background: color-mix(in srgb, var(--mist) 12%, transparent);
+  border-color: color-mix(in srgb, var(--mist) 28%, transparent);
+}
+
+.published {
+  color: var(--foam);
+  background: color-mix(in srgb, var(--teal-mid) 35%, transparent);
+  border-color: color-mix(in srgb, var(--teal-mid) 55%, transparent);
+}
+
+.registration_open {
+  color: var(--ink);
+  background: var(--sand);
+  border-color: var(--sand-bright);
+}
+
+.live {
+  color: #1a1208;
+  background: #e8b86d;
+  border-color: #f0d9a8;
+}
+
+.completed {
+  color: var(--foam);
+  background: color-mix(in srgb, var(--teal-deep) 50%, transparent);
+  border-color: color-mix(in srgb, var(--foam) 25%, transparent);
+}
+
+.cancelled {
+  color: #f5c4c0;
+  background: color-mix(in srgb, #8b3a3a 35%, transparent);
+  border-color: color-mix(in srgb, #f5c4c0 30%, transparent);
+}
+
+.unknown {
+  color: var(--mist);
+  background: color-mix(in srgb, var(--night) 40%, transparent);
+  border-color: color-mix(in srgb, var(--mist) 25%, transparent);
+}

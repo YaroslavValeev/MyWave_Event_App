@@ -1,0 +1,127 @@
+.main {
+  padding: 1.5rem 0 2rem;
+  max-width: 24rem;
+}
+
+.title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.4rem, 5vw, 1.75rem);
+}
+
+.hint {
+  color: var(--mist);
+  font-size: 0.95rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--sand);
+}
+
+.field input,
+.field select {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--foam) 28%, transparent);
+  background: color-mix(in srgb, var(--night) 55%, transparent);
+  color: var(--foam);
+  width: 100%;
+}
+
+.field input::placeholder {
+  color: color-mix(in srgb, var(--mist) 70%, transparent);
+}
+
+.error {
+  margin: 0;
+  color: #f5c4c0;
+  font-size: 0.92rem;
+}
+
+.submit {
+  min-height: 2.85rem;
+  padding: 0.65rem 1.2rem;
+  border: 1px solid var(--sand-bright);
+  border-radius: 0.4rem;
+  background: var(--sand);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--sand-bright);
+}
+
+.submit:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.secondary {
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--foam) 35%, transparent);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--sand);
+  cursor: pointer;
+}
+
+.hint a {
+  color: var(--sand-bright);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.checkboxRow input[type="checkbox"] {
+  min-height: 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  accent-color: var(--sand);
+}
+
+.checkboxRow label {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--foam);
+}
+
+.checkboxRow a {
+  color: var(--sand-bright);
+}
+
+.prose {
+  max-width: 40rem;
+}
+
+.prose h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.prose p {
+  margin: 0 0 0.75rem;
+  color: var(--foam);
+}

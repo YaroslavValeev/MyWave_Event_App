@@ -1,0 +1,13 @@
+---
+description: Координация AI-агентов в репозитории
+alwaysApply: true
+---
+
+# 70 — Agent Coordination
+
+- Операционная модель: `docs/AI_AGENT_OPERATING_MODEL.md` и корневой `AGENTS.md`.
+- Не параллелить конфликтующие правки одного SoT-файла без согласования.
+- Сначала docs/contracts при архитектурных сдвигах, затем код.
+- Owner approval нужен для: rename продукта, смена стека, prod deploy, обязательный Telegram/MAX, удаление архива releases.
+- В отчёте агента указывать: сделано / pending / риски.
+- Не заявлять завершение Stage 2+ или mobile без фактов в CURRENT_STATE.
