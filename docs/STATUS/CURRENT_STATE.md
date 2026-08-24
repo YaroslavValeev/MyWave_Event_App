@@ -29,22 +29,21 @@
 - Тексты `docs/LEGAL/*` — рабочие редакции Stage 1, не юридическая экспертиза.
 - SMS-доставка OTP — позже.
 - Staging compose готов; remote host ещё не подключён.
-- Git remote: **не подключён** (критичный риск — история только локально).
+- Git remote: **https://github.com/YaroslavValeev/MyWave_Event_App** (private); tag `v0.4.0` запушен.
 
 ## Отсутствует
 
-- GitHub remote + push (Этап 0).
 - Production SMTP.
-- Remote staging deploy evidence.
+- Remote staging deploy evidence (compose/runbook готовы).
 - Heats / start lists / competition day (≠ training slots).
 - Results / protocols / Athlete ID / media / archive / ParserNews / broadcast.
 - Транспорт продуктовой аналитики (согласие уже пишется).
 
 ## Следующий P0 (owner)
 
-1. Создать GitHub repo и `git remote add` + `git push -u origin main` + push tag `v0.4.0`
-2. SMTP владельца (см. `OWNER_COMMANDS.md`)
-3. Поднять staging на VPS (см. `STAGING.md`)
+1. SMTP владельца (см. `OWNER_COMMANDS.md`)
+2. Поднять staging на VPS (см. `STAGING.md`) и записать evidence в CURRENT_STATE
+3. Убедиться, что GitHub Actions CI зелёный на `main`
 
 ## Следующий P0 (код, незаблокированный)
 

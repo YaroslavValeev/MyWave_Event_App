@@ -19,11 +19,11 @@
 
 | # | Задача | Статус |
 |---|--------|--------|
-| 0.1 | Commit `0.4.0` + tag `v0.4.0` | in progress |
-| 0.2 | Remote (GitHub) — единственная рабочая история не на локальном диске | pending (owner) |
+| 0.1 | Commit `0.4.0` + tag `v0.4.0` | **done** |
+| 0.2 | Remote (GitHub) — единственная рабочая история не на локальном диске | **done** (`YaroslavValeev/MyWave_Event_App`, private) |
 | 0.3 | CI на push/PR (pytest + Next build) | done |
-| 0.4 | Release discipline (semver, tag, CHANGELOG, rollback) | in progress |
-| 0.5 | Staging environment (compose + runbook) | in progress |
+| 0.4 | Release discipline (semver, tag, CHANGELOG, rollback) | **done** |
+| 0.5 | Staging environment (compose + runbook) | **done** (remote host — owner) |
 
 ## Этап 1 — Event preparation
 
