@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: API tests
+        working-directory: services/api
+        env:
+          APP_ENV: test
+          SECRET_KEY: ci-test-secret-key-not-for-prod
+          DATABASE_URL: sqlite://
+          ENABLE_AUDIT_LOG: "1"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+          pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Web build
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+        run: |
+          npm ci
+          npm run build
+
+      - name: Version consistency check
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          ROOT=$(node -p "require('./package.json').version")
+          WEB=$(node -p "require('./apps/web/package.json').version")
+          API=$(grep -oP '__version__\s*=\s*"\K[^"]+' services/api/app/__init__.py)
+          echo "tag=$TAG root=$ROOT web=$WEB api=$API"
+          test "$TAG" = "$ROOT"
+          test "$TAG" = "$WEB"
+          test "$TAG" = "$API"

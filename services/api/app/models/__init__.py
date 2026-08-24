@@ -5,6 +5,7 @@ from app.models.consent import ConsentRecord
 from app.models.category import Category
 from app.models.document import Document
 from app.models.event import Event, EventStatus
+from app.models.notification import Notification
 from app.models.official import Official
 from app.models.participant import Participant
 from app.models.training_slot import TrainingSlot
@@ -24,4 +25,5 @@ __all__ = [
     "PhoneOtp",
     "RoleApproval",
     "ConsentRecord",
+    "Notification",
 ]

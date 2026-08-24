@@ -6,8 +6,17 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+_INSECURE_SECRETS = frozenset(
+    {
+        "change-me-to-a-long-random-string",
+        "change-me",
+        "secret",
+        "changeme",
+    }
+)
 
 # services/api/app/config.py → services/api → repo root
 _API_DIR = Path(__file__).resolve().parents[1]
@@ -86,6 +95,17 @@ class Settings(BaseSettings):
         if value == "":
             return None
         return value
+
+    @model_validator(mode="after")
+    def reject_insecure_production_secret(self):
+        if not self.is_production:
+            return self
+        key = (self.secret_key or "").strip()
+        if key in _INSECURE_SECRETS or len(key) < 32:
+            raise ValueError(
+                "SECRET_KEY must be a unique value of at least 32 characters in production"
+            )
+        return self
 
     @property
     def is_development(self) -> bool:

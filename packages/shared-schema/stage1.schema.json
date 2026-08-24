@@ -66,6 +66,21 @@
         "product_analytics"
       ]
     },
+    "Notification": {
+      "type": "object",
+      "required": ["id", "user_id", "kind", "title", "body", "is_read", "created_at"],
+      "properties": {
+        "id": { "type": "integer" },
+        "user_id": { "type": "integer" },
+        "kind": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "entity_type": { "type": ["string", "null"] },
+        "entity_id": { "type": ["string", "null"] },
+        "is_read": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
     "ConsentRecord": {
       "type": "object",
       "required": ["id", "user_id", "purpose", "version", "granted_at"],

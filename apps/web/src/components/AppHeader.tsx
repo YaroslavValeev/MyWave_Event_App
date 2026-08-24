@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, getStoredUser, type UserOut } from "@/lib/api";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { clearSession, getStoredToken, getStoredUser, getUnreadCount, type UserOut } from "@/lib/api";
+import { ROLE_LABELS, isStaffRole, type Role } from "@/lib/roles";
 import styles from "./AppHeader.module.css";
 
 type AppHeaderProps = {
@@ -14,9 +14,15 @@ type AppHeaderProps = {
 export function AppHeader({ subtitle }: AppHeaderProps) {
   const router = useRouter();
   const [user, setUser] = useState<UserOut | null>(null);
+  const [unread, setUnread] = useState(0);
 
   useEffect(() => {
     setUser(getStoredUser());
+    const token = getStoredToken();
+    if (!token) return;
+    void getUnreadCount(token)
+      .then((count) => setUnread(count))
+      .catch(() => setUnread(0));
   }, []);
 
   function onLogout() {
@@ -48,16 +54,21 @@ export function AppHeader({ subtitle }: AppHeaderProps) {
         <Link href="/events" className={styles.navLink}>
           События
         </Link>
-        {user?.role === "platform_admin" ||
-        user?.role === "event_admin" ||
-        user?.role === "organizer" ||
-        user?.role === "federation_manager" ? (
+        {user && isStaffRole(user.role) ? (
           <Link href="/admin/approvals" className={styles.navLink}>
             Заявки
           </Link>
         ) : null}
         {user ? (
           <>
+            <Link href="/notifications" className={styles.navLink}>
+              Уведомления
+              {unread > 0 ? (
+                <span className={styles.badge} aria-label={`Непрочитанных: ${unread}`}>
+                  {unread}
+                </span>
+              ) : null}
+            </Link>
             <Link href="/profile" className={styles.navLink}>
               Профиль
             </Link>

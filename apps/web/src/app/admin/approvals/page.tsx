@@ -40,14 +40,14 @@ export default function ApprovalsAdminPage() {
     void load();
   }, [load]);
 
-  async function decide(tokenValue: string, decision: "approve" | "reject") {
+  async function decide(approvalId: number, decision: "approve" | "reject") {
     const token = getStoredToken();
     if (!token) return;
     setPending(true);
     setMessage(null);
     setError(null);
     try {
-      const result = await decidePendingApproval(token, tokenValue, decision);
+      const result = await decidePendingApproval(token, approvalId, decision);
       setMessage(result.message);
       await load();
     } catch (err) {
@@ -105,7 +105,7 @@ export default function ApprovalsAdminPage() {
                     type="button"
                     className={styles.submit}
                     disabled={pending}
-                    onClick={() => void decide(item.token, "approve")}
+                    onClick={() => void decide(item.approval_id, "approve")}
                   >
                     Утвердить
                   </button>
@@ -113,7 +113,7 @@ export default function ApprovalsAdminPage() {
                     type="button"
                     className={styles.secondary}
                     disabled={pending}
-                    onClick={() => void decide(item.token, "reject")}
+                    onClick={() => void decide(item.approval_id, "reject")}
                   >
                     Отклонить
                   </button>

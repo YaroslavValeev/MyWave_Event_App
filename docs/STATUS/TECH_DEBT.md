@@ -15,6 +15,7 @@
 | TD-09 | Multi-role vs single primary role на EventMembership | Допустимы multi rows | Уточнить при CRUD memberships |
 | TD-10 | Тексты LEGAL — рабочие редакции | Нет юр. экспертизы | Перед публичным prod |
 | TD-11 | Seed-email `@participants.mywave.local` | Form Excel без личных почт | Когда появятся реальные email |
-| TD-12 | Нет in-app notification log | SMTP заблокирован владельцем | следующий код-P0 |
+| TD-12 | In-app notification log | закрыт 2026-08-24: `/me/notifications` + `/notifications` | — |
+| TD-13 | Нет загрузки документов события через API | seed кладёт файлы в data/ | следующий код-P0 |
 
 Не маскировать долг под «готово в prod».

@@ -28,6 +28,7 @@
 | Server cmds | `docs/OPERATIONS/SERVER_COMMANDS.md` | сервер | деплой |
 | Backup | `docs/OPERATIONS/BACKUP_RESTORE.md` | backup | storage |
 | Release | `docs/OPERATIONS/RELEASE.md` | релиз | versioning |
+| Staging | `docs/OPERATIONS/STAGING.md` | staging env | deploy staging |
 | Testing | `docs/QUALITY/TESTING.md` | тесты | coverage |
 | A11y | `docs/QUALITY/ACCESSIBILITY.md` | доступность | UI |
 | Current state | `docs/STATUS/CURRENT_STATE.md` | факт | каждый цикл |

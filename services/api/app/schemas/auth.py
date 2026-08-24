@@ -108,7 +108,6 @@ class RoleDecisionResponse(BaseModel):
 
 class PendingApprovalItem(BaseModel):
     approval_id: int
-    token: str
     user_id: int
     email: str
     display_name: str | None

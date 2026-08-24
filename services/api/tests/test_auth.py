@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+import pytest
 from sqlalchemy import select
 
 from app.models.auth_extra import RoleApproval
@@ -119,8 +120,18 @@ def test_register_judge_pending_and_approve(client, db_session):
     assert blocked.status_code == 403
     assert blocked.json()["error"]["code"] == "account_pending"
 
-    approved = client.get(f"/api/v1/auth/approvals/{approval.token}/approve")
+    preview = client.get(f"/api/v1/auth/approvals/{approval.token}/approve")
+    assert preview.status_code == 200
+    assert "Подтвердить" in preview.text
+    db_session.refresh(approval)
+    assert approval.status == "pending"
+
+    approved = client.post(
+        f"/api/v1/auth/approvals/{approval.token}/confirm",
+        data={"decision": "approve"},
+    )
     assert approved.status_code == 200
+    assert "утверждена" in approved.text.lower() or "Роль утверждена" in approved.text
 
     otp_req2 = client.post("/api/v1/auth/phone/request-otp", json={"phone": "89001234567"})
     code2 = otp_req2.json()["dev_otp"]
@@ -209,4 +220,106 @@ def test_patch_me_profile(client):
     )
     # same phone is fine
     assert conflict.status_code == 200
+
+
+def test_email_get_does_not_approve_without_confirm(client, db_session):
+    response = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230001",
+            email="judge.prefetch@example.com",
+            display_name="Судья Prefetch",
+            requested_role="judge",
+        ),
+    )
+    assert response.status_code == 200
+    user_id = response.json()["user_id"]
+    approval = db_session.scalar(select(RoleApproval).where(RoleApproval.user_id == user_id))
+    assert approval is not None
+
+    preview = client.get(f"/api/v1/auth/approvals/{approval.token}/approve")
+    assert preview.status_code == 200
+    assert "Подтвердить" in preview.text
+    db_session.refresh(approval)
+    assert approval.status == "pending"
+
+
+def test_pending_list_hides_token(client, db_session):
+    org = auth_header(client, "org.pending@example.com", "organizer")
+    response = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230002",
+            email="judge.queue@example.com",
+            display_name="Судья Очередь",
+            requested_role="judge",
+        ),
+    )
+    assert response.status_code == 200
+    pending = client.get("/api/v1/auth/approvals/pending", headers=org)
+    assert pending.status_code == 200
+    items = pending.json()["items"]
+    assert items
+    assert "token" not in items[0]
+    assert "approval_id" in items[0]
+
+
+def test_otp_rate_limited(client):
+    reg = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230003",
+            email="otp.limit@example.com",
+            display_name="OTP Limit",
+        ),
+    )
+    assert reg.status_code == 200
+    for _ in range(5):
+        ok = client.post("/api/v1/auth/phone/request-otp", json={"phone": "+79001230003"})
+        assert ok.status_code == 200
+    blocked = client.post("/api/v1/auth/phone/request-otp", json={"phone": "+79001230003"})
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "otp_rate_limited"
+
+
+def test_staff_approve_by_id(client, db_session):
+    org = auth_header(client, "org.byid@example.com", "organizer")
+    response = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230004",
+            email="judge.byid@example.com",
+            display_name="Судья ById",
+            requested_role="judge",
+        ),
+    )
+    assert response.status_code == 200
+    user_id = response.json()["user_id"]
+    approval = db_session.scalar(select(RoleApproval).where(RoleApproval.user_id == user_id))
+    assert approval is not None
+
+    decided = client.post(
+        f"/api/v1/auth/approvals/{approval.id}/approve",
+        headers=org,
+    )
+    assert decided.status_code == 200, decided.text
+    assert decided.json()["status"] == "active"
+    assert decided.json()["role"] == "judge"
+
+
+def test_production_rejects_insecure_secret(monkeypatch):
+    from pydantic import ValidationError
+
+    from app.config import Settings, get_settings
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "change-me-to-a-long-random-string")
+    get_settings.cache_clear()
+    try:
+        with pytest.raises((ValidationError, ValueError)):
+            Settings()
+    finally:
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-not-for-production")
+        get_settings.cache_clear()
 

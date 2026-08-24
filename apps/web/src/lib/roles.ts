@@ -53,3 +53,12 @@ export function isRole(value: string): value is Role {
 export function isEventStatus(value: string): value is EventStatus {
   return (EVENT_STATUSES as readonly string[]).includes(value);
 }
+
+export function isStaffRole(value: string): boolean {
+  return (
+    value === "organizer" ||
+    value === "federation_manager" ||
+    value === "event_admin" ||
+    value === "platform_admin"
+  );
+}

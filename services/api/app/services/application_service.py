@@ -12,6 +12,7 @@ from app.models.participant import Participant
 from app.models.user import User
 from app.services.audit_service import append_audit
 from app.services.event_service import EventServiceError, get_event
+from app.services.notification_service import create_notification, notify_event_staff
 
 PUBLIC_ROSTER_STATUSES = frozenset({"accepted", "registered"})
 BLOCKING_STATUSES = frozenset({"pending", "accepted", "registered"})
@@ -113,6 +114,24 @@ def create_application(
         payload={"event_id": event_id, "status": part.status},
         enabled=audit_enabled,
     )
+    create_notification(
+        db,
+        user_id=actor.id,
+        kind="application.submitted",
+        title="Заявка отправлена",
+        body=f"Заявка на «{event.title}» принята в очередь организатора.",
+        entity_type="participant",
+        entity_id=str(part.id),
+    )
+    notify_event_staff(
+        db,
+        kind="application.submitted_staff",
+        title="Новая заявка на участие",
+        body=f"{part.full_name} подал заявку на «{event.title}».",
+        entity_type="participant",
+        entity_id=str(part.id),
+        exclude_user_id=actor.id,
+    )
     db.commit()
     db.refresh(part)
     return part
@@ -176,6 +195,17 @@ def decide_application(
         payload={"event_id": event_id, "status": status},
         enabled=audit_enabled,
     )
+    if part.user_id is not None:
+        decided_label = "принята" if status == "accepted" else "отклонена"
+        create_notification(
+            db,
+            user_id=part.user_id,
+            kind=f"application.{status}",
+            title="Решение по заявке",
+            body=f"Заявка на участие {decided_label}.",
+            entity_type="participant",
+            entity_id=str(part.id),
+        )
     db.commit()
     db.refresh(part)
     return part

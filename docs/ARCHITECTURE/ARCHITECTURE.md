@@ -35,4 +35,5 @@ SQLite (local) / PostgreSQL (prod DATABASE_URL)
 ## Auth
 
 JWT Bearer. Dev-login только в development/test.  
-Регистрация: phone + email + обязательные согласия `terms_of_use` / `privacy_policy`.
+Регистрация: phone + email + обязательные согласия `terms_of_use` / `privacy_policy`.  
+Критичные статусы дублируются в in-app `Notification`, пока SMTP не настроен.

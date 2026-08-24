@@ -21,6 +21,20 @@
 
 История: при повторном grant предыдущая активная строка того же purpose закрывается `revoked_at`.
 
+### Notification (добавлено 2026-08-24)
+
+| Поле | Тип | Обяз. | Описание |
+|------|-----|-------|----------|
+| id | int | ✓ | PK |
+| user_id | int | ✓ | → User |
+| kind | string | ✓ | `role.pending`, `application.submitted`, … |
+| title | string | ✓ | |
+| body | string | ✓ | |
+| entity_type | string | | `user` / `participant` |
+| entity_id | string | | |
+| is_read | bool | ✓ | |
+| created_at | datetime | ✓ | |
+
 
 ## 1. Принципы
 

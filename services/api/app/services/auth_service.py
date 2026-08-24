@@ -7,7 +7,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -17,10 +17,13 @@ from app.models.user import User
 from app.services.audit_service import append_audit
 from app.services.consent_service import ConsentError, grant_registration_consents
 from app.services.mail_service import send_email
+from app.services.notification_service import create_notification, notify_event_staff
 from app.services.phone_utils import mask_phone, normalize_phone
 
 AUTO_APPROVE_ROLES: frozenset[Role] = frozenset({Role.participant})
 MAX_OTP_ATTEMPTS = 5
+OTP_REQUEST_MAX = 5
+OTP_REQUEST_WINDOW = timedelta(minutes=10)
 
 
 class AuthError(Exception):
@@ -165,6 +168,27 @@ def register_user(
             },
             enabled=settings.enable_audit_log,
         )
+        create_notification(
+            db,
+            user_id=user.id,
+            kind="role.pending",
+            title="Заявка на роль отправлена",
+            body=f"Роль «{requested_role.value}» ожидает утверждения организатором.",
+            entity_type="user",
+            entity_id=str(user.id),
+        )
+        notify_event_staff(
+            db,
+            kind="role.pending_staff",
+            title="Новая заявка на роль",
+            body=(
+                f"{user.display_name or user.email} запросил роль «{requested_role.value}». "
+                "Проверьте очередь /admin/approvals."
+            ),
+            entity_type="user",
+            entity_id=str(user.id),
+            exclude_user_id=user.id,
+        )
 
     try:
         grant_registration_consents(
@@ -240,6 +264,24 @@ def request_phone_otp(
             "account_rejected",
             "Аккаунт отклонён. Обратитесь к организатору.",
             status_code=403,
+        )
+
+    cutoff = datetime.now(timezone.utc) - OTP_REQUEST_WINDOW
+    recent = 0
+    for row in db.scalars(select(PhoneOtp).where(PhoneOtp.phone == phone)).all():
+        created = row.created_at
+        if created is None:
+            recent += 1
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if created >= cutoff:
+            recent += 1
+    if recent >= OTP_REQUEST_MAX:
+        raise AuthError(
+            "otp_rate_limited",
+            "Слишком много запросов кода. Подождите несколько минут.",
+            status_code=429,
         )
 
     code = _generate_otp()
@@ -373,7 +415,8 @@ def _create_role_approval(db: Session, *, user: User, settings: Settings) -> Rol
         f"Запрошенная роль: {approval.requested_role}\n\n"
         f"Утвердить:\n{approve_url}\n\n"
         f"Отклонить:\n{reject_url}\n\n"
-        "Ссылки действуют 7 дней.\n"
+        "Ссылки действуют 7 дней. Открытие письма статус не меняет — "
+        "на странице нужно нажать кнопку подтверждения.\n"
     )
     send_email(
         settings=settings,
@@ -392,6 +435,37 @@ def list_pending_approvals(db: Session) -> list[tuple[RoleApproval, User]]:
         .order_by(RoleApproval.id.desc())
     ).all()
     return [(approval, user) for approval, user in rows]
+
+
+def peek_role_approval(db: Session, *, token: str) -> tuple[RoleApproval, User]:
+    approval = db.scalar(select(RoleApproval).where(RoleApproval.token == token))
+    if approval is None:
+        raise AuthError("approval_not_found", "Заявка не найдена", status_code=404)
+    if approval.status != "pending":
+        raise AuthError("approval_decided", "Заявка уже обработана", status_code=409)
+    now = datetime.now(timezone.utc)
+    expires = approval.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < now:
+        raise AuthError("approval_expired", "Срок заявки истёк", status_code=410)
+    user = get_user_by_id(db, approval.user_id)
+    if user is None:
+        raise AuthError("user_not_found", "Пользователь не найден", status_code=404)
+    return approval, user
+
+
+def decide_role_approval_by_id(
+    db: Session,
+    *,
+    approval_id: int,
+    approve: bool,
+    settings: Settings,
+) -> User:
+    approval = db.get(RoleApproval, approval_id)
+    if approval is None:
+        raise AuthError("approval_not_found", "Заявка не найдена", status_code=404)
+    return decide_role_approval(db, token=approval.token, approve=approve, settings=settings)
 
 
 def decide_role_approval(
@@ -458,6 +532,17 @@ def decide_role_approval(
         to_email=user.email,
         subject=message_subject,
         body=message_body,
+    )
+    kind = "role.approved" if approve else "role.rejected"
+    title = "Роль утверждена" if approve else "Роль отклонена"
+    create_notification(
+        db,
+        user_id=user.id,
+        kind=kind,
+        title=title,
+        body=message_body.strip(),
+        entity_type="user",
+        entity_id=str(user.id),
     )
     db.commit()
     db.refresh(user)

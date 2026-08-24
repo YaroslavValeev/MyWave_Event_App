@@ -22,6 +22,7 @@
 | `mwe_event_created` | создано событие | `event_id` |
 | `mwe_event_published` | publish | `event_id` |
 | `mwe_entry_submitted` | заявка отправлена | `event_id`, `entry_id` |
+| `mwe_notification_opened` | открыт журнал уведомлений | `unread_count` |
 | `mwe_consent_granted` | пользователь выдал согласие | `purpose`, `version` |
 | `mwe_consent_revoked` | пользователь отозвал согласие | `purpose`, `version` |
 | `mwe_legal_document_viewed` | открыт текст документа | `purpose`, `version` |

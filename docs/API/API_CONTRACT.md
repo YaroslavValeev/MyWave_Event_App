@@ -17,14 +17,19 @@
 | POST | `/api/v1/auth/register` | no | регистрация (participant active; иначе pending) |
 | POST | `/api/v1/auth/phone/request-otp` | no | OTP на email + mail_outbox |
 | POST | `/api/v1/auth/phone/verify-otp` | no | JWT при status=active |
-| GET | `/api/v1/auth/approvals/pending` | Bearer organizer+ | очередь ролей |
-| POST | `/api/v1/auth/approvals/{token}/approve` | Bearer organizer+ | утвердить |
-| POST | `/api/v1/auth/approvals/{token}/reject` | Bearer organizer+ | отклонить |
-| GET | `/api/v1/auth/approvals/{token}/approve` | no (email link) | HTML approve |
-| GET | `/api/v1/auth/approvals/{token}/reject` | no (email link) | HTML reject |
+| GET | `/api/v1/auth/approvals/pending` | Bearer organizer+ | очередь ролей (**без** token) |
+| POST | `/api/v1/auth/approvals/{approval_id}/approve` | Bearer organizer+ | утвердить по id |
+| POST | `/api/v1/auth/approvals/{approval_id}/reject` | Bearer organizer+ | отклонить по id |
+| GET | `/api/v1/auth/approvals/{token}/approve` | no (email link) | HTML-форма подтверждения (без мутации) |
+| GET | `/api/v1/auth/approvals/{token}/reject` | no (email link) | HTML-форма подтверждения (без мутации) |
+| POST | `/api/v1/auth/approvals/{token}/confirm` | form `decision=approve\|reject` | мутация по email-ссылке |
 | POST | `/api/v1/auth/dev-login` | no (dev/test only) | JWT bootstrap |
 | GET | `/api/v1/me` | Bearer | текущий пользователь |
 | PATCH | `/api/v1/me` | Bearer | имя и/или телефон |
+| GET | `/api/v1/me/notifications` | Bearer | журнал уведомлений |
+| GET | `/api/v1/me/notifications/unread-count` | Bearer | число непрочитанных |
+| POST | `/api/v1/me/notifications/read-all` | Bearer | отметить все прочитанными |
+| POST | `/api/v1/me/notifications/{id}/read` | Bearer | отметить одно |
 | GET | `/api/v1/legal/documents` | no | каталог согласий/документов |
 | GET | `/api/v1/legal/documents/{purpose}` | no | текст текущей версии |
 | GET | `/api/v1/me/consents` | Bearer | согласия текущего пользователя |

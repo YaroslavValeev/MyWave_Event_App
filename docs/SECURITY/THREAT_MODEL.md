@@ -23,7 +23,8 @@
 
 | ID | Угроза | Контрмера |
 |----|--------|-----------|
-| T1 | Credential stuffing | rate limit, strong hash, lockout policy |
+| T1 | Credential stuffing | rate limit OTP, strong hash, lockout policy |
+| T11 | Email-scanner / GET prefetch на approve-ссылке | GET только форма; мутация POST confirm |
 | T2 | Privilege escalation (athlete→admin) | server-side membership checks |
 | T3 | Подделка результата | audit, version lock, publish gate |
 | T4 | IDOR по event/entry id | authz на каждый объект |

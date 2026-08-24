@@ -111,11 +111,42 @@ Dev-login (только local):
 curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/dev-login -H "Content-Type: application/json" -d "{\"email\":\"organizer@example.com\",\"role\":\"organizer\"}"
 ```
 
-## 6) Что дальше по продукту
+## 6) Git remote (обязательно)
 
-Локально уже сделано агентами: phone-auth, approvals UI, event applications, CI workflow.
+История не должна жить только на локальном диске.
+
+```powershell
+cd "F:\Проекты MyWave\NEW2026\App Champ\MyWave_Event_App"
+
+# Вариант A: создать private repo и сразу запушить
+gh repo create MyWave_Event_App --private --source=. --remote=origin --push
+
+# Вариант B: если repo уже создан на GitHub
+git remote add origin https://github.com/<ORG_OR_USER>/MyWave_Event_App.git
+git push -u origin main
+git push origin v0.4.0
+```
+
+## 7) Staging (локальный Docker)
+
+```powershell
+Copy-Item .env.staging.example .env.staging
+# Отредактировать SECRET_KEY (≥32 символов)
+docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d
+curl.exe http://127.0.0.1:8001/health
+```
+
+Подробнее: `docs/OPERATIONS/STAGING.md`
+
+## 8) Что дальше по продукту
+
+Сделано в 0.4.0: phone-auth, approvals, applications, notifications, CI, release/staging discipline.
 
 Остаётся за владельцем:
-1. SMTP (вы) → проверка OTP на реальную почту  
-2. Staging deploy по `docs/OPERATIONS/SERVER_COMMANDS.md`
-3. (опционально) привязать реальные email спортсменов вместо `p{phone}@participants.mywave.local`
+1. GitHub remote + push `main` и tag `v0.4.0`
+2. SMTP (вы) → проверка OTP на реальную почту
+3. Staging на VPS (после remote)
+4. (опционально) реальные email спортсменов вместо `p{phone}@participants.mywave.local`
+
+Следующий код P0: document upload → event checklist → heats/start lists.
+

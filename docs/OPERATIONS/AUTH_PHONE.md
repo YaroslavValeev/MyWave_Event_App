@@ -13,7 +13,9 @@
    - SMS delivery is intentionally deferred; until then email/outbox is the channel
 
 3. **Approve role** (owner)
-   - Links in mail: `/api/v1/auth/approvals/{token}/approve|reject`
+   - Links in mail: `/api/v1/auth/approvals/{token}/approve|reject` — GET только показывает форму.
+   - Мутация: `POST /api/v1/auth/approvals/{token}/confirm` (`decision=approve|reject`).
+   - UI: `POST /api/v1/auth/approvals/{approval_id}/approve|reject` (Bearer, без token в списке).
 
 4. **Dev login** remains for local bootstrap only (`APP_ENV=development|test`)
 
@@ -29,3 +31,4 @@
 - `/register` — registration form (при email/phone taken — CTA «Войти»)
 - `/profile` — PATCH имя/телефон (`PATCH /api/v1/me`)
 - `/admin/approvals` — очередь ролей for organizers/admins
+- `/notifications` — in-app журнал статусов (заявка/роль), пока SMTP не настроен

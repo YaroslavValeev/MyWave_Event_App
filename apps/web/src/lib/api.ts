@@ -337,7 +337,6 @@ export async function verifyPhoneOtp(phone: string, code: string): Promise<Token
 
 export type PendingApproval = {
   approval_id: number;
-  token: string;
   user_id: number;
   email: string;
   display_name: string | null;
@@ -359,7 +358,7 @@ export async function listPendingApprovals(token: string): Promise<PendingApprov
 
 export function decidePendingApproval(
   token: string,
-  approvalToken: string,
+  approvalId: number,
   decision: "approve" | "reject",
 ) {
   return apiFetch<{
@@ -369,7 +368,51 @@ export function decidePendingApproval(
     role: Role;
     status: string;
     message: string;
-  }>(`/api/v1/auth/approvals/${approvalToken}/${decision}`, { method: "POST" }, token);
+  }>(`/api/v1/auth/approvals/${approvalId}/${decision}`, { method: "POST" }, token);
+}
+
+export type NotificationOut = {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  is_read: boolean;
+  created_at: string;
+};
+
+export async function listMyNotifications(token: string): Promise<{
+  items: NotificationOut[];
+  total: number;
+  unread_count: number;
+}> {
+  return apiFetch("/api/v1/me/notifications", { method: "GET" }, token);
+}
+
+export async function getUnreadCount(token: string): Promise<number> {
+  const payload = await apiFetch<{ unread_count: number }>(
+    "/api/v1/me/notifications/unread-count",
+    { method: "GET" },
+    token,
+  );
+  return payload.unread_count;
+}
+
+export function markNotificationRead(token: string, notificationId: number) {
+  return apiFetch<NotificationOut>(
+    `/api/v1/me/notifications/${notificationId}/read`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export function markAllNotificationsRead(token: string) {
+  return apiFetch<{ unread_count: number }>(
+    "/api/v1/me/notifications/read-all",
+    { method: "POST" },
+    token,
+  );
 }
 
 export type ScheduleHint = {
