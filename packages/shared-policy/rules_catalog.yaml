@@ -1,0 +1,89 @@
+# Competition rules catalog — MyWave Event App
+# Version: 2026-08-25
+
+governing_bodies:
+  FVLS:
+    title: "Федерация вейкспорта и водных лыж"
+    default_sanction: IWWF
+    official_protocol_requires_sanction: true
+  IWWF:
+    title: "International Waterski & Wakeboard Federation"
+  WSWS:
+    title: "World Series of Wake Surfing"
+    affiliation: WWA
+    rules_doc_ru: "wsws_wakesurf_rules_ru.docx"
+  WWA:
+    title: "World Wake Association"
+  CWSA:
+    title: "Canadian Wakeboard & Ski Association"
+    status: reserved
+
+disciplines:
+  wakeboard_boat:
+    title_ru: "Вейкборд (катер)"
+    group: wake
+    default_rules_pack: IWWF_BOAT_EIC_2025
+  wakeboard_cable:
+    title_ru: "Cable wakeboard / электротяга"
+    group: wake
+    default_rules_pack: IWWF_CABLE_TI_2025
+  wakesurf_boat:
+    title_ru: "Вейксерф"
+    group: wake
+    allowed_rules_packs:
+      - IWWF_WAKESURF_2024
+      - WSWS_WAKESURF_DRIVE
+  wakeskim:
+    title_ru: "Вейкским"
+    group: wake
+    default_rules_pack: MANUAL_PLACE_v1
+
+rules_packs:
+  IWWF_BOAT_EIC_2025:
+    engine: IWWF_BOAT_EIC
+    judges_min: 3
+    criteria: [execution, intensity, composition]
+    max_score: 100
+    placement_overrides_score: true
+    source: "IWWF Wakeboard Boat Rules 2025"
+  IWWF_CABLE_TI_2025:
+    engine: IWWF_CABLE_TI
+    judges_min: 3
+    criteria: [technical_performance, impression]
+    runs: 2
+    best_of_runs: true
+    max_score: 100
+    scorenow_alternative: true
+    source: "IWWF Cable Wakeboard Rule Book V11/V12"
+  IWWF_WAKESURF_2024:
+    engine: IWWF_WAKESURF_SUBJECTIVE
+    judges_min: 3
+    max_score: 100
+    source: "2024 OFFICIAL WAKESURF RULES"
+  WSWS_WAKESURF_DRIVE:
+    engine: WSWS_DRIVE
+    judges_min: 3
+    criteria: [difficulty, risk, intensity, variety, execution]
+    max_score: 100
+    run_duration_surf_pro_min: 4
+    run_duration_skim_min: 2
+    supports_excel_import: true
+    supports_judge_sheet_photo: true
+    source: "wsws_wakesurf_rules_ru.docx"
+  MANUAL_PLACE_v1:
+    engine: MANUAL_PLACE
+    supports_photo_protocol: true
+
+scoring_modes:
+  structured:
+    title_ru: "Судьи в приложении"
+  manual:
+    title_ru: "Ручной ввод протокола"
+  photo_protocol:
+    title_ru: "Фото / PDF протокола"
+    allowed_mime: [image/jpeg, image/png, application/pdf]
+    requires_human_verify: true
+  import_scorenow:
+    title_ru: "Импорт Score-now"
+  import_excel:
+    title_ru: "Импорт Excel (WSWS и др.)"

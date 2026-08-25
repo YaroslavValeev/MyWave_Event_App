@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 — 2026-08-25
+
+- Rules catalog API: governing bodies, P0 disciplines, rules packs, scoring modes.
+- EventRulesProfile: FVLS + IWWF sanction, discipline codes, scoring mode (create + upsert).
+- ProtocolCapture: upload JPG/PNG/WebP/PDF (organizer+/judge), verify → publish, file download.
+- UI: wizard `/events/new` (дисциплины + режим протокола), вкладка «Протокол».
+- ADR-0006 governing bodies / scoring profiles (draft).
+- Pytest: **46 passed**.
+
 ## 0.5.1 — 2026-08-24
 
 - Bulk fill start list из roster/category (`POST .../start-list/fill`).

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 
@@ -45,6 +47,8 @@ from app.schemas.competition import (
     TrainingSlotListResponse,
     TrainingSlotOut,
 )
+from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
+from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
 from app.schemas.event import EventRead
 from app.services.consent_service import public_participant_name
 from app.services.application_service import (
@@ -81,9 +85,42 @@ from app.services.result_service import (
     transition_result,
     upsert_draft_result,
 )
+from app.services.protocol_service import (
+    get_protocol_capture,
+    list_protocol_captures,
+    update_protocol_capture,
+    upload_protocol_capture,
+)
+from app.services.rules_profile_service import get_rules_profile, profile_to_out, upsert_rules_profile
 from app.services.event_service import EventServiceError, get_event
+from app.models.protocol_capture import ProtocolCapture
 
 router = APIRouter(prefix="/events", tags=["competition"])
+
+
+def _protocol_out(capture: ProtocolCapture) -> ProtocolCaptureOut:
+    extracted = None
+    if capture.extracted_json:
+        try:
+            extracted = json.loads(capture.extracted_json)
+        except json.JSONDecodeError:
+            extracted = None
+    return ProtocolCaptureOut(
+        id=capture.id,
+        event_id=capture.event_id,
+        heat_id=capture.heat_id,
+        title=capture.title,
+        kind=capture.kind,
+        status=capture.status,
+        file_name=capture.file_name,
+        mime_type=capture.mime_type,
+        notes=capture.notes,
+        extracted=extracted,
+        created_by_user_id=capture.created_by_user_id,
+        verified_by_user_id=capture.verified_by_user_id,
+        verified_at=capture.verified_at,
+        created_at=capture.created_at,
+    )
 
 
 @router.get("/{event_id}/detail", response_model=EventDetailOut)
@@ -623,6 +660,128 @@ def result_history(
         items=[ResultHistoryOut.model_validate(i) for i in items],
         total=len(items),
     )
+
+
+@router.get("/{event_id}/rules-profile", response_model=EventRulesProfileOut | None)
+def event_rules_profile(event_id: int, db: DbSession, user: CurrentUser) -> EventRulesProfileOut | None:
+    try:
+        profile = get_rules_profile(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    if profile is None:
+        return None
+    return profile_to_out(profile)
+
+
+@router.put("/{event_id}/rules-profile", response_model=EventRulesProfileOut)
+def put_event_rules_profile(
+    event_id: int,
+    body: EventRulesProfileUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> EventRulesProfileOut:
+    try:
+        profile = upsert_rules_profile(
+            db,
+            event_id=event_id,
+            data=body,
+            actor=user,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return profile_to_out(profile)
+
+
+@router.get("/{event_id}/protocol-captures", response_model=ProtocolCaptureListResponse)
+def protocol_captures(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    heat_id: int | None = Query(default=None),
+) -> ProtocolCaptureListResponse:
+    try:
+        items = list_protocol_captures(db, event_id=event_id, actor=user, heat_id=heat_id)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    out = [_protocol_out(i) for i in items]
+    return ProtocolCaptureListResponse(items=out, total=len(out))
+
+
+@router.post("/{event_id}/protocol-captures", response_model=ProtocolCaptureOut, status_code=201)
+async def post_protocol_capture(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    kind: str = Form("judge_sheet"),
+    heat_id: int | None = Form(None),
+    notes: str | None = Form(None),
+) -> ProtocolCaptureOut:
+    try:
+        capture = upload_protocol_capture(
+            db,
+            event_id=event_id,
+            actor=user,
+            file=file,
+            title=title,
+            kind=kind,
+            heat_id=heat_id,
+            notes=notes,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return _protocol_out(capture)
+
+
+@router.patch("/{event_id}/protocol-captures/{capture_id}", response_model=ProtocolCaptureOut)
+def patch_protocol_capture(
+    event_id: int,
+    capture_id: int,
+    body: ProtocolCaptureUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> ProtocolCaptureOut:
+    try:
+        capture = update_protocol_capture(
+            db,
+            event_id=event_id,
+            capture_id=capture_id,
+            actor=user,
+            data=body,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return _protocol_out(capture)
+
+
+@router.get("/{event_id}/protocol-captures/{capture_id}/file")
+def protocol_capture_file(
+    event_id: int,
+    capture_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> FileResponse:
+    try:
+        capture = get_protocol_capture(db, event_id=event_id, capture_id=capture_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+
+    base = settings.repo_root / "data" / "protocols"
+    path = (base / capture.relative_path).resolve()
+    if not str(path).startswith(str(base.resolve())):
+        raise_api_error(400, "invalid_path", "Invalid protocol path")
+    if not path.is_file():
+        raise_api_error(404, "file_missing", "Protocol file is not available on server")
+    return FileResponse(path, filename=capture.file_name, media_type=capture.mime_type)
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)

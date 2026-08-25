@@ -1,8 +1,8 @@
 # CURRENT_STATE
 
-Дата: 2026-08-24  
-Версия продукта: **0.5.1**  
-Путь до DoD v1 (аудит): ~**48%**
+Дата: 2026-08-25  
+Версия продукта: **0.5.2**  
+Путь до DoD v1 (аудит): ~**52%**
 
 ## Работает
 
@@ -13,18 +13,22 @@
 - Heats / start list / run + статусы day-of.
 - Bulk fill start list из roster/category.
 - Results draft → verified → published → void + history.
+- **Rules catalog** (`GET /api/v1/rules/catalog`) — FVLS/IWWF, P0 дисциплины, packs.
+- **EventRulesProfile** при создании события и `PUT .../rules-profile`.
+- **ProtocolCapture** — фото/PDF листа судьи, upload (organizer+/judge), verify → publish, audit.
+- UI: wizard `/events/new`, вкладка «Протокол» на карточке события.
 
 ## Частично
 
-- Judge multi-score / calculation engine — нет (только ручной score/place).
-- Official protocol PDF export — нет.
+- Structured scoring engines (WSWS DRIVE, IWWF T+I, IWWF E/I/C) — каталог есть, расчёт нет.
+- Official protocol PDF export — нет (есть capture + verify).
 - Athlete ID / media / archive / ParserNews / broadcast — нет.
 - SMTP и remote staging host — owner.
 
 ## Следующий P0 (код)
 
-1. Judge scoring input + aggregation
-2. Official protocol export
+1. Scoring engines по `rules_catalog` (WSWS_DRIVE, IWWF_CABLE_TI, IWWF_BOAT_EIC)
+2. Official protocol PDF/JSON export из verified captures + results
 3. Athlete ID (без PII в идентификаторе)
 
 ## Следующий P0 (owner)
@@ -35,5 +39,5 @@
 
 ## Проверки
 
-- pytest: цель ≥41 passed (competition day + results)
-- UI: вкладки Checklist / Docs / Heats / Results
+- pytest: **46 passed** (protocol + rules + competition day)
+- UI: вкладки Checklist / Docs / **Протокол** / Heats / Results; wizard создания события

@@ -62,6 +62,18 @@ def create_event(
         db.rollback()
         raise EventServiceError("slug_taken", f"Event slug already exists: {data.slug}", 409) from exc
 
+    if data.rules_profile is not None:
+        from app.services.rules_profile_service import create_rules_profile
+
+        create_rules_profile(
+            db,
+            event_id=event.id,
+            data=data.rules_profile,
+            actor=actor,
+            audit_enabled=audit_enabled,
+            commit=False,
+        )
+
     append_audit(
         db,
         action="event.create",

@@ -439,6 +439,52 @@ export type EventCreatePayload = {
   starts_at?: string | null;
   ends_at?: string | null;
   status?: EventStatus | string;
+  rules_profile?: EventRulesProfileCreatePayload;
+};
+
+export type EventRulesProfileCreatePayload = {
+  governing_body?: string;
+  sanction_body?: string;
+  discipline_codes: string[];
+  scoring_mode?: string;
+};
+
+export type EventRulesProfileOut = {
+  id: number;
+  event_id: number;
+  governing_body: string;
+  sanction_body: string;
+  discipline_codes: string[];
+  rules_packs: Record<string, string>;
+  scoring_mode: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RulesCatalog = {
+  governing_bodies: Record<string, Record<string, string>>;
+  disciplines: Record<string, { title_ru: string; default_rules_pack?: string }>;
+  rules_packs: Record<string, Record<string, unknown>>;
+  scoring_modes: Record<string, { title_ru: string }>;
+  p0_discipline_codes: string[];
+  defaults: { governing_body: string; sanction_body: string; scoring_mode: string };
+};
+
+export type ProtocolCaptureOut = {
+  id: number;
+  event_id: number;
+  heat_id: number | null;
+  title: string;
+  kind: string;
+  status: string;
+  file_name: string;
+  mime_type: string;
+  notes: string | null;
+  extracted: Record<string, unknown> | null;
+  created_by_user_id: number | null;
+  verified_by_user_id: number | null;
+  verified_at: string | null;
+  created_at: string;
 };
 
 export function createEvent(token: string, payload: EventCreatePayload) {
@@ -446,6 +492,90 @@ export function createEvent(token: string, payload: EventCreatePayload) {
     method: "POST",
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function getRulesCatalog() {
+  return apiFetch<RulesCatalog>("/api/v1/rules/catalog", { method: "GET" });
+}
+
+export function getEventRulesProfile(token: string, eventId: number | string) {
+  return apiFetch<EventRulesProfileOut | null>(
+    `/api/v1/events/${eventId}/rules-profile`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function upsertEventRulesProfile(
+  token: string,
+  eventId: number | string,
+  payload: EventRulesProfileCreatePayload,
+) {
+  return apiFetch<EventRulesProfileOut>(
+    `/api/v1/events/${eventId}/rules-profile`,
+    { method: "PUT", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export async function listProtocolCaptures(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: ProtocolCaptureOut[]; total: number }>(
+    `/api/v1/events/${eventId}/protocol-captures`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function uploadProtocolCapture(
+  token: string,
+  eventId: number | string,
+  file: File,
+  meta: { title: string; kind?: string; heat_id?: number; notes?: string },
+): Promise<ProtocolCaptureOut> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", meta.title);
+  form.append("kind", meta.kind ?? "judge_sheet");
+  if (meta.heat_id != null) form.append("heat_id", String(meta.heat_id));
+  if (meta.notes) form.append("notes", meta.notes);
+
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/protocol-captures`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = body?.error ?? body?.detail;
+    throw new ApiError(
+      typeof err === "string" ? err : err?.message ?? response.statusText,
+      response.status,
+      err?.code,
+    );
+  }
+  return body as ProtocolCaptureOut;
+}
+
+export function updateProtocolCapture(
+  token: string,
+  eventId: number | string,
+  captureId: number,
+  payload: { status?: string; notes?: string; title?: string; extracted?: Record<string, unknown> },
+) {
+  return apiFetch<ProtocolCaptureOut>(
+    `/api/v1/events/${eventId}/protocol-captures/${captureId}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function protocolCaptureFileUrl(eventId: number | string, captureId: number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/protocol-captures/${captureId}/file`;
 }
 
 export type EventListResponse = {

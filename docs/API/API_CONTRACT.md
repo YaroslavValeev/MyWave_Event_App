@@ -43,7 +43,7 @@
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | GET | `/api/v1/events` | Bearer | список |
-| POST | `/api/v1/events` | Bearer organizer+ | создать |
+| POST | `/api/v1/events` | Bearer organizer+ | создать (optional `rules_profile`: governing_body, sanction_body, discipline_codes[], scoring_mode) |
 | GET | `/api/v1/events/{id}` | Bearer | получить |
 | PATCH | `/api/v1/events/{id}` | Bearer organizer+ | обновить |
 | GET | `/api/v1/events/{id}/detail` | Bearer | сводка + counts |
@@ -80,6 +80,20 @@
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
 | GET | `/api/v1/events/{id}/schedule-hint` | Bearer | текстовая подсказка расписания |
 | GET | `/api/v1/audit` | Bearer admin | audit |
+
+## Rules & protocol (0.5.2)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/rules/catalog` | no | governing bodies, disciplines, rules packs, scoring modes |
+| GET | `/api/v1/events/{id}/rules-profile` | Bearer | профиль правил (null если не задан) |
+| PUT | `/api/v1/events/{id}/rules-profile` | Bearer organizer+ | создать/обновить профиль |
+| GET | `/api/v1/events/{id}/protocol-captures` | Bearer | список фото/PDF протоколов (`?heat_id=`) |
+| POST | `/api/v1/events/{id}/protocol-captures` | Bearer organizer+/judge | upload (multipart: file, title, kind?, heat_id?, notes?) |
+| PATCH | `/api/v1/events/{id}/protocol-captures/{id}` | Bearer | status draft\|verified\|published\|rejected (verify — organizer+) |
+| GET | `/api/v1/events/{id}/protocol-captures/{id}/file` | Bearer | скачать файл |
+
+Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `other`. Файлы: JPG/PNG/WebP/PDF ≤15 МБ.
 
 Ошибка:
 

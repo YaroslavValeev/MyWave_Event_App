@@ -12,9 +12,11 @@ import {
   ChecklistItemOut,
   DocumentOut,
   EventDetail,
+  EventRulesProfileOut,
   HeatOut,
   OfficialOut,
   ParticipantOut,
+  ProtocolCaptureOut,
   ResultOut,
   ScheduleHint,
   StartListEntryOut,
@@ -26,6 +28,7 @@ import {
   documentDownloadUrl,
   fillStartList,
   getEventDetail,
+  getEventRulesProfile,
   getMyApplication,
   getScheduleHint,
   getStoredToken,
@@ -37,15 +40,19 @@ import {
   listHeats,
   listOfficials,
   listParticipants,
+  listProtocolCaptures,
   listResults,
   listStartList,
   listTrainingSlots,
+  protocolCaptureFileUrl,
   submitApplication,
   updateChecklistItem,
   updateHeatStatus,
+  updateProtocolCapture,
   updateResultStatus,
   updateStartListStatus,
   uploadDocument,
+  uploadProtocolCapture,
   upsertResultDraft,
 } from "@/lib/api";
 import styles from "../events.module.css";
@@ -56,6 +63,7 @@ type TabId =
   | "participants"
   | "slots"
   | "docs"
+  | "protocol"
   | "heats"
   | "results"
   | "apps";
@@ -91,6 +99,11 @@ export default function EventDetailPage() {
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadKind, setUploadKind] = useState("other");
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [rulesProfile, setRulesProfile] = useState<EventRulesProfileOut | null>(null);
+  const [protocols, setProtocols] = useState<ProtocolCaptureOut[]>([]);
+  const [protocolTitle, setProtocolTitle] = useState("");
+  const [protocolKind, setProtocolKind] = useState("judge_sheet");
+  const [protocolBusy, setProtocolBusy] = useState(false);
   const [results, setResults] = useState<ResultOut[]>([]);
   const [resultParticipantId, setResultParticipantId] = useState("");
   const [resultScore, setResultScore] = useState("");
@@ -115,6 +128,8 @@ export default function EventDetailPage() {
     user?.role === "event_admin" ||
     user?.role === "platform_admin" ||
     user?.role === "federation_manager";
+  const canUploadProtocol =
+    canModerate || user?.role === "judge";
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +140,7 @@ export default function EventDetailPage() {
         return;
       }
       try {
-        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems] =
+        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems, profile, protoItems] =
           await Promise.all([
           getEventDetail(token, eventId),
           listCategories(token, eventId),
@@ -137,6 +152,8 @@ export default function EventDetailPage() {
           listChecklist(token, eventId).catch(() => ({ items: [], total: 0, done_count: 0 })),
           listHeats(token, eventId).catch(() => []),
           listResults(token, eventId).catch(() => []),
+          getEventRulesProfile(token, eventId).catch(() => null),
+          listProtocolCaptures(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setDetail(d);
@@ -150,6 +167,8 @@ export default function EventDetailPage() {
         setChecklistDone(checks.done_count);
         setHeats(heatItems);
         setResults(resultItems);
+        setRulesProfile(profile);
+        setProtocols(protoItems);
         if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
         const stored = getStoredUser();
         if (
@@ -287,6 +306,56 @@ export default function EventDetailPage() {
       await refreshChecklist(token);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось обновить чеклист");
+    }
+  }
+
+  async function onUploadProtocol(file: File | null) {
+    const token = getStoredToken();
+    if (!token || !file || !canUploadProtocol) return;
+    setProtocolBusy(true);
+    setError(null);
+    try {
+      await uploadProtocolCapture(token, eventId, file, {
+        title: protocolTitle.trim() || file.name,
+        kind: protocolKind,
+        heat_id: selectedHeatId ?? undefined,
+      });
+      setProtocolTitle("");
+      setProtocols(await listProtocolCaptures(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить протокол");
+    } finally {
+      setProtocolBusy(false);
+    }
+  }
+
+  async function downloadProtocol(item: ProtocolCaptureOut) {
+    const token = getStoredToken();
+    if (!token) return;
+    const res = await fetch(protocolCaptureFileUrl(eventId, item.id), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      setError("Не удалось скачать протокол");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = item.file_name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function onVerifyProtocol(item: ProtocolCaptureOut, status: "verified" | "published" | "rejected") {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    try {
+      await updateProtocolCapture(token, eventId, item.id, { status });
+      setProtocols(await listProtocolCaptures(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить статус протокола");
     }
   }
 
@@ -473,6 +542,7 @@ export default function EventDetailPage() {
     { id: "participants", label: `Участники (${participants.length})` },
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
+    { id: "protocol", label: `Протокол (${protocols.length})` },
     { id: "heats", label: `Heats (${heats.length})` },
     { id: "results", label: `Results (${results.length})` },
     {
@@ -521,6 +591,15 @@ export default function EventDetailPage() {
                 <dt>Дисциплины</dt>
                 <dd>{detail.disciplines || "—"}</dd>
               </div>
+              {rulesProfile ? (
+                <div>
+                  <dt>Правила / протокол</dt>
+                  <dd>
+                    {rulesProfile.governing_body} · санкция {rulesProfile.sanction_body} ·{" "}
+                    {rulesProfile.scoring_mode}
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Сводка</dt>
                 <dd>
@@ -868,6 +947,118 @@ export default function EventDetailPage() {
                         </div>
                         <div className={styles.muted}>
                           {d.kind} · {d.language || "—"} · {d.file_name}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </>
+            ) : null}
+
+            {tab === "protocol" ? (
+              <>
+                <h2 className={styles.itemTitle}>Фото / PDF протокола</h2>
+                <p className={styles.muted}>
+                  Листы судей WSWS (DRIVE) или бумажный протокол. Загрузка: JPG/PNG/WebP/PDF до 15 МБ.
+                </p>
+                {canUploadProtocol ? (
+                  <div className={styles.panel}>
+                    <label className={styles.muted}>
+                      Название{" "}
+                      <input
+                        value={protocolTitle}
+                        onChange={(e) => setProtocolTitle(e.target.value)}
+                        placeholder="Лист судьи 1 · Heat A"
+                        style={{
+                          marginLeft: "0.5rem",
+                          padding: "0.45rem 0.7rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line)",
+                          background: "rgba(0,0,0,0.25)",
+                          color: "inherit",
+                        }}
+                      />
+                    </label>{" "}
+                    <label className={styles.muted}>
+                      Тип{" "}
+                      <select
+                        value={protocolKind}
+                        onChange={(e) => setProtocolKind(e.target.value)}
+                        style={{
+                          marginLeft: "0.35rem",
+                          padding: "0.45rem 0.5rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line)",
+                          background: "rgba(0,0,0,0.25)",
+                          color: "inherit",
+                        }}
+                      >
+                        <option value="judge_sheet">Лист судьи</option>
+                        <option value="chief_protocol">Протокол главного судьи</option>
+                        <option value="photo_result">Фото табло</option>
+                        <option value="other">Другое</option>
+                      </select>
+                    </label>{" "}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf"
+                      capture="environment"
+                      disabled={protocolBusy}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        void onUploadProtocol(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <ul className={styles.list}>
+                  {protocols.length === 0 ? (
+                    <li className={styles.item}>
+                      <span className={styles.muted}>Протоколы ещё не загружены.</span>
+                    </li>
+                  ) : (
+                    protocols.map((p) => (
+                      <li key={p.id} className={styles.item}>
+                        <div className={styles.itemHead}>
+                          <strong>
+                            {p.title}{" "}
+                            <span className={styles.muted}>({p.status})</span>
+                          </strong>
+                          <span>
+                            <button
+                              type="button"
+                              className={styles.linkBtn}
+                              onClick={() => void downloadProtocol(p)}
+                            >
+                              Открыть
+                            </button>
+                            {canModerate && p.status === "draft" ? (
+                              <button
+                                type="button"
+                                className={styles.linkBtn}
+                                style={{ marginLeft: "0.5rem" }}
+                                onClick={() => void onVerifyProtocol(p, "verified")}
+                              >
+                                Проверить
+                              </button>
+                            ) : null}
+                            {canModerate && p.status === "verified" ? (
+                              <button
+                                type="button"
+                                className={styles.linkBtn}
+                                style={{ marginLeft: "0.5rem" }}
+                                onClick={() => void onVerifyProtocol(p, "published")}
+                              >
+                                Опубликовать
+                              </button>
+                            ) : null}
+                          </span>
+                        </div>
+                        <div className={styles.muted}>
+                          {p.kind} · {p.file_name}
+                          {p.heat_id ? ` · heat #${p.heat_id}` : ""}
+                          {p.notes ? ` · ${p.notes}` : ""}
                         </div>
                       </li>
                     ))

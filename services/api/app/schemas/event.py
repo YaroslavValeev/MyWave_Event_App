@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.event import EventStatus
+from app.schemas.rules import EventRulesProfileCreate
 
 
 class EventCreate(BaseModel):
@@ -20,6 +21,7 @@ class EventCreate(BaseModel):
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     status: EventStatus = EventStatus.draft
+    rules_profile: EventRulesProfileCreate | None = None
 
 
 class EventUpdateStatus(BaseModel):

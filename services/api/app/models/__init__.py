@@ -6,6 +6,8 @@ from app.models.consent import ConsentRecord
 from app.models.category import Category
 from app.models.document import Document
 from app.models.event import Event, EventStatus
+from app.models.event_rules import EventRulesProfile
+from app.models.protocol_capture import ProtocolCapture
 from app.models.heat import Heat, Run, StartListEntry
 from app.models.notification import Notification
 from app.models.official import Official
@@ -35,4 +37,6 @@ __all__ = [
     "Run",
     "Result",
     "ResultHistory",
+    "EventRulesProfile",
+    "ProtocolCapture",
 ]
