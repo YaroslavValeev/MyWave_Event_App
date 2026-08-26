@@ -78,7 +78,7 @@ def submit_judge_score(
     if not can_submit_judge_score(actor):
         raise EventServiceError("forbidden", "Insufficient role to submit judge scores", 403)
 
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     part = db.get(Participant, data.participant_id)
     if part is None or part.event_id != event_id:
         raise EventServiceError("invalid_participant", "Participant not found for event", 400)
@@ -162,7 +162,7 @@ def aggregate_to_result(
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Only organizer+ can aggregate panel scores", 403)
 
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     sheets = list(
         db.scalars(
             select(JudgeScore).where(

@@ -127,7 +127,7 @@ def set_checklist_item(
 ) -> EventChecklistItem:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to update checklist", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     item = db.get(EventChecklistItem, item_id)
     if item is None or item.event_id != event_id:
         raise EventServiceError("not_found", "Checklist item not found", 404)

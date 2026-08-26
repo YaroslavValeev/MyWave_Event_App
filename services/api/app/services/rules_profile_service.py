@@ -60,7 +60,7 @@ def create_rules_profile(
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to set rules profile", 403)
 
-    event = get_event(db, event_id=event_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     existing = db.scalar(select(EventRulesProfile).where(EventRulesProfile.event_id == event_id))
     if existing is not None:
         raise EventServiceError("profile_exists", "Rules profile already exists for this event", 409)
@@ -112,7 +112,7 @@ def upsert_rules_profile(
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to update rules profile", 403)
 
-    event = get_event(db, event_id=event_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     profile = db.scalar(select(EventRulesProfile).where(EventRulesProfile.event_id == event_id))
     packs = _rules_packs_for_disciplines(data.discipline_codes)
 

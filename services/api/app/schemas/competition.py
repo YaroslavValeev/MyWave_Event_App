@@ -27,6 +27,7 @@ class ParticipantOut(BaseModel):
     event_id: int
     category_id: int | None = None
     user_id: int | None = None
+    athlete_id: str | None = None
     full_name: str
     gender: str | None = None
     birth_year: int | None = None
@@ -107,6 +108,7 @@ class EventDetailOut(BaseModel):
     documents_count: int = 0
     officials_count: int = 0
     training_slots_count: int = 0
+    archived: bool = False
 
 
 class ParticipantListResponse(BaseModel):

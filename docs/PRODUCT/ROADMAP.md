@@ -54,7 +54,7 @@
 
 ## Этап 4 — Athlete ID
 
-Постоянный **MyWave Athlete ID** без ФИО/телефона/PII в самом ID.
+Постоянный **MyWave Athlete ID** без ФИО/телефона/PII в самом ID. — **done (0.5.5)** `MW-XXXXXXXX`
 
 Связывает: profile, events, categories, results, start history, media, future coaching/training.
 
@@ -68,7 +68,7 @@
 
 ## Этап 6 — Archive
 
-После `completed` → read-only архив: roster, heats, protocols, results, media, Athlete IDs, документы.
+После `completed` → read-only архив: roster, heats, protocols, results, media, Athlete IDs, документы. — **done (0.5.5)** (media ещё нет)
 
 ## Этап 7 — ParserNews / Content Engine
 

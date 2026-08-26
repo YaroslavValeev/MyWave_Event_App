@@ -14,7 +14,7 @@ from app.models.event import Event
 from app.models.user import User
 from app.services.audit_service import append_audit
 from app.services.competition_service import get_document
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, assert_event_mutable, can_write_events, get_event
 
 ALLOWED_EXTENSIONS = frozenset({".pdf", ".xlsx", ".xls"})
 ALLOWED_KINDS = frozenset(
@@ -51,7 +51,7 @@ def upload_document(
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to upload documents", 403)
 
-    event = get_event(db, event_id=event_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     kind_norm = (kind or "other").strip().lower()
     if kind_norm not in ALLOWED_KINDS:
         raise EventServiceError(
@@ -136,6 +136,8 @@ def delete_document(
         raise EventServiceError("forbidden", "Insufficient role to delete documents", 403)
 
     doc = get_document(db, event_id=event_id, document_id=document_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor)
+    assert_event_mutable(event)
     base = _documents_base(repo_root)
     path = (base / doc.relative_path).resolve()
     if str(path).startswith(str(base)) and path.is_file():

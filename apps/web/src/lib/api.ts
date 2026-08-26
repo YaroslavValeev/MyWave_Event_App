@@ -35,6 +35,7 @@ export type UserOut = {
   role: Role;
   status?: string;
   phone?: string | null;
+  athlete_id?: string | null;
   created_at?: string;
 };
 
@@ -47,6 +48,7 @@ export type TokenResponse = {
   status?: string;
   phone?: string | null;
   display_name?: string | null;
+  athlete_id?: string | null;
   user: UserOut;
 };
 
@@ -59,6 +61,7 @@ type ApiTokenPayload = {
   status?: string;
   phone?: string | null;
   display_name?: string | null;
+  athlete_id?: string | null;
 };
 
 function toTokenResponse(payload: ApiTokenPayload): TokenResponse {
@@ -71,6 +74,7 @@ function toTokenResponse(payload: ApiTokenPayload): TokenResponse {
       role: payload.role,
       status: payload.status ?? "active",
       phone: payload.phone ?? null,
+      athlete_id: payload.athlete_id ?? null,
     },
   };
 }
@@ -98,6 +102,7 @@ export type EventDetail = EventOut & {
   documents_count: number;
   officials_count?: number;
   training_slots_count?: number;
+  archived?: boolean;
 };
 
 export type OfficialOut = {
@@ -138,6 +143,8 @@ export type ParticipantOut = {
   id: number;
   event_id: number;
   category_id: number | null;
+  user_id?: number | null;
+  athlete_id?: string | null;
   full_name: string;
   gender: string | null;
   birth_year: number | null;
@@ -492,6 +499,18 @@ export function createEvent(token: string, payload: EventCreatePayload) {
     method: "POST",
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function updateEventStatus(
+  token: string,
+  eventId: number | string,
+  status: string,
+) {
+  return apiFetch<EventOut>(
+    `/api/v1/events/${eventId}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
 }
 
 export function getRulesCatalog() {
@@ -1107,6 +1126,7 @@ export type MeResponse = {
   requested_role: Role | null;
   status: string;
   display_name: string | null;
+  athlete_id?: string | null;
 };
 
 export function fetchMe(token: string): Promise<MeResponse> {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.5 — 2026-08-26
+
+- MyWave Athlete ID (`MW-XXXXXXXX`) на User: выдаётся при register/dev-login/`GET /me`.
+- Roster и профиль показывают athlete_id (без PII в самом ID).
+- Read-only archive: `completed`/`cancelled` блокируют мутации (409 `event_archived`).
+- Escape hatch: `PATCH .../status` (и кнопка «Вернуть в live»).
+- UX: DNS/DNF labels на start list; баннер архива.
+- Pytest: athlete + archive suite.
+
 ## 0.5.4 — 2026-08-26
 
 - Official protocol export: JSON bundle + download + printable HTML.

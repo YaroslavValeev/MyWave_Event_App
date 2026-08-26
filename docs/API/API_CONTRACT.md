@@ -110,6 +110,13 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
 | GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
 
+## Athlete ID & archive (0.5.5)
+
+- `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); в `TokenResponse` / `MeResponse` / roster `ParticipantOut.athlete_id`.
+- `EventDetail.archived` — true при `completed` | `cancelled`.
+- Мутации на архивном событии → **409** `event_archived`.
+- Исключение: `PATCH /api/v1/events/{id}/status` (можно вернуть в `live`).
+
 Ошибка:
 
 ```json

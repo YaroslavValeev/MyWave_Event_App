@@ -48,7 +48,7 @@ def create_heat(
 ) -> Heat:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage heats", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if category_id is not None:
         cat = db.get(Category, category_id)
         if cat is None or cat.event_id != event_id:
@@ -97,7 +97,7 @@ def update_heat_status(
 ) -> Heat:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage heats", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if status not in HEAT_STATUSES:
         raise EventServiceError("invalid_status", f"status must be one of {sorted(HEAT_STATUSES)}", 400)
     heat = db.get(Heat, heat_id)
@@ -147,7 +147,7 @@ def add_start_list_entry(
 ) -> StartListEntry:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage start lists", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     heat = db.get(Heat, heat_id)
     if heat is None or heat.event_id != event_id:
         raise EventServiceError("not_found", "Heat not found", 404)
@@ -219,7 +219,7 @@ def fill_start_list_from_roster(
     """Append accepted/registered participants not yet on this heat."""
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage start lists", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     heat = db.get(Heat, heat_id)
     if heat is None or heat.event_id != event_id:
         raise EventServiceError("not_found", "Heat not found", 404)
@@ -301,7 +301,7 @@ def update_start_list_status(
 ) -> StartListEntry:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage start lists", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if status not in ENTRY_STATUSES:
         raise EventServiceError(
             "invalid_status",

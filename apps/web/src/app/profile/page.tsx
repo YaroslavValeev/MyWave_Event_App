@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [athleteId, setAthleteId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -40,6 +41,7 @@ export default function ProfilePage() {
         setDisplayName(me.display_name || "");
         setPhone(me.phone || "");
         setEmail(me.email);
+        setAthleteId(me.athlete_id || null);
       })
       .catch(() => {
         setError("Не удалось загрузить профиль. Войдите снова.");
@@ -77,10 +79,12 @@ export default function ProfilePage() {
         role: me.role,
         status: me.status,
         phone: me.phone,
+        athlete_id: me.athlete_id ?? null,
       };
       saveSession(token, user);
       setPhone(me.phone || "");
       setDisplayName(me.display_name || "");
+      setAthleteId(me.athlete_id || null);
       setMessage("Профиль сохранён.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось сохранить профиль.");
@@ -114,7 +118,13 @@ export default function ProfilePage() {
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Профиль</h1>
         <p className={styles.hint}>
-          Телефон нужен для входа по OTP. Email: <strong>{email || "—"}</strong>.{" "}
+          Телефон нужен для входа по OTP. Email: <strong>{email || "—"}</strong>.
+          {athleteId ? (
+            <>
+              {" "}
+              Athlete ID: <strong>{athleteId}</strong>.
+            </>
+          ) : null}{" "}
           <Link href="/events">К событиям</Link>
         </p>
 

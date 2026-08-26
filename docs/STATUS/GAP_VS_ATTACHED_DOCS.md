@@ -23,8 +23,8 @@
 | Rules / org (FVLS+IWWF) | ADR-0006 | catalog + EventRulesProfile |
 | Structured scoring (DRIVE / T+I / EIC) | да | **done (0.5.3)** |
 | Official protocol export | да | **partial (0.5.4)** JSON + HTML; PDF — позже |
-| Read-only archive | да | **нет** |
-| Athlete ID | да | **нет** |
+| Read-only archive | да | **done (0.5.5)** |
+| Athlete ID | да | **done (0.5.5)** |
 | Media / photographer mode | этап 5 | **нет** (правильно позже) |
 | ParserNews / broadcast | этап 7–8 | **нет** (правильно позже) |
 | Telegram / MAX / native / offline-first | Production-план Hub | **не Stage 1** (adapters позже) |
@@ -44,11 +44,11 @@
 
 | Метрика | Аудит 24.08 | Сейчас |
 |---------|-------------|--------|
-| Путь до DoD v1 | ~32% | ~62% |
-| Блокер продукта | git + start day | **Athlete ID + archive** |
+| Путь до DoD v1 | ~32% | ~70% |
+| Блокер продукта | git + start day | **pilot dry-run + live UX** |
 
 ## Следующий код (этот спринт)
 
-1. Athlete ID (без PII в ID)
-2. Read-only archive after `completed`
-3. PDF export (optional)
+1. Live board / DNS-DNF polish (дальше)
+2. PDF export (optional)
+3. Pilot dry-run

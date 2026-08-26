@@ -33,6 +33,28 @@ def can_read_all_events(user: User) -> bool:
     return _role_of(user) in EVENT_ADMIN_READ_ROLES
 
 
+ARCHIVED_EVENT_STATUSES = frozenset(
+    {
+        EventStatus.completed.value,
+        EventStatus.cancelled.value,
+    }
+)
+
+
+def is_event_archived(event: Event) -> bool:
+    return event.status in ARCHIVED_EVENT_STATUSES
+
+
+def assert_event_mutable(event: Event) -> None:
+    """Block mutations on completed/cancelled events (read-only archive)."""
+    if is_event_archived(event):
+        raise EventServiceError(
+            "event_archived",
+            "Событие завершено или отменено и доступно только для чтения",
+            409,
+        )
+
+
 def create_event(
     db: Session,
     *,
@@ -102,7 +124,13 @@ def list_events(db: Session, *, actor: User) -> list[Event]:
     return list(db.scalars(stmt).all())
 
 
-def get_event(db: Session, *, event_id: int, actor: User) -> Event:
+def get_event(
+    db: Session,
+    *,
+    event_id: int,
+    actor: User,
+    require_mutable: bool = False,
+) -> Event:
     event = db.get(Event, event_id)
     if event is None:
         raise EventServiceError("not_found", "Event not found", 404)
@@ -116,6 +144,8 @@ def get_event(db: Session, *, event_id: int, actor: User) -> Event:
         }
         if event.status not in visible:
             raise EventServiceError("not_found", "Event not found", 404)
+    if require_mutable:
+        assert_event_mutable(event)
     return event
 
 
@@ -127,6 +157,7 @@ def update_event_status(
     actor: User,
     audit_enabled: bool = True,
 ) -> Event:
+    """Status change is the escape hatch from archive (e.g. completed → live)."""
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to update events", 403)
 

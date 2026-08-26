@@ -47,7 +47,7 @@ def upsert_draft_result(
 ) -> Result:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage results", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
 
     part = db.get(Participant, participant_id)
     if part is None or part.event_id != event_id:
@@ -153,7 +153,7 @@ def transition_result(
 ) -> Result:
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Insufficient role to manage results", 403)
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if status not in RESULT_STATUSES:
         raise EventServiceError("invalid_status", f"status must be one of {sorted(RESULT_STATUSES)}", 400)
 

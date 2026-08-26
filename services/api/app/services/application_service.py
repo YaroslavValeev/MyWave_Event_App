@@ -44,7 +44,7 @@ def create_application(
     birth_year: int | None,
     audit_enabled: bool,
 ) -> Participant:
-    event = get_event(db, event_id=event_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if event.status != EventStatus.registration_open.value:
         raise ApplicationError(
             "registration_closed",
@@ -173,7 +173,7 @@ def decide_application(
     status: str,
     audit_enabled: bool,
 ) -> Participant:
-    get_event(db, event_id=event_id, actor=actor)
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     _require_organizer(actor)
     part = db.get(Participant, participant_id)
     if part is None or part.event_id != event_id:

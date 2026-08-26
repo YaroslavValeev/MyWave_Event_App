@@ -57,6 +57,16 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
         if "medical_cert_url" not in cols:
             conn.execute(text("ALTER TABLE participants ADD COLUMN medical_cert_url VARCHAR(1024)"))
 
+        user_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+        }
+        if "athlete_id" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN athlete_id VARCHAR(32)"))
+            conn.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_athlete_id ON users (athlete_id)")
+            )
+
 
 def get_engine():
     if _engine is None:

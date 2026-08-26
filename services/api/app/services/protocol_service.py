@@ -17,7 +17,7 @@ from app.models.protocol_capture import ProtocolCapture
 from app.models.user import User
 from app.schemas.protocol import ProtocolCaptureUpdate
 from app.services.audit_service import append_audit
-from app.services.event_service import EventServiceError, get_event
+from app.services.event_service import EventServiceError, assert_event_mutable, get_event
 
 ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".pdf"})
 ALLOWED_KINDS = frozenset({"judge_sheet", "chief_protocol", "photo_result", "other"})
@@ -102,7 +102,7 @@ def upload_protocol_capture(
     if not can_upload_protocol(actor):
         raise EventServiceError("forbidden", "Insufficient role to upload protocol capture", 403)
 
-    event = get_event(db, event_id=event_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     kind_norm = (kind or "judge_sheet").strip().lower()
     if kind_norm not in ALLOWED_KINDS:
         raise EventServiceError(
@@ -205,6 +205,8 @@ def update_protocol_capture(
     audit_enabled: bool = True,
 ) -> ProtocolCapture:
     capture = get_protocol_capture(db, event_id=event_id, capture_id=capture_id, actor=actor)
+    event = get_event(db, event_id=event_id, actor=actor)
+    assert_event_mutable(event)
 
     if data.title is not None:
         if not can_upload_protocol(actor):

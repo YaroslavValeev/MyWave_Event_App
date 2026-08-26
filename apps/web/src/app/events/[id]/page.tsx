@@ -63,6 +63,7 @@ import {
   uploadDocument,
   uploadProtocolCapture,
   upsertResultDraft,
+  updateEventStatus,
 } from "@/lib/api";
 import styles from "../events.module.css";
 
@@ -142,13 +143,14 @@ export default function EventDetailPage() {
   const [appBusy, setAppBusy] = useState(false);
   const [tab, setTab] = useState<TabId>("overview");
   const user = getStoredUser();
-  const canModerate =
+  const isArchived = Boolean(detail?.archived);
+  const canOrganize =
     user?.role === "organizer" ||
     user?.role === "event_admin" ||
     user?.role === "platform_admin" ||
     user?.role === "federation_manager";
-  const canUploadProtocol =
-    canModerate || user?.role === "judge";
+  const canModerate = canOrganize && !isArchived;
+  const canUploadProtocol = !isArchived && (canModerate || user?.role === "judge");
   const canJudge = canUploadProtocol;
 
   useEffect(() => {
@@ -394,7 +396,7 @@ export default function EventDetailPage() {
 
   async function refreshProtocolReadiness() {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !canOrganize) return;
     try {
       const bundle = await getOfficialProtocol(token, eventId);
       setProtocolReadiness(bundle.readiness);
@@ -405,7 +407,7 @@ export default function EventDetailPage() {
 
   async function downloadOfficialProtocolJson() {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !canOrganize) return;
     setExportBusy(true);
     setError(null);
     try {
@@ -433,7 +435,7 @@ export default function EventDetailPage() {
 
   async function openOfficialProtocolHtml() {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !canOrganize) return;
     setExportBusy(true);
     setError(null);
     try {
@@ -738,6 +740,32 @@ export default function EventDetailPage() {
               <h1 className={styles.title}>{detail.title}</h1>
               <StatusBadge status={detail.status} />
             </div>
+            {detail.archived ? (
+              <div className={styles.panel} role="status">
+                <strong>Архив</strong>
+                <p className={styles.muted}>
+                  Событие завершено или отменено — только просмотр. Экспорт протокола доступен.
+                </p>
+                {canOrganize ? (
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => {
+                      const token = getStoredToken();
+                      if (!token) return;
+                      void updateEventStatus(token, eventId, "live")
+                        .then(() => getEventDetail(token, eventId))
+                        .then((d) => setDetail(d))
+                        .catch((err) =>
+                          setError(err instanceof ApiError ? err.message : "Не удалось открыть событие"),
+                        );
+                    }}
+                  >
+                    Вернуть в live
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {detail.description ? <p className={styles.itemDesc}>{detail.description}</p> : null}
             <dl className={styles.meta}>
               <div>
@@ -1124,7 +1152,7 @@ export default function EventDetailPage() {
                 <p className={styles.muted}>
                   Листы судей WSWS (DRIVE) или бумажный протокол. Загрузка: JPG/PNG/WebP/PDF до 15 МБ.
                 </p>
-                {canModerate ? (
+                {canOrganize ? (
                   <div className={styles.panel}>
                     <strong>Официальный протокол (export)</strong>
                     <p className={styles.muted}>
@@ -1507,6 +1535,7 @@ export default function EventDetailPage() {
                               <div className={styles.itemHead}>
                                 <strong>
                                   {e.start_order}. {p?.full_name || `#${e.participant_id}`}
+                                  {p?.athlete_id ? ` · ${p.athlete_id}` : ""}
                                   {e.bib_number ? ` · №${e.bib_number}` : ""}
                                 </strong>
                                 <span className={styles.muted}>{e.status}</span>
@@ -1521,7 +1550,19 @@ export default function EventDetailPage() {
                                         className={styles.linkBtn}
                                         onClick={() => void onEntryStatus(e, st)}
                                       >
-                                        {st}
+                                        {st === "checked_in"
+                                          ? "Check-in"
+                                          : st === "dns"
+                                            ? "DNS"
+                                            : st === "dnf"
+                                              ? "DNF"
+                                              : st === "on_water"
+                                                ? "На воде"
+                                                : st === "completed"
+                                                  ? "Финиш"
+                                                  : st === "ready"
+                                                    ? "Ready"
+                                                    : st}
                                       </button>
                                     ),
                                   )}
@@ -1693,7 +1734,14 @@ export default function EventDetailPage() {
                           </span>
                         </div>
                         <div className={styles.muted}>
-                          {[cat?.discipline, cat?.title, p.region, p.gender, p.birth_year]
+                          {[
+                            p.athlete_id,
+                            cat?.discipline,
+                            cat?.title,
+                            p.region,
+                            p.gender,
+                            p.birth_year,
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </div>

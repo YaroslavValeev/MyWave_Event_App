@@ -6,6 +6,7 @@ import json
 
 from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response
+from sqlalchemy import select
 
 from app.api.deps import AppSettings, CurrentUser, DbSession
 from app.api.errors import raise_api_error
@@ -114,8 +115,9 @@ from app.services.scoring_service import (
     submit_judge_score,
 )
 from app.domain.scoring_engines import engine_meta
-from app.services.event_service import EventServiceError, get_event
+from app.services.event_service import EventServiceError, get_event, is_event_archived
 from app.models.protocol_capture import ProtocolCapture
+from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/events", tags=["competition"])
 
@@ -160,6 +162,7 @@ def event_detail(event_id: int, db: DbSession, user: CurrentUser) -> EventDetail
         documents_count=docs,
         officials_count=offs,
         training_slots_count=slots,
+        archived=is_event_archived(event),
     )
 
 
@@ -184,9 +187,16 @@ def participants(
     except EventServiceError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
     masked: list[ParticipantOut] = []
+    user_ids = {item.user_id for item in items if item.user_id}
+    athlete_map: dict[int, str | None] = {}
+    if user_ids:
+        for row in db.scalars(select(UserModel).where(UserModel.id.in_(user_ids))).all():
+            athlete_map[row.id] = row.athlete_id
     for item in items:
         out = ParticipantOut.model_validate(item)
         out.full_name = public_participant_name(db, item, user)
+        if item.user_id:
+            out.athlete_id = athlete_map.get(item.user_id)
         masked.append(out)
     return ParticipantListResponse(items=masked, total=len(masked))
 

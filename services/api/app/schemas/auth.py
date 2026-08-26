@@ -21,6 +21,7 @@ class TokenResponse(BaseModel):
     status: str = "active"
     phone: str | None = None
     display_name: str | None = None
+    athlete_id: str | None = None
 
 
 class MeResponse(BaseModel):
@@ -31,6 +32,7 @@ class MeResponse(BaseModel):
     requested_role: Role | None = None
     status: str
     display_name: str | None = None
+    athlete_id: str | None = None
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -75,6 +77,7 @@ class RegisterResponse(BaseModel):
     requested_role: Role
     status: str
     message: str
+    athlete_id: str | None = None
     access_token: str | None = None
     token_type: str | None = None
 

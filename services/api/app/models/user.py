@@ -20,6 +20,8 @@ class User(Base):
     requested_role: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Opaque MyWave Athlete ID (no name/phone/email encoded).
+    athlete_id: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

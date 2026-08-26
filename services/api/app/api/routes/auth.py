@@ -51,6 +51,7 @@ def _token_response(user, token: str) -> TokenResponse:
         status=user.status,
         phone=mask_phone(user.phone),
         display_name=user.display_name,
+        athlete_id=user.athlete_id,
     )
 
 
@@ -121,6 +122,7 @@ def post_register(body: RegisterRequest, db: DbSession, settings: AppSettings) -
         requested_role=Role(user.requested_role or user.role),
         status=user.status,
         message=message,
+        athlete_id=user.athlete_id,
         access_token=token,
         token_type="bearer" if token else None,
     )
@@ -302,11 +304,18 @@ def _me_response(user) -> MeResponse:
         requested_role=Role(user.requested_role) if user.requested_role else None,
         status=user.status,
         display_name=user.display_name,
+        athlete_id=user.athlete_id,
     )
 
 
 @router.get("/me", response_model=MeResponse)
-def get_me(user: CurrentUser) -> MeResponse:
+def get_me(user: CurrentUser, db: DbSession) -> MeResponse:
+    from app.services.athlete_id_service import ensure_athlete_id
+
+    if not user.athlete_id:
+        ensure_athlete_id(db, user)
+        db.commit()
+        db.refresh(user)
     return _me_response(user)
 
 

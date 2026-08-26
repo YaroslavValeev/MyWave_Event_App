@@ -14,6 +14,7 @@ from app.config import Settings
 from app.domain.roles import Role
 from app.models.auth_extra import PhoneOtp, RoleApproval
 from app.models.user import User
+from app.services.athlete_id_service import ensure_athlete_id
 from app.services.audit_service import append_audit
 from app.services.consent_service import ConsentError, grant_registration_consents
 from app.services.mail_service import send_email
@@ -83,11 +84,13 @@ def get_or_create_user(db: Session, *, email: str, role: Role) -> User:
         )
         db.add(user)
         db.flush()
+        ensure_athlete_id(db, user)
     else:
         user.role = role.value
         user.status = "active"
         db.add(user)
         db.flush()
+        ensure_athlete_id(db, user)
     return user
 
 
@@ -139,6 +142,7 @@ def register_user(
     )
     db.add(user)
     db.flush()
+    ensure_athlete_id(db, user)
 
     token: str | None = None
     if auto:
