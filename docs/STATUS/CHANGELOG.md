@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-08-25
+
+- Structured scoring engines: WSWS_DRIVE, IWWF_CABLE_TI, IWWF_BOAT_EIC (+ MANUAL_PLACE meta).
+- JudgeScore API: submit sheet, list, aggregate panel → result draft.
+- UI: вкладка «Судейство» на карточке события.
+- Gap-анализ vs прикреплённые DOCX экосистемы / Production Hub.
+- UX create event: даты, авто-slug, чекбоксы дисциплин.
+
 ## 0.5.2 — 2026-08-25
 
 - Rules catalog API: governing bodies, P0 disciplines, rules packs, scoring modes.

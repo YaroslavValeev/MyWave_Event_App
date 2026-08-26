@@ -3,7 +3,7 @@
 .SYNOPSIS
   One-command local start for MyWave Event App (API + Web).
 .EXAMPLE
-  pwsh -File scripts/dev.ps1
+  powershell -File scripts/dev.ps1
 #>
 $ErrorActionPreference = "Stop"
 
@@ -13,7 +13,7 @@ $WebDir = Join-Path $Root "apps\web"
 $VenvPython = "C:\tmp\mw_event_api_venv\Scripts\python.exe"
 $VenvUvicorn = "C:\tmp\mw_event_api_venv\Scripts\uvicorn.exe"
 
-Write-Host "== MyWave Event App — local start ==" -ForegroundColor Cyan
+Write-Host "== MyWave Event App - local start ==" -ForegroundColor Cyan
 
 if (-not (Test-Path (Join-Path $Root ".env"))) {
   Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env")
@@ -60,8 +60,14 @@ Write-Host "Web  -> http://127.0.0.1:3000" -ForegroundColor Green
 Write-Host "Docs -> http://127.0.0.1:8000/docs" -ForegroundColor Green
 Write-Host "Stop: close both windows or Ctrl+C in each." -ForegroundColor DarkGray
 
-Start-Process pwsh -ArgumentList @("-NoExit", "-Command", $apiCmd) | Out-Null
+# Prefer Windows PowerShell 5.1 (always present); pwsh if available.
+$shell = "powershell"
+if (Get-Command pwsh -ErrorAction SilentlyContinue) {
+  $shell = "pwsh"
+}
+
+Start-Process $shell -ArgumentList @("-NoExit", "-NoProfile", "-Command", $apiCmd) | Out-Null
 Start-Sleep -Seconds 2
-Start-Process pwsh -ArgumentList @("-NoExit", "-Command", $webCmd) | Out-Null
+Start-Process $shell -ArgumentList @("-NoExit", "-NoProfile", "-Command", $webCmd) | Out-Null
 
 Write-Host "Started API and Web in separate terminals." -ForegroundColor Cyan

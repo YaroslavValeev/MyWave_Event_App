@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
+  devLogin,
   requestPhoneOtp,
   saveSession,
   verifyPhoneOtp,
 } from "@/lib/api";
+import type { Role } from "@/lib/roles";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
@@ -55,6 +57,24 @@ export default function LoginPage() {
     }
   }
 
+  async function onDevLogin(email: string, role: Role, displayName: string) {
+    setError(null);
+    setPending(true);
+    try {
+      const result = await devLogin({ email, role, display_name: displayName });
+      saveSession(result.access_token, result.user);
+      router.replace("/events");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Dev-login недоступен. Проверьте, что API MyWave Event App на :8000.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <>
       <AppHeader subtitle="Вход по телефону" />
@@ -64,6 +84,38 @@ export default function LoginPage() {
           Войдите по номеру телефона. Код придёт на email аккаунта (SMS подключим позже).
           Нет аккаунта? <Link href="/register">Зарегистрироваться</Link>
         </p>
+
+        <div className={styles.form} style={{ marginBottom: "1.25rem" }}>
+          <p className={styles.hint} style={{ marginBottom: "0.75rem" }}>
+            Быстрый вход (только local development):
+          </p>
+          <button
+            type="button"
+            className={styles.submit}
+            disabled={pending}
+            onClick={() => void onDevLogin("organizer@example.com", "organizer", "Организатор (dev)")}
+          >
+            Войти как организатор
+          </button>
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={pending}
+            style={{ marginTop: "0.5rem" }}
+            onClick={() => void onDevLogin("y.valeev@gmail.com", "platform_admin", "Владелец")}
+          >
+            Войти как admin
+          </button>
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={pending}
+            style={{ marginTop: "0.5rem" }}
+            onClick={() => void onDevLogin("judge@example.com", "judge", "Судья (dev)")}
+          >
+            Войти как судья
+          </button>
+        </div>
 
         {step === "phone" ? (
           <form className={styles.form} onSubmit={onRequestOtp} noValidate>

@@ -95,6 +95,13 @@
 
 Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `other`. Файлы: JPG/PNG/WebP/PDF ≤15 МБ.
 
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/scoring/engine` | Bearer | meta движка по EventRulesProfile |
+| GET | `/api/v1/events/{id}/judge-scores` | Bearer | листы судей (`?participant_id=` / `?heat_id=`) |
+| POST | `/api/v1/events/{id}/judge-scores` | Bearer organizer+/judge | критерии → total |
+| POST | `/api/v1/events/{id}/judge-scores/aggregate` | Bearer organizer+ | панель → result draft |
+
 Ошибка:
 
 ```json

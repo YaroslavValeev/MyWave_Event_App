@@ -1,0 +1,54 @@
+# Gap vs прикреплённые документы (2026-08-25)
+
+Источники:
+1. `MyWave_Экосистема_и_проекты_по_итогам_диалога_24-08-2026.docx`
+2. `Production‑план и рабочий комплект для FVLS × MyWave Competition Hub.docx`
+
+## Вердикт
+
+**Нет — в Event App учтено не всё из этих документов.**  
+Документы описывают всю экосистему MyWave и production-платформу Federation Hub на 22–30 недель.  
+Этот репозиторий — **только** standalone Event App (SoT соревнования). Остальное — другие продукты / следующие этапы.
+
+## Что из документов относится к Event App
+
+| Требование | В docs / ROADMAP | В коде 0.5.2 |
+|------------|------------------|--------------|
+| Регистрация / роли / roster | да | да |
+| Документы события | да | да |
+| Checklist подготовки | да | да |
+| Heats / start lists / check-in | да | foundation |
+| Results draft → published | да | foundation (ручной score/place) |
+| Фото/PDF протокола | да (режим) | ProtocolCapture |
+| Rules / org (FVLS+IWWF) | ADR-0006 | catalog + EventRulesProfile |
+| Structured scoring (DRIVE / T+I / EIC) | да | **нет** ← P0 сейчас |
+| Official protocol export | да | **нет** |
+| Read-only archive | да | **нет** |
+| Athlete ID | да | **нет** |
+| Media / photographer mode | этап 5 | **нет** (правильно позже) |
+| ParserNews / broadcast | этап 7–8 | **нет** (правильно позже) |
+| Telegram / MAX / native / offline-first | Production-план Hub | **не Stage 1** (adapters позже) |
+| SMTP + remote staging | owner | staging compose есть; host/SMTP — owner |
+
+## Что намеренно НЕ делается в этом репо
+
+- Ruza / Club Ops / Club Box
+- Wake Challenge / методика Федерации
+- AI Judge / AI Coach / Knowledge Base
+- Sponsorship Platform
+- Полный Production Hub с Mini Apps и 7–10 FTE планом
+
+Принцип из экосистемы: **сначала один E2E цикл соревнования без Excel SoT**, потом расширения.
+
+## Оценка
+
+| Метрика | Аудит 24.08 | Сейчас |
+|---------|-------------|--------|
+| Путь до DoD v1 | ~32% | ~52% |
+| Блокер продукта | git + start day | **scoring engines + protocol export** |
+
+## Следующий код (этот спринт)
+
+1. Scoring engines + ввод судей
+2. Official protocol export (JSON/PDF)
+3. Athlete ID (без PII в ID)

@@ -869,6 +869,95 @@ export function updateResultStatus(
   );
 }
 
+export type ScoringEngineMeta = {
+  engine: string;
+  criteria: string[];
+  criteria_labels_ru: Record<string, string>;
+  aggregation: string;
+  drop_extremes_if_judges_ge: number | null;
+  best_of_runs: boolean;
+  placement_overrides_score: boolean;
+};
+
+export type JudgeScoreOut = {
+  id: number;
+  event_id: number;
+  participant_id: number;
+  heat_id: number | null;
+  judge_user_id: number;
+  attempt_no: number;
+  engine: string;
+  criteria: Record<string, number>;
+  total: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function getScoringEngine(token: string, eventId: number | string) {
+  return apiFetch<ScoringEngineMeta>(
+    `/api/v1/events/${eventId}/scoring/engine`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export async function listJudgeScores(
+  token: string,
+  eventId: number | string,
+  participantId?: number,
+) {
+  const qs = participantId != null ? `?participant_id=${participantId}` : "";
+  const payload = await apiFetch<{ items: JudgeScoreOut[]; total: number }>(
+    `/api/v1/events/${eventId}/judge-scores${qs}`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function submitJudgeScore(
+  token: string,
+  eventId: number | string,
+  payload: {
+    participant_id: number;
+    heat_id?: number | null;
+    attempt_no?: number;
+    criteria: Record<string, number>;
+    notes?: string;
+  },
+) {
+  return apiFetch<JudgeScoreOut>(
+    `/api/v1/events/${eventId}/judge-scores`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function aggregateJudgeScores(
+  token: string,
+  eventId: number | string,
+  payload: {
+    participant_id: number;
+    heat_id?: number | null;
+    attempt_no?: number;
+    write_result_draft?: boolean;
+    place?: number | null;
+  },
+) {
+  return apiFetch<{
+    engine: string;
+    panel_score: number;
+    judge_count: number;
+    judge_totals: number[];
+    result_id: number | null;
+  }>(
+    `/api/v1/events/${eventId}/judge-scores/aggregate`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
 export async function listOfficials(token: string, eventId: number | string) {
   const payload = await apiFetch<{ items: OfficialOut[]; total: number }>(
     `/api/v1/events/${eventId}/officials`,

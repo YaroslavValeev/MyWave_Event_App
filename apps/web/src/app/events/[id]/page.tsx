@@ -18,6 +18,7 @@ import {
   ParticipantOut,
   ProtocolCaptureOut,
   ResultOut,
+  ScoringEngineMeta,
   ScheduleHint,
   StartListEntryOut,
   TrainingSlotOut,
@@ -31,6 +32,7 @@ import {
   getEventRulesProfile,
   getMyApplication,
   getScheduleHint,
+  getScoringEngine,
   getStoredToken,
   getStoredUser,
   listCategories,
@@ -44,6 +46,9 @@ import {
   listResults,
   listStartList,
   listTrainingSlots,
+  listJudgeScores,
+  aggregateJudgeScores,
+  submitJudgeScore,
   protocolCaptureFileUrl,
   submitApplication,
   updateChecklistItem,
@@ -64,6 +69,7 @@ type TabId =
   | "slots"
   | "docs"
   | "protocol"
+  | "scoring"
   | "heats"
   | "results"
   | "apps";
@@ -104,6 +110,13 @@ export default function EventDetailPage() {
   const [protocolTitle, setProtocolTitle] = useState("");
   const [protocolKind, setProtocolKind] = useState("judge_sheet");
   const [protocolBusy, setProtocolBusy] = useState(false);
+  const [scoringEngine, setScoringEngine] = useState<ScoringEngineMeta | null>(null);
+  const [judgeScores, setJudgeScores] = useState<
+    Awaited<ReturnType<typeof listJudgeScores>>
+  >([]);
+  const [scoreParticipantId, setScoreParticipantId] = useState("");
+  const [criteriaValues, setCriteriaValues] = useState<Record<string, string>>({});
+  const [scoreBusy, setScoreBusy] = useState(false);
   const [results, setResults] = useState<ResultOut[]>([]);
   const [resultParticipantId, setResultParticipantId] = useState("");
   const [resultScore, setResultScore] = useState("");
@@ -130,6 +143,7 @@ export default function EventDetailPage() {
     user?.role === "federation_manager";
   const canUploadProtocol =
     canModerate || user?.role === "judge";
+  const canJudge = canUploadProtocol;
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +154,7 @@ export default function EventDetailPage() {
         return;
       }
       try {
-        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems, profile, protoItems] =
+        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores] =
           await Promise.all([
           getEventDetail(token, eventId),
           listCategories(token, eventId),
@@ -154,6 +168,8 @@ export default function EventDetailPage() {
           listResults(token, eventId).catch(() => []),
           getEventRulesProfile(token, eventId).catch(() => null),
           listProtocolCaptures(token, eventId).catch(() => []),
+          getScoringEngine(token, eventId).catch(() => null),
+          listJudgeScores(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setDetail(d);
@@ -169,6 +185,11 @@ export default function EventDetailPage() {
         setResults(resultItems);
         setRulesProfile(profile);
         setProtocols(protoItems);
+        setScoringEngine(engine);
+        setJudgeScores(scores);
+        if (engine?.criteria?.length) {
+          setCriteriaValues(Object.fromEntries(engine.criteria.map((c) => [c, ""])));
+        }
         if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
         const stored = getStoredUser();
         if (
@@ -359,6 +380,70 @@ export default function EventDetailPage() {
     }
   }
 
+  async function onSubmitJudgeScore() {
+    const token = getStoredToken();
+    if (!token || !canJudge || !scoringEngine) return;
+    const pid = Number(scoreParticipantId);
+    if (!pid) {
+      setError("Выберите участника для оценки.");
+      return;
+    }
+    const criteria: Record<string, number> = {};
+    for (const key of scoringEngine.criteria) {
+      const raw = criteriaValues[key];
+      const num = Number(raw);
+      if (raw === "" || Number.isNaN(num)) {
+        setError(`Заполните критерий: ${scoringEngine.criteria_labels_ru[key] || key}`);
+        return;
+      }
+      criteria[key] = num;
+    }
+    setScoreBusy(true);
+    setError(null);
+    try {
+      await submitJudgeScore(token, eventId, {
+        participant_id: pid,
+        heat_id: selectedHeatId,
+        attempt_no: 1,
+        criteria,
+      });
+      setJudgeScores(await listJudgeScores(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось сохранить оценку судьи");
+    } finally {
+      setScoreBusy(false);
+    }
+  }
+
+  async function onAggregateScores() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    const pid = Number(scoreParticipantId);
+    if (!pid) {
+      setError("Выберите участника для агрегации.");
+      return;
+    }
+    setScoreBusy(true);
+    setError(null);
+    try {
+      const panel = await aggregateJudgeScores(token, eventId, {
+        participant_id: pid,
+        heat_id: selectedHeatId,
+        attempt_no: 1,
+        write_result_draft: true,
+      });
+      setJudgeScores(await listJudgeScores(token, eventId));
+      setResults(await listResults(token, eventId));
+      setAppMessage(
+        `Панель: ${panel.panel_score} (${panel.judge_count} судей). Черновик result #${panel.result_id ?? "—"}.`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось агрегировать оценки");
+    } finally {
+      setScoreBusy(false);
+    }
+  }
+
   async function onUploadDoc(file: File | null) {
     const token = getStoredToken();
     if (!token || !file || !canModerate) return;
@@ -543,6 +628,7 @@ export default function EventDetailPage() {
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "protocol", label: `Протокол (${protocols.length})` },
+    { id: "scoring", label: `Судейство (${judgeScores.length})` },
     { id: "heats", label: `Heats (${heats.length})` },
     { id: "results", label: `Results (${results.length})` },
     {
@@ -1059,6 +1145,113 @@ export default function EventDetailPage() {
                           {p.kind} · {p.file_name}
                           {p.heat_id ? ` · heat #${p.heat_id}` : ""}
                           {p.notes ? ` · ${p.notes}` : ""}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </>
+            ) : null}
+
+            {tab === "scoring" ? (
+              <>
+                <h2 className={styles.itemTitle}>Судейство в приложении</h2>
+                <p className={styles.muted}>
+                  Движок: <strong>{scoringEngine?.engine || "—"}</strong>
+                  {scoringEngine?.engine === "MANUAL_PLACE"
+                    ? " — для этого события используйте вкладки Results или Протокол."
+                    : " — каждый судья вводит критерии; организатор собирает панель в result draft."}
+                </p>
+                {scoringEngine && scoringEngine.engine !== "MANUAL_PLACE" && canJudge ? (
+                  <div className={styles.panel}>
+                    <label className={styles.muted}>
+                      Участник{" "}
+                      <select
+                        value={scoreParticipantId}
+                        onChange={(e) => setScoreParticipantId(e.target.value)}
+                        style={{
+                          marginLeft: "0.35rem",
+                          padding: "0.45rem 0.5rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line)",
+                          background: "rgba(0,0,0,0.25)",
+                          color: "inherit",
+                        }}
+                      >
+                        <option value="">— выберите —</option>
+                        {participants.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
+                      {scoringEngine.criteria.map((key) => (
+                        <label key={key} className={styles.muted}>
+                          {scoringEngine.criteria_labels_ru[key] || key}{" "}
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={criteriaValues[key] ?? ""}
+                            onChange={(e) =>
+                              setCriteriaValues((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            style={{
+                              marginLeft: "0.35rem",
+                              width: "6rem",
+                              padding: "0.35rem 0.5rem",
+                              borderRadius: "8px",
+                              border: "1px solid var(--line)",
+                              background: "rgba(0,0,0,0.25)",
+                              color: "inherit",
+                            }}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        disabled={scoreBusy}
+                        onClick={() => void onSubmitJudgeScore()}
+                      >
+                        Сохранить лист судьи
+                      </button>
+                      {canModerate ? (
+                        <button
+                          type="button"
+                          className={styles.linkBtn}
+                          style={{ marginLeft: "0.75rem" }}
+                          disabled={scoreBusy}
+                          onClick={() => void onAggregateScores()}
+                        >
+                          Собрать панель → result draft
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <ul className={styles.list}>
+                  {judgeScores.length === 0 ? (
+                    <li className={styles.item}>
+                      <span className={styles.muted}>Оценок судей пока нет.</span>
+                    </li>
+                  ) : (
+                    judgeScores.map((s) => (
+                      <li key={s.id} className={styles.item}>
+                        <div className={styles.itemHead}>
+                          <strong>
+                            Участник #{s.participant_id} · судья #{s.judge_user_id}
+                          </strong>
+                          <span className={styles.muted}>итог {s.total}</span>
+                        </div>
+                        <div className={styles.muted}>
+                          {s.engine} · попытка {s.attempt_no}
+                          {s.heat_id ? ` · heat #${s.heat_id}` : ""}
                         </div>
                       </li>
                     ))

@@ -39,7 +39,7 @@
 |--------|--------|
 | Heat / StartList / Run foundation | **done (0.5.0)** |
 | bulk start list, live board, DNS/DNF UX polish | next |
-| Results scoring | отсутствует |
+| Results scoring | **partial (0.5.3)** engines + judge sheets + aggregate |
 
 ## Этап 3 — Results
 

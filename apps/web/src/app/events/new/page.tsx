@@ -7,23 +7,90 @@ import { AppHeader } from "@/components/AppHeader";
 import { ApiError, RulesCatalog, createEvent, getRulesCatalog, getStoredToken } from "@/lib/api";
 import styles from "../../login/login.module.css";
 
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
-    .replace(/[а-яё]/gi, "x")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 64) || "event";
+const CYR_TO_LAT: Record<string, string> = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "ts",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+};
+
+/** Технический код события для URL — только a-z, 0-9 и дефис. */
+function slugify(value: string, yearHint?: string): string {
+  const lowered = value.trim().toLowerCase();
+  let out = "";
+  for (const ch of lowered) {
+    if (CYR_TO_LAT[ch] !== undefined) {
+      out += CYR_TO_LAT[ch];
+    } else if (/[a-z0-9]/.test(ch)) {
+      out += ch;
+    } else {
+      out += "-";
+    }
+  }
+  out = out.replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  if (!out) out = "event";
+  if (yearHint && /^\d{4}$/.test(yearHint) && !out.includes(yearHint)) {
+    out = `${out}-${yearHint}`.slice(0, 64);
+  }
+  return out.replace(/-+/g, "-").replace(/^-|-$/g, "") || "event";
+}
+
+function dateToIsoStart(date: string): string {
+  return `${date}T09:00:00`;
+}
+
+function dateToIsoEnd(date: string): string {
+  return `${date}T21:00:00`;
+}
+
+function friendlyCreateError(err: unknown): string {
+  if (!(err instanceof ApiError)) return "Не удалось создать событие";
+  const msg = err.message || "";
+  if (msg.includes("slug") || err.code === "slug_taken") {
+    return "Событие с таким техническим кодом уже есть. Измените название или год в датах и попробуйте снова.";
+  }
+  if (msg.includes("pattern") || msg.includes("body.")) {
+    return "Проверьте поля формы: название, даты и дисциплины обязательны.";
+  }
+  return msg;
 }
 
 export default function NewEventPage() {
   const router = useRouter();
   const [catalog, setCatalog] = useState<RulesCatalog | null>(null);
   const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
   const [city, setCity] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
   const [description, setDescription] = useState("");
   const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
   const [scoringMode, setScoringMode] = useState("photo_protocol");
@@ -46,6 +113,9 @@ export default function NewEventPage() {
     );
   }
 
+  const yearHint = startsOn.slice(0, 4);
+  const previewSlug = slugify(title || "event", yearHint);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = getStoredToken();
@@ -53,8 +123,24 @@ export default function NewEventPage() {
       setError("Нужен вход организатора.");
       return;
     }
+    if (!title.trim()) {
+      setError("Укажите название события.");
+      return;
+    }
     if (selectedDisciplines.length === 0) {
       setError("Выберите хотя бы одну дисциплину.");
+      return;
+    }
+    if (!startsOn) {
+      setError("Укажите дату начала.");
+      return;
+    }
+    if (!endsOn) {
+      setError("Укажите дату окончания.");
+      return;
+    }
+    if (endsOn < startsOn) {
+      setError("Дата окончания не может быть раньше даты начала.");
       return;
     }
     setPending(true);
@@ -62,9 +148,11 @@ export default function NewEventPage() {
     try {
       const created = await createEvent(token, {
         title: title.trim(),
-        slug: (slug || slugify(title)).trim(),
+        slug: slugify(title, yearHint),
         city: city.trim() || null,
         description: description.trim() || null,
+        starts_at: dateToIsoStart(startsOn),
+        ends_at: dateToIsoEnd(endsOn),
         status: "draft",
         rules_profile: {
           governing_body: catalog?.defaults.governing_body ?? "FVLS",
@@ -75,15 +163,13 @@ export default function NewEventPage() {
       });
       router.replace(`/events/${created.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось создать событие");
+      setError(friendlyCreateError(err));
     } finally {
       setPending(false);
     }
   }
 
-  const disciplineEntries = catalog
-    ? Object.entries(catalog.disciplines)
-    : [];
+  const disciplineEntries = catalog ? Object.entries(catalog.disciplines) : [];
 
   return (
     <>
@@ -91,8 +177,8 @@ export default function NewEventPage() {
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Создать событие</h1>
         <p className={styles.hint}>
-          FVLS + санкция IWWF. Выберите дисциплины и режим протокола.{" "}
-          <Link href="/events">Назад</Link>
+          Черновик соревнования: название, даты, город, дисциплины. Правила по умолчанию — FVLS, санкция
+          IWWF. <Link href="/events">Назад к списку</Link>
         </p>
         <form className={styles.form} onSubmit={onSubmit} noValidate>
           <div className={styles.field}>
@@ -101,48 +187,77 @@ export default function NewEventPage() {
               id="title"
               required
               value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например: Чемпионат России — Казань 2026"
+              disabled={pending}
+            />
+            <p className={styles.fieldHint}>Код в системе: {previewSlug}</p>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="city">Город</label>
+            <input
+              id="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Казань"
+              disabled={pending}
+            />
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="starts_on">Дата начала</label>
+            <input
+              id="starts_on"
+              type="date"
+              required
+              value={startsOn}
               onChange={(e) => {
-                setTitle(e.target.value);
-                if (!slug) setSlug(slugify(e.target.value));
+                const next = e.target.value;
+                setStartsOn(next);
+                if (!endsOn || endsOn < next) setEndsOn(next);
               }}
               disabled={pending}
             />
           </div>
           <div className={styles.field}>
-            <label htmlFor="slug">Slug (латиница-цифры-дефис)</label>
+            <label htmlFor="ends_on">Дата окончания</label>
+            <p className={styles.fieldHint}>Если один день — укажите ту же дату.</p>
             <input
-              id="slug"
+              id="ends_on"
+              type="date"
               required
-              pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
+              min={startsOn || undefined}
+              value={endsOn}
+              onChange={(e) => setEndsOn(e.target.value)}
               disabled={pending}
             />
           </div>
-          <div className={styles.field}>
-            <label htmlFor="city">Город</label>
-            <input id="city" value={city} onChange={(e) => setCity(e.target.value)} disabled={pending} />
-          </div>
-          <fieldset className={styles.field}>
-            <legend>Дисциплины (P0)</legend>
+          <fieldset className={styles.choiceList}>
+            <legend>Дисциплины</legend>
+            <p className={styles.fieldHint}>
+              Отметьте галочками, какие виды будут на событии (можно несколько).
+            </p>
             {disciplineEntries.length === 0 ? (
               <p className={styles.hint}>Загрузка каталога…</p>
             ) : (
               disciplineEntries.map(([code, meta]) => (
-                <label key={code} style={{ display: "block", marginBottom: "0.35rem" }}>
+                <div key={code} className={styles.checkboxRow}>
                   <input
+                    id={`discipline-${code}`}
                     type="checkbox"
                     checked={selectedDisciplines.includes(code)}
                     onChange={() => toggleDiscipline(code)}
                     disabled={pending}
-                  />{" "}
-                  {meta.title_ru}
-                </label>
+                  />
+                  <label htmlFor={`discipline-${code}`}>{meta.title_ru}</label>
+                </div>
               ))
             )}
           </fieldset>
           <div className={styles.field}>
-            <label htmlFor="scoring_mode">Режим протокола</label>
+            <label htmlFor="scoring_mode">Как фиксируем результаты</label>
+            <p className={styles.fieldHint}>
+              Для старта удобнее «Фото / PDF протокола» — судья фотографирует лист, организатор проверяет.
+            </p>
             <select
               id="scoring_mode"
               value={scoringMode}
@@ -159,12 +274,17 @@ export default function NewEventPage() {
             </select>
           </div>
           <div className={styles.field}>
-            <label htmlFor="description">Описание</label>
-            <input
+            <label htmlFor="description">Кратко о событии (необязательно)</label>
+            <p className={styles.fieldHint}>
+              Свободный текст для карточки: площадка, категории, примечание. Можно оставить пустым.
+            </p>
+            <textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder={"Например:\nоз. Кабан\nЮниоры до 19\nОткрытая группа"}
               disabled={pending}
+              rows={4}
             />
           </div>
           {error ? (

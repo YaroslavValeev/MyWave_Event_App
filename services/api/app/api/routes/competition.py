@@ -49,6 +49,14 @@ from app.schemas.competition import (
 )
 from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
 from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
+from app.schemas.scoring import (
+    AggregateScoresOut,
+    AggregateScoresRequest,
+    JudgeScoreListResponse,
+    JudgeScoreOut,
+    JudgeScoreSubmit,
+    ScoringEngineMetaOut,
+)
 from app.schemas.event import EventRead
 from app.services.consent_service import public_participant_name
 from app.services.application_service import (
@@ -92,6 +100,14 @@ from app.services.protocol_service import (
     upload_protocol_capture,
 )
 from app.services.rules_profile_service import get_rules_profile, profile_to_out, upsert_rules_profile
+from app.services.scoring_service import (
+    aggregate_to_result,
+    list_judge_scores,
+    resolve_engine_for_event,
+    score_out,
+    submit_judge_score,
+)
+from app.domain.scoring_engines import engine_meta
 from app.services.event_service import EventServiceError, get_event
 from app.models.protocol_capture import ProtocolCapture
 
@@ -782,6 +798,91 @@ def protocol_capture_file(
     if not path.is_file():
         raise_api_error(404, "file_missing", "Protocol file is not available on server")
     return FileResponse(path, filename=capture.file_name, media_type=capture.mime_type)
+
+
+@router.get("/{event_id}/scoring/engine", response_model=ScoringEngineMetaOut)
+def scoring_engine_meta(event_id: int, db: DbSession, user: CurrentUser) -> ScoringEngineMetaOut:
+    try:
+        engine = resolve_engine_for_event(db, event_id=event_id, actor=user)
+        meta = engine_meta(engine)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return ScoringEngineMetaOut.model_validate(meta)
+
+
+@router.get("/{event_id}/judge-scores", response_model=JudgeScoreListResponse)
+def judge_scores(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    participant_id: int | None = Query(default=None),
+    heat_id: int | None = Query(default=None),
+) -> JudgeScoreListResponse:
+    try:
+        items = list_judge_scores(
+            db,
+            event_id=event_id,
+            actor=user,
+            participant_id=participant_id,
+            heat_id=heat_id,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    out = [JudgeScoreOut.model_validate(score_out(i)) for i in items]
+    return JudgeScoreListResponse(items=out, total=len(out))
+
+
+@router.post("/{event_id}/judge-scores", response_model=JudgeScoreOut, status_code=201)
+def post_judge_score(
+    event_id: int,
+    body: JudgeScoreSubmit,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> JudgeScoreOut:
+    try:
+        row = submit_judge_score(
+            db,
+            event_id=event_id,
+            actor=user,
+            data=body,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return JudgeScoreOut.model_validate(score_out(row))
+
+
+@router.post("/{event_id}/judge-scores/aggregate", response_model=AggregateScoresOut)
+def post_aggregate_scores(
+    event_id: int,
+    body: AggregateScoresRequest,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> AggregateScoresOut:
+    try:
+        panel = aggregate_to_result(
+            db,
+            event_id=event_id,
+            actor=user,
+            participant_id=body.participant_id,
+            heat_id=body.heat_id,
+            attempt_no=body.attempt_no,
+            write_result_draft=body.write_result_draft,
+            place=body.place,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return AggregateScoresOut(
+        engine=panel["engine"],
+        panel_score=panel["panel_score"],
+        judge_count=panel["judge_count"],
+        judge_totals=panel["judge_totals"],
+        result_id=panel.get("result_id"),
+        detail=panel.get("detail") or panel,
+    )
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)

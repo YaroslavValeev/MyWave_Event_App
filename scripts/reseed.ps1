@@ -13,7 +13,7 @@ $VenvPython = "C:\tmp\mw_event_api_venv\Scripts\python.exe"
 $VenvUvicorn = "C:\tmp\mw_event_api_venv\Scripts\uvicorn.exe"
 $Seed = Join-Path $Root "scripts\seed_kazan_2026.py"
 
-Write-Host "== MyWave Event App — reseed Kazan DB ==" -ForegroundColor Cyan
+Write-Host "== MyWave Event App - reseed Kazan DB ==" -ForegroundColor Cyan
 
 if (-not (Test-Path $VenvPython)) {
   throw "Venv not found: $VenvPython. Run scripts/dev.ps1 first."
@@ -66,14 +66,18 @@ $apiCmd = @"
 Set-Location '$ApiDir'
 & '$VenvUvicorn' app.main:app --host 127.0.0.1 --port 8000
 "@
-Start-Process pwsh -ArgumentList @("-NoExit", "-Command", $apiCmd) | Out-Null
+$shell = "powershell"
+if (Get-Command pwsh -ErrorAction SilentlyContinue) {
+  $shell = "pwsh"
+}
+Start-Process $shell -ArgumentList @("-NoExit", "-NoProfile", "-Command", $apiCmd) | Out-Null
 Start-Sleep -Seconds 3
 
 try {
   $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 8
   Write-Host "API health: $($health.status) db_ok=$($health.db_ok)" -ForegroundColor Green
 } catch {
-  Write-Host "API started but health not ready yet — check the new terminal window." -ForegroundColor Yellow
+  Write-Host "API started but health not ready yet - check the new terminal window." -ForegroundColor Yellow
 }
 
 Write-Host "Done. Web (if needed): npm run dev:web" -ForegroundColor Cyan
