@@ -1,8 +1,8 @@
 # CURRENT_STATE
 
-Дата: 2026-08-25  
-Версия продукта: **0.5.3**  
-Путь до DoD v1 (аудит): ~**58%**
+Дата: 2026-08-26  
+Версия продукта: **0.5.4**  
+Путь до DoD v1 (аудит): ~**62%**
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
 
@@ -15,11 +15,11 @@
 - Rules catalog + EventRulesProfile (FVLS/IWWF).
 - ProtocolCapture (фото/PDF).
 - **Structured scoring (0.5.3):** engines WSWS_DRIVE / IWWF_CABLE_TI / IWWF_BOAT_EIC; judge sheets; panel aggregate → result draft.
-- UI: wizard события, Протокол, **Судейство**.
+- **Official protocol export (0.5.4):** JSON bundle + HTML print + readiness.
+- UI: wizard события, Протокол, **Судейство**, экспорт протокола.
 
 ## Частично / нет
 
-- Official protocol PDF/JSON export
 - Athlete ID / media / archive / ParserNews / broadcast
 - Score-now / Excel import adapters
 - SMTP + remote staging host — owner
@@ -27,9 +27,9 @@
 
 ## Следующий P0 (код)
 
-1. Official protocol export
-2. Athlete ID
-3. Archive after completed
+1. Athlete ID
+2. Read-only archive after `completed`
+3. PDF export (optional, from HTML)
 
 ## Проверки
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.4 — 2026-08-26
+
+- Official protocol export: JSON bundle + download + printable HTML.
+- Readiness check: FVLS/IWWF + published results or protocol captures.
+- UI: кнопки «Скачать JSON» / «Печатная HTML» на вкладке «Протокол».
+- Pytest: **52 passed**.
+
 ## 0.5.3 — 2026-08-25
 
 - Structured scoring engines: WSWS_DRIVE, IWWF_CABLE_TI, IWWF_BOAT_EIC (+ MANUAL_PLACE meta).

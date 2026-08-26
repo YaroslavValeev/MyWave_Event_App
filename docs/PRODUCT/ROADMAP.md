@@ -40,16 +40,17 @@
 | Heat / StartList / Run foundation | **done (0.5.0)** |
 | bulk start list, live board, DNS/DNF UX polish | next |
 | Results scoring | **partial (0.5.3)** engines + judge sheets + aggregate |
+| Official protocol export | **partial (0.5.4)** JSON + HTML |
 
 ## Этап 3 — Results
 
-- judge input
-- calculation
-- draft result
-- verification
-- published result
-- official protocol
-- history / audit после публикации
+- judge input — **done (0.5.3)**
+- calculation — **done (0.5.3)**
+- draft result — **done**
+- verification — **done**
+- published result — **done**
+- official protocol — **partial (0.5.4)** JSON/HTML
+- history / audit после публикации — **done**
 
 ## Этап 4 — Athlete ID
 

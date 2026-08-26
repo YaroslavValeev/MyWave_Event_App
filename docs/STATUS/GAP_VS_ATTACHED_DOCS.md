@@ -21,8 +21,8 @@
 | Results draft → published | да | foundation (ручной score/place) |
 | Фото/PDF протокола | да (режим) | ProtocolCapture |
 | Rules / org (FVLS+IWWF) | ADR-0006 | catalog + EventRulesProfile |
-| Structured scoring (DRIVE / T+I / EIC) | да | **нет** ← P0 сейчас |
-| Official protocol export | да | **нет** |
+| Structured scoring (DRIVE / T+I / EIC) | да | **done (0.5.3)** |
+| Official protocol export | да | **partial (0.5.4)** JSON + HTML; PDF — позже |
 | Read-only archive | да | **нет** |
 | Athlete ID | да | **нет** |
 | Media / photographer mode | этап 5 | **нет** (правильно позже) |
@@ -44,11 +44,11 @@
 
 | Метрика | Аудит 24.08 | Сейчас |
 |---------|-------------|--------|
-| Путь до DoD v1 | ~32% | ~52% |
-| Блокер продукта | git + start day | **scoring engines + protocol export** |
+| Путь до DoD v1 | ~32% | ~62% |
+| Блокер продукта | git + start day | **Athlete ID + archive** |
 
 ## Следующий код (этот спринт)
 
-1. Scoring engines + ввод судей
-2. Official protocol export (JSON/PDF)
-3. Athlete ID (без PII в ID)
+1. Athlete ID (без PII в ID)
+2. Read-only archive after `completed`
+3. PDF export (optional)

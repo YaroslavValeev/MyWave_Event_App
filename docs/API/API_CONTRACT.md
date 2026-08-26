@@ -102,6 +102,14 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | POST | `/api/v1/events/{id}/judge-scores` | Bearer organizer+/judge | критерии → total |
 | POST | `/api/v1/events/{id}/judge-scores/aggregate` | Bearer organizer+ | панель → result draft |
 
+## Official protocol export (0.5.4)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/official-protocol` | Bearer organizer+ | JSON bundle + readiness |
+| GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
+| GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
+
 Ошибка:
 
 ```json

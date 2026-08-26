@@ -49,6 +49,7 @@ from app.schemas.competition import (
 )
 from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
 from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
+from app.schemas.official_protocol import OfficialProtocolBundle
 from app.schemas.scoring import (
     AggregateScoresOut,
     AggregateScoresRequest,
@@ -100,6 +101,11 @@ from app.services.protocol_service import (
     upload_protocol_capture,
 )
 from app.services.rules_profile_service import get_rules_profile, profile_to_out, upsert_rules_profile
+from app.services.official_protocol_service import (
+    build_official_protocol_bundle,
+    record_official_protocol_export,
+    render_official_protocol_html,
+)
 from app.services.scoring_service import (
     aggregate_to_result,
     list_judge_scores,
@@ -882,6 +888,84 @@ def post_aggregate_scores(
         judge_totals=panel["judge_totals"],
         result_id=panel.get("result_id"),
         detail=panel.get("detail") or panel,
+    )
+
+
+@router.get("/{event_id}/official-protocol", response_model=OfficialProtocolBundle)
+def official_protocol(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> OfficialProtocolBundle:
+    try:
+        bundle = build_official_protocol_bundle(db, event_id=event_id, actor=user)
+        record_official_protocol_export(
+            db,
+            event_id=event_id,
+            actor=user,
+            export_format="json",
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return bundle
+
+
+@router.get("/{event_id}/official-protocol/download")
+def official_protocol_download(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> Response:
+    try:
+        bundle = build_official_protocol_bundle(db, event_id=event_id, actor=user)
+        record_official_protocol_export(
+            db,
+            event_id=event_id,
+            actor=user,
+            export_format="json_download",
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+
+    slug = bundle.event.get("slug") or f"event-{event_id}"
+    payload = bundle.model_dump(mode="json")
+    body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    filename = f"{slug}-official-protocol.json"
+    return Response(
+        content=body,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{event_id}/official-protocol/html")
+def official_protocol_html(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> Response:
+    try:
+        bundle = build_official_protocol_bundle(db, event_id=event_id, actor=user)
+        record_official_protocol_export(
+            db,
+            event_id=event_id,
+            actor=user,
+            export_format="html",
+            audit_enabled=settings.enable_audit_log,
+        )
+        page = render_official_protocol_html(bundle)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    slug = bundle.event.get("slug") or f"event-{event_id}"
+    return Response(
+        content=page.encode("utf-8"),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'inline; filename="{slug}-official-protocol.html"'},
     )
 
 

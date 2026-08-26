@@ -578,6 +578,51 @@ export function protocolCaptureFileUrl(eventId: number | string, captureId: numb
   return `${getApiBaseUrl()}/api/v1/events/${eventId}/protocol-captures/${captureId}/file`;
 }
 
+export type OfficialProtocolReadiness = {
+  official_ready: boolean;
+  warnings: string[];
+  blockers: string[];
+  published_results_count: number;
+  published_protocol_captures_count: number;
+};
+
+export type OfficialProtocolBundle = {
+  format_version: string;
+  generated_at: string;
+  generator: string;
+  event: Record<string, unknown>;
+  rules_profile: EventRulesProfileOut | null;
+  scoring_engine: string | null;
+  officials: Record<string, unknown>[];
+  categories: Record<string, unknown>[];
+  participants: Record<string, unknown>[];
+  heats: Record<string, unknown>[];
+  results: Record<string, unknown>[];
+  protocol_captures: Record<string, unknown>[];
+  judge_scores: Record<string, unknown>[];
+  readiness: OfficialProtocolReadiness;
+};
+
+export function officialProtocolUrl(eventId: number | string): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol`;
+}
+
+export function officialProtocolDownloadUrl(eventId: number | string): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/download`;
+}
+
+export function officialProtocolHtmlUrl(eventId: number | string): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/html`;
+}
+
+export function getOfficialProtocol(token: string, eventId: number | string) {
+  return apiFetch<OfficialProtocolBundle>(
+    `/api/v1/events/${eventId}/official-protocol`,
+    { method: "GET" },
+    token,
+  );
+}
+
 export type EventListResponse = {
   items: EventOut[];
   total: number;

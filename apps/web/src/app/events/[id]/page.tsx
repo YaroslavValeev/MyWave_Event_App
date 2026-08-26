@@ -49,6 +49,10 @@ import {
   listJudgeScores,
   aggregateJudgeScores,
   submitJudgeScore,
+  officialProtocolDownloadUrl,
+  officialProtocolHtmlUrl,
+  getOfficialProtocol,
+  OfficialProtocolReadiness,
   protocolCaptureFileUrl,
   submitApplication,
   updateChecklistItem,
@@ -110,6 +114,8 @@ export default function EventDetailPage() {
   const [protocolTitle, setProtocolTitle] = useState("");
   const [protocolKind, setProtocolKind] = useState("judge_sheet");
   const [protocolBusy, setProtocolBusy] = useState(false);
+  const [protocolReadiness, setProtocolReadiness] = useState<OfficialProtocolReadiness | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
   const [scoringEngine, setScoringEngine] = useState<ScoringEngineMeta | null>(null);
   const [judgeScores, setJudgeScores] = useState<
     Awaited<ReturnType<typeof listJudgeScores>>
@@ -202,6 +208,12 @@ export default function EventDetailPage() {
             setPendingApps(await listEventApplications(token, eventId, "pending"));
           } catch {
             setPendingApps([]);
+          }
+          try {
+            const bundle = await getOfficialProtocol(token, eventId);
+            setProtocolReadiness(bundle.readiness);
+          } catch {
+            setProtocolReadiness(null);
           }
         }
       } catch (err) {
@@ -377,6 +389,71 @@ export default function EventDetailPage() {
       setProtocols(await listProtocolCaptures(token, eventId));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось обновить статус протокола");
+    }
+  }
+
+  async function refreshProtocolReadiness() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    try {
+      const bundle = await getOfficialProtocol(token, eventId);
+      setProtocolReadiness(bundle.readiness);
+    } catch {
+      setProtocolReadiness(null);
+    }
+  }
+
+  async function downloadOfficialProtocolJson() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(officialProtocolDownloadUrl(eventId), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new ApiError("Не удалось скачать официальный протокол", res.status);
+      }
+      const blob = await res.blob();
+      const slug = detail?.slug || `event-${eventId}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}-official-protocol.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      await refreshProtocolReadiness();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось экспортировать протокол");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function openOfficialProtocolHtml() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(officialProtocolHtmlUrl(eventId), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new ApiError("Не удалось открыть печатную версию", res.status);
+      }
+      const html = await res.text();
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+      }
+      await refreshProtocolReadiness();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось открыть HTML-протокол");
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -1047,6 +1124,42 @@ export default function EventDetailPage() {
                 <p className={styles.muted}>
                   Листы судей WSWS (DRIVE) или бумажный протокол. Загрузка: JPG/PNG/WebP/PDF до 15 МБ.
                 </p>
+                {canModerate ? (
+                  <div className={styles.panel}>
+                    <strong>Официальный протокол (export)</strong>
+                    <p className={styles.muted}>
+                      JSON-bundle + печатная HTML-версия для FVLS/IWWF. Нужны опубликованные результаты
+                      или опубликованные вложения протокола.
+                      {protocolReadiness ? (
+                        <>
+                          {" "}
+                          Статус:{" "}
+                          <strong>{protocolReadiness.official_ready ? "готов" : "черновик"}</strong>
+                          {" · "}
+                          результатов: {protocolReadiness.published_results_count}
+                          {" · "}
+                          вложений: {protocolReadiness.published_protocol_captures_count}
+                        </>
+                      ) : null}
+                    </p>
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      disabled={exportBusy}
+                      onClick={() => void downloadOfficialProtocolJson()}
+                    >
+                      Скачать JSON
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      disabled={exportBusy}
+                      onClick={() => void openOfficialProtocolHtml()}
+                    >
+                      Печатная HTML
+                    </button>
+                  </div>
+                ) : null}
                 {canUploadProtocol ? (
                   <div className={styles.panel}>
                     <label className={styles.muted}>
