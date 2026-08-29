@@ -22,7 +22,7 @@ ENTRY_STATUSES = frozenset(
 RUN_STATUSES = frozenset({"scheduled", "ready", "on_water", "completed", "dns", "dnf"})
 
 
-def list_heats(db: Session, *, event_id: int, actor: User) -> list[Heat]:
+def list_heats(db: Session, *, event_id: int, actor: User | None) -> list[Heat]:
     get_event(db, event_id=event_id, actor=actor)
     return list(
         db.scalars(

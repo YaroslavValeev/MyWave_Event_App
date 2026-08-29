@@ -1,19 +1,34 @@
 :root {
-  --night: #071214;
-  --ink: #0b1c1f;
-  --teal-deep: #0d3d3f;
-  --teal-mid: #1a6a6e;
-  --foam: #d8ebe9;
-  --mist: #9db8b5;
-  --sand: #e8c992;
-  --sand-bright: #f0d9a8;
-  --focus: #f0d9a8;
+  --night: #f3fbfb;
+  --ink: #12383c;
+  --teal-deep: #0f766e;
+  --teal-mid: #14b8a6;
+  --foam: #12383c;
+  --mist: #5b7c80;
+  --sand: #0d9488;
+  --sand-bright: #2dd4bf;
+  --focus: #14b8a6;
+  --danger: #b42318;
+  --success: #0f9f6e;
+  --surface: #ffffff;
+  --border: color-mix(in srgb, var(--teal-mid) 38%, white);
+  --line: var(--border);
+  --shadow: 0 6px 18px color-mix(in srgb, var(--teal-mid) 22%, transparent);
+  --shadow-sm: 0 3px 10px color-mix(in srgb, var(--teal-mid) 16%, transparent);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --touch: 2.75rem;
 
-  /* Offline-safe stack: no Google Fonts fetch at build time (CI / restricted DNS). */
-  --font-display: "Candara", "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-body: "Calibri", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-display: "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 *,
@@ -32,23 +47,23 @@ body {
   font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.55;
-  color: var(--foam);
+  color: var(--ink);
   background:
-    radial-gradient(ellipse 90% 55% at 10% -10%, rgba(26, 106, 110, 0.45), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 95% 5%, rgba(232, 201, 146, 0.12), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(13, 61, 63, 0.65), transparent 55%),
-    linear-gradient(165deg, var(--night) 0%, var(--ink) 45%, #0a2428 100%);
+    radial-gradient(ellipse 80% 50% at 8% -8%, color-mix(in srgb, var(--teal-mid) 18%, white), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 100% 0%, color-mix(in srgb, var(--sand-bright) 20%, white), transparent 50%),
+    linear-gradient(180deg, #eefafa 0%, var(--night) 40%, #e7f6f4 100%);
   background-attachment: fixed;
 }
 
 a {
-  color: var(--sand);
+  color: var(--teal-deep);
 }
 
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
@@ -58,9 +73,9 @@ select:focus-visible {
 }
 
 .shell {
-  width: min(100% - 1.5rem, 52rem);
+  width: min(100% - 1.5rem, 60rem);
   margin-inline: auto;
-  padding: 0.5rem 0 3rem;
+  padding: 0.5rem 0 5.5rem;
 }
 
 .skipLink {
@@ -69,11 +84,13 @@ select:focus-visible {
   top: -3rem;
   z-index: 100;
   padding: 0.5rem 0.85rem;
-  background: var(--sand);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--teal-deep);
   font-weight: 600;
   text-decoration: none;
-  border-radius: 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--teal-mid);
+  box-shadow: var(--shadow-sm);
 }
 
 .skipLink:focus {
@@ -86,6 +103,7 @@ h3 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
   line-height: 1.2;
+  color: var(--ink);
 }
 
 p {
@@ -94,6 +112,101 @@ p {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: var(--touch);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid var(--teal-mid);
+  background: var(--surface);
+  color: var(--teal-deep);
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.btnPrimary {
+  background: color-mix(in srgb, var(--sand-bright) 28%, white);
+  color: var(--teal-deep);
+  border-color: var(--teal-mid);
+  box-shadow: var(--shadow);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sand-bright) 42%, white);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--teal-mid) 28%, transparent);
+}
+
+.btnSecondary {
+  background: var(--surface);
+  color: var(--teal-deep);
+  border-color: var(--teal-mid);
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--teal-mid) 8%, white);
+}
+
+.btnGhost {
+  color: var(--mist);
+  min-height: 2.4rem;
+  padding: 0.35rem 0.7rem;
+  border-color: color-mix(in srgb, var(--teal-mid) 35%, white);
+  box-shadow: none;
+}
+
+.btnGhost:hover:not(:disabled) {
+  color: var(--teal-deep);
+}
+
+.btnDanger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, white);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 8%, white);
+}
+
+.btnSm {
+  min-height: 2.4rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.btnActive {
+  background: color-mix(in srgb, var(--teal-mid) 16%, white);
+  color: var(--teal-deep);
+  border-color: var(--teal-deep);
+  box-shadow: var(--shadow);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 721px) {
+  .shell {
+    padding-bottom: 3rem;
+  }
 }

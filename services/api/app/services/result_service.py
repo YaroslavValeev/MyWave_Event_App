@@ -21,7 +21,7 @@ def list_results(
     db: Session,
     *,
     event_id: int,
-    actor: User,
+    actor: User | None,
     status: str | None = None,
 ) -> list[Result]:
     get_event(db, event_id=event_id, actor=actor)

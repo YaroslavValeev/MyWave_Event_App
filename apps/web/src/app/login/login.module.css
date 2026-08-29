@@ -29,7 +29,7 @@
 .field label {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--sand);
+  color: var(--teal-deep);
 }
 
 .field input:not([type="checkbox"]):not([type="radio"]),
@@ -38,11 +38,12 @@
   min-height: 2.75rem;
   padding: 0.55rem 0.75rem;
   border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--foam) 28%, transparent);
-  background: color-mix(in srgb, var(--night) 55%, transparent);
-  color: var(--foam);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
   width: 100%;
-  color-scheme: dark;
+  color-scheme: light;
+  box-shadow: var(--shadow-sm);
 }
 
 .field textarea {
@@ -72,7 +73,7 @@
   margin-bottom: 0.35rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--sand);
+  color: var(--teal-deep);
 }
 
 .field input::placeholder {
@@ -81,23 +82,24 @@
 
 .error {
   margin: 0;
-  color: #f5c4c0;
+  color: var(--danger);
   font-size: 0.92rem;
 }
 
 .submit {
   min-height: 2.85rem;
   padding: 0.65rem 1.2rem;
-  border: 1px solid var(--sand-bright);
+  border: 1px solid var(--teal-mid);
   border-radius: 0.4rem;
-  background: var(--sand);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--sand-bright) 28%, white);
+  color: var(--teal-deep);
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow);
 }
 
 .submit:hover:not(:disabled) {
-  background: var(--sand-bright);
+  background: color-mix(in srgb, var(--sand-bright) 42%, white);
 }
 
 .submit:disabled {
@@ -108,15 +110,16 @@
 .secondary {
   min-height: 2.5rem;
   padding: 0.5rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--foam) 35%, transparent);
+  border: 1px solid var(--teal-mid);
   border-radius: 0.4rem;
-  background: transparent;
-  color: var(--sand);
+  background: var(--surface);
+  color: var(--teal-deep);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
 
 .hint a {
-  color: var(--sand-bright);
+  color: var(--teal-deep);
 }
 
 .checkboxRow {
@@ -131,17 +134,17 @@
   height: 1.25rem;
   margin-top: 0.2rem;
   flex-shrink: 0;
-  accent-color: var(--sand);
+  accent-color: var(--teal-mid);
 }
 
 .checkboxRow label {
   font-size: 0.92rem;
   font-weight: 500;
-  color: var(--foam);
+  color: var(--ink);
 }
 
 .checkboxRow a {
-  color: var(--sand-bright);
+  color: var(--teal-deep);
 }
 
 .prose {
@@ -155,5 +158,5 @@
 
 .prose p {
   margin: 0 0 0.75rem;
-  color: var(--foam);
+  color: var(--ink);
 }

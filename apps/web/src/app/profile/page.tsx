@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
@@ -16,10 +15,10 @@ import {
   type ConsentItem,
   type UserOut,
 } from "@/lib/api";
+import { AuthNeeded } from "@/components/AuthNeeded";
 import styles from "../login/login.module.css";
 
 export default function ProfilePage() {
-  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -29,11 +28,12 @@ export default function ProfilePage() {
   const [pending, setPending] = useState(false);
   const [consents, setConsents] = useState<ConsentItem[]>([]);
   const [consentBusy, setConsentBusy] = useState<string | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   useEffect(() => {
     const token = getStoredToken();
     if (!token) {
-      router.replace("/login");
+      setNeedsAuth(true);
       return;
     }
     void fetchMe(token)
@@ -43,7 +43,11 @@ export default function ProfilePage() {
         setEmail(me.email);
         setAthleteId(me.athlete_id || null);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err instanceof ApiError && (err.status === 401 || err.code === "token_expired")) {
+          setNeedsAuth(true);
+          return;
+        }
         setError("Не удалось загрузить профиль. Войдите снова.");
       });
     void fetchMyConsents(token)
@@ -51,13 +55,13 @@ export default function ProfilePage() {
       .catch(() => {
         /* профиль всё равно показываем */
       });
-  }, [router]);
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = getStoredToken();
     if (!token) {
-      router.replace("/login");
+      setNeedsAuth(true);
       return;
     }
     setError(null);
@@ -117,12 +121,18 @@ export default function ProfilePage() {
       <AppHeader subtitle="Профиль" />
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Профиль</h1>
+        {needsAuth ? (
+          <AuthNeeded next="/profile" title="Нужен вход" actionLabel="Войти снова">
+            Сессия истекла или вы ещё не вошли. После входа вернёмся в профиль.
+          </AuthNeeded>
+        ) : (
+        <>
         <p className={styles.hint}>
           Телефон нужен для входа по OTP. Email: <strong>{email || "—"}</strong>.
           {athleteId ? (
             <>
               {" "}
-              Athlete ID: <strong>{athleteId}</strong>.
+              Номер участника: <strong>{athleteId}</strong>.
             </>
           ) : null}{" "}
           <Link href="/events">К событиям</Link>
@@ -201,6 +211,8 @@ export default function ProfilePage() {
             ))}
           </section>
         ) : null}
+        </>
+        )}
       </main>
     </>
   );

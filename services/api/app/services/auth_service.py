@@ -53,11 +53,11 @@ def decode_access_token(token: str, settings: Settings) -> dict:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     except jwt.ExpiredSignatureError as exc:
-        raise AuthError("token_expired", "Access token has expired") from exc
+        raise AuthError("token_expired", "Сессия истекла. Войдите снова.") from exc
     except jwt.InvalidTokenError as exc:
-        raise AuthError("invalid_token", "Invalid access token") from exc
+        raise AuthError("invalid_token", "Недействительный ключ входа. Войдите снова.") from exc
     if payload.get("typ") != "access":
-        raise AuthError("invalid_token", "Invalid access token type")
+        raise AuthError("invalid_token", "Недействительный ключ входа. Войдите снова.")
     return payload
 
 

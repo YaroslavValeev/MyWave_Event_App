@@ -52,6 +52,31 @@ def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def get_optional_user(
+    db: DbSession,
+    settings: AppSettings,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
+) -> User | None:
+    """Guest-safe: missing or expired/invalid token → anonymous, not 401."""
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials, settings)
+    except AuthError:
+        return None
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    user = get_user_by_id(db, user_id)
+    if user is None or user.status in {"rejected", "pending"}:
+        return None
+    return user
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
 def require_audit_reader(user: CurrentUser) -> User:
     if Role(user.role) not in AUDIT_READ_ROLES:
         raise_api_error(403, "forbidden", "Audit access requires event_admin or platform_admin")

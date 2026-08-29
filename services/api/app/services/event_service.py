@@ -111,16 +111,20 @@ def create_event(
     return event
 
 
-def list_events(db: Session, *, actor: User) -> list[Event]:
+PUBLIC_EVENT_STATUSES = frozenset(
+    {
+        EventStatus.published.value,
+        EventStatus.registration_open.value,
+        EventStatus.live.value,
+        EventStatus.completed.value,
+    }
+)
+
+
+def list_events(db: Session, *, actor: User | None) -> list[Event]:
     stmt = select(Event).order_by(Event.id.desc())
-    if not can_read_all_events(actor):
-        visible = [
-            EventStatus.published.value,
-            EventStatus.registration_open.value,
-            EventStatus.live.value,
-            EventStatus.completed.value,
-        ]
-        stmt = stmt.where(Event.status.in_(visible))
+    if actor is None or not can_read_all_events(actor):
+        stmt = stmt.where(Event.status.in_(PUBLIC_EVENT_STATUSES))
     return list(db.scalars(stmt).all())
 
 
@@ -128,21 +132,15 @@ def get_event(
     db: Session,
     *,
     event_id: int,
-    actor: User,
+    actor: User | None,
     require_mutable: bool = False,
 ) -> Event:
     event = db.get(Event, event_id)
     if event is None:
         raise EventServiceError("not_found", "Event not found", 404)
 
-    if not can_read_all_events(actor):
-        visible = {
-            EventStatus.published.value,
-            EventStatus.registration_open.value,
-            EventStatus.live.value,
-            EventStatus.completed.value,
-        }
-        if event.status not in visible:
+    if actor is None or not can_read_all_events(actor):
+        if event.status not in PUBLIC_EVENT_STATUSES:
             raise EventServiceError("not_found", "Event not found", 404)
     if require_mutable:
         assert_event_mutable(event)

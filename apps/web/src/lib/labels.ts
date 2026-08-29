@@ -1,0 +1,63 @@
+/** Русские лейблы статусов и типов — SoT для UI, коды API не меняем. */
+
+export const RESULT_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик",
+  verified: "Проверен",
+  published: "Опубликован",
+  void: "Аннулирован",
+};
+
+export const APPLICATION_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик",
+  submitted: "На рассмотрении",
+  pending: "На рассмотрении",
+  accepted: "В составе",
+  rejected: "Отклонена",
+  registered: "В составе",
+};
+
+export const HEAT_STATUS_LABELS: Record<string, string> = {
+  planned: "Запланирован",
+  ready: "Готов",
+  on_water: "На воде",
+  completed: "Завершён",
+  cancelled: "Отменён",
+};
+
+export const ENTRY_STATUS_LABELS: Record<string, string> = {
+  scheduled: "В списке",
+  checked_in: "Регистрация",
+  ready: "Готов",
+  on_water: "На воде",
+  completed: "Финиш",
+  dns: "Не стартовал",
+  dnf: "Не финишировал",
+};
+
+export const PROTOCOL_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик",
+  verified: "Проверен",
+  published: "Опубликован",
+  rejected: "Отклонён",
+};
+
+export const PROTOCOL_KIND_LABELS: Record<string, string> = {
+  judge_sheet: "Лист судьи",
+  chief_protocol: "Протокол главного судьи",
+  photo_result: "Фото табло",
+  other: "Другое",
+};
+
+export const DOCUMENT_KIND_LABELS: Record<string, string> = {
+  bulletin: "Бюллетень",
+  protocol: "Протокол",
+  schedule: "Расписание",
+  rules: "Правила",
+  start_list: "Стартовый список",
+  other: "Другое",
+};
+
+export function labelOf(map: Record<string, string>, value: string | null | undefined): string {
+  if (!value) return "—";
+  return map[value] ?? value;
+}
