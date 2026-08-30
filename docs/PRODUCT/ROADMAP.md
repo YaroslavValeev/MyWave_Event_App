@@ -31,7 +31,7 @@
 |--------|--------|
 | upload документов | **done (0.5.0)** |
 | checklist в Event App | **done (0.5.0)** |
-| categories / officials / approvals / registration / roster | частично (read + seed; CRUD UI ограничен) |
+| categories / officials / approvals / registration / roster | частично + **Import Center 0.5.8** (staging review; категории ADR-0007) |
 
 ## Этап 2 — День старта (главный функциональный разрыв)
 

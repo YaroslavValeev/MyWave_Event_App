@@ -86,6 +86,7 @@ class DocumentOut(BaseModel):
     language: str | None = None
     file_name: str
     description: str | None = None
+    access_class: str = "public"
     created_at: datetime
 
 

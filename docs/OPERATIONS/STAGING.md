@@ -54,6 +54,12 @@ Owner:
 5. `docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build`.
 6. Записать в CURRENT_STATE: host, tag, дата, evidence `/health`.
 
+### Обновление staging до 0.5.8 (Import Center)
+
+После merge/tag: backup volume SQLite, `git fetch && git checkout <tag>`, `docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build`.  
+Казанские xlsx **не** класть в git. Загрузка: войти организатором → `/admin/imports` → выбрать событие (создать draft/published если БД пустая) → загрузить файл с рабочей машины.  
+Rollback: предыдущий tag + restore backup volume. Не `git reset --hard` на боевых данных.
+
 ## Что staging не делает
 
 - Не заменяет production.

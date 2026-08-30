@@ -21,6 +21,20 @@
 
 История: при повторном grant предыдущая активная строка того же purpose закрывается `revoked_at`.
 
+### AthleteProfile / AccountAthleteLink / ImportBatch (0.5.8)
+
+**AthleteProfile** — SoT постоянного MyWave Athlete ID (`MW-XXXXXXXX`, без PII в самом ID): `display_name`, `latin_name`, `birth_year`, `region`.
+
+**AthleteContact** — телефоны E.164, kind `self|guardian|representative`. Один телефон может относиться к нескольким профилям.
+
+**AccountAthleteLink** — связь `User` ↔ профиль: `pending_claim` → `confirmed` | `rejected`. Нельзя автоматически объединять профили только по ФИО или телефону.
+
+**ImportBatch / ImportRow** — staging импорта. Unique `(event_id, content_sha256)`. Статусы пакета: parsed → committed. Строка хранит исходный sheet/row, нормализованные поля, `match_kind` (`new|exact|probable|conflict|excluded`), `conflict_codes`, решение администратора. Медицинские URL в API и `raw_json` не кладём — только `has_medical`.
+
+**Participant.athlete_profile_id** — связь roster с профилем. `user_id` может быть null (несколько дисциплин на событии).
+
+**Document.access_class** — `public|participant|official|commentator|medical-restricted|consent-restricted|media-rights|admin-only`. Restricted классы не отдаются participant.
+
 ### Notification (добавлено 2026-08-24)
 
 | Поле | Тип | Обяз. | Описание |

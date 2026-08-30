@@ -181,6 +181,7 @@ export type DocumentOut = {
   language: string | null;
   file_name: string;
   description: string | null;
+  access_class?: string;
 };
 
 type ErrorPayload = {
@@ -687,6 +688,98 @@ export async function listEvents(token?: string | null): Promise<EventOut[]> {
   return [];
 }
 
+export type ImportRowOut = {
+  id: number;
+  source_sheet: string;
+  source_row: number;
+  display_name: string | null;
+  phone_masked: string | null;
+  birth_year: number | null;
+  region: string | null;
+  discipline: string | null;
+  category_label: string | null;
+  has_medical: boolean;
+  match_kind: string;
+  confidence: number;
+  conflict_codes: string[];
+  admin_decision: string;
+  athlete_profile_id: number | null;
+  participant_id: number | null;
+};
+
+export type ImportBatchOut = {
+  id: number;
+  event_id: number;
+  source_filename: string;
+  source_kind: string;
+  status: string;
+  row_count: number;
+  new_count: number;
+  exact_count: number;
+  probable_count: number;
+  conflict_count: number;
+  excluded_count: number;
+  committed_count: number;
+  created_at: string | null;
+  committed_at: string | null;
+  rows?: ImportRowOut[] | null;
+};
+
+export async function listImportBatches(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: ImportBatchOut[]; total: number }>(
+    `/api/v1/events/${eventId}/imports`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function uploadImportBatch(token: string, eventId: number | string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/imports`, {
+    method: "POST",
+    headers,
+    body: form,
+    cache: "no-store",
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as ImportBatchOut;
+}
+
+export function getImportBatch(token: string, eventId: number | string, batchId: number) {
+  return apiFetch<ImportBatchOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function decideImportRow(
+  token: string,
+  eventId: number | string,
+  batchId: number,
+  rowId: number,
+  decision: "approve" | "reject",
+) {
+  return apiFetch<ImportRowOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}/rows/${rowId}`,
+    { method: "PATCH", body: JSON.stringify({ decision }) },
+    token,
+  );
+}
+
+export function commitImportBatch(token: string, eventId: number | string, batchId: number) {
+  return apiFetch<ImportBatchOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}/commit`,
+    { method: "POST" },
+    token,
+  );
+}
+
 export function getEventDetail(token: string | null | undefined, eventId: number | string) {
   return apiFetch<EventDetail>(`/api/v1/events/${eventId}/detail`, { method: "GET" }, token);
 }
@@ -1151,10 +1244,46 @@ export type MeResponse = {
   status: string;
   display_name: string | null;
   athlete_id?: string | null;
+  pending_claim_count?: number;
+};
+
+export type AthleteLinkOut = {
+  id: number;
+  athlete_id: string;
+  display_name: string;
+  latin_name: string | null;
+  birth_year: number | null;
+  region: string | null;
+  relation: string;
+  status: string;
 };
 
 export function fetchMe(token: string): Promise<MeResponse> {
   return apiFetch<MeResponse>("/api/v1/me", { method: "GET" }, token);
+}
+
+export function listAthleteLinks(token: string) {
+  return apiFetch<{ items: AthleteLinkOut[]; total: number }>(
+    "/api/v1/me/athlete-links",
+    { method: "GET" },
+    token,
+  );
+}
+
+export function confirmAthleteLink(token: string, linkId: number) {
+  return apiFetch<AthleteLinkOut>(
+    `/api/v1/me/athlete-links/${linkId}/confirm`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export function rejectAthleteLink(token: string, linkId: number) {
+  return apiFetch<AthleteLinkOut>(
+    `/api/v1/me/athlete-links/${linkId}/reject`,
+    { method: "POST" },
+    token,
+  );
 }
 
 export function updateMyProfile(

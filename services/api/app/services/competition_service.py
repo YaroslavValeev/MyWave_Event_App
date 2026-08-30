@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.domain.roles import EVENT_WRITE_ROLES, Role
 from app.models.category import Category
 from app.models.document import Document
 from app.models.event import Event
@@ -13,6 +14,22 @@ from app.models.participant import Participant
 from app.models.training_slot import TrainingSlot
 from app.models.user import User
 from app.services.event_service import EventServiceError, get_event
+
+RESTRICTED_DOCUMENT_CLASSES = frozenset(
+    {"medical-restricted", "consent-restricted", "admin-only", "media-rights"}
+)
+
+
+def list_documents(db: Session, *, event_id: int, actor: User) -> list[Document]:
+    get_event(db, event_id=event_id, actor=actor)
+    items = list(
+        db.scalars(
+            select(Document).where(Document.event_id == event_id).order_by(Document.title)
+        ).all()
+    )
+    if Role(actor.role) in EVENT_WRITE_ROLES:
+        return items
+    return [doc for doc in items if doc.access_class not in RESTRICTED_DOCUMENT_CLASSES]
 
 
 def list_categories(db: Session, *, event_id: int, actor: User | None) -> list[Category]:
@@ -43,15 +60,6 @@ def list_participants(
     if category_id is not None:
         stmt = stmt.where(Participant.category_id == category_id)
     return list(db.scalars(stmt).all())
-
-
-def list_documents(db: Session, *, event_id: int, actor: User) -> list[Document]:
-    get_event(db, event_id=event_id, actor=actor)
-    return list(
-        db.scalars(
-            select(Document).where(Document.event_id == event_id).order_by(Document.title)
-        ).all()
-    )
 
 
 def list_officials(db: Session, *, event_id: int, actor: User | None) -> list[Official]:
@@ -91,6 +99,8 @@ def get_document(db: Session, *, event_id: int, document_id: int, actor: User) -
     doc = db.get(Document, document_id)
     if doc is None or doc.event_id != event_id:
         raise EventServiceError("not_found", "Document not found", 404)
+    if doc.access_class in RESTRICTED_DOCUMENT_CLASSES and Role(actor.role) not in EVENT_WRITE_ROLES:
+        raise EventServiceError("forbidden", "Недостаточно прав для этого документа", 403)
     return doc
 
 

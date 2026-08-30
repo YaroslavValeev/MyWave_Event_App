@@ -14,7 +14,7 @@
 | Data model | `docs/ARCHITECTURE/DATA_MODEL.md` | сущности | schema |
 | Offline | `docs/ARCHITECTURE/OFFLINE_SYNC.md` | offline (этап 3+) | sync |
 | Integrations | `docs/ARCHITECTURE/INTEGRATIONS.md` | адаптеры | Telegram/MAX и др. |
-| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное |
+| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное; 0.5.8 — ADR-0007 категории Казани |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
 | Analytics | `docs/API/ANALYTICS_EVENTS.md` | события аналитики | новые сценарии |
 | Security | `docs/SECURITY/SECURITY.md` | безопасность | auth/uploads |

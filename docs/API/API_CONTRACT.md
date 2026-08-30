@@ -24,8 +24,11 @@
 | GET | `/api/v1/auth/approvals/{token}/reject` | no (email link) | HTML-форма подтверждения (без мутации) |
 | POST | `/api/v1/auth/approvals/{token}/confirm` | form `decision=approve\|reject` | мутация по email-ссылке |
 | POST | `/api/v1/auth/dev-login` | no (dev/test only) | JWT bootstrap |
-| GET | `/api/v1/me` | Bearer | текущий пользователь |
+| GET | `/api/v1/me` | Bearer | текущий пользователь (`pending_claim_count`) |
 | PATCH | `/api/v1/me` | Bearer | имя и/или телефон |
+| GET | `/api/v1/me/athlete-links` | Bearer | предполагаемые/подтверждённые профили |
+| POST | `/api/v1/me/athlete-links/{id}/confirm` | Bearer | подтвердить связь (OTP уже пройден) |
+| POST | `/api/v1/me/athlete-links/{id}/reject` | Bearer | отклонить связь; чужой link_id → 404 |
 | GET | `/api/v1/me/notifications` | Bearer | журнал уведомлений |
 | GET | `/api/v1/me/notifications/unread-count` | Bearer | число непрочитанных |
 | POST | `/api/v1/me/notifications/read-all` | Bearer | отметить все прочитанными |
@@ -59,7 +62,7 @@
 | GET | `/api/v1/events/{id}/applications` | Bearer organizer+ | очередь заявок |
 | PATCH | `/api/v1/events/{id}/applications/{participant_id}` | Bearer organizer+ | accept/reject |
 | GET | `/api/v1/events/{id}/documents` | Bearer | документы |
-| POST | `/api/v1/events/{id}/documents` | Bearer organizer+ | upload (multipart: file, title, kind, language?, description?) |
+| POST | `/api/v1/events/{id}/documents` | Bearer organizer+ | upload (multipart: file, title, kind, language?, description?, access_class?) |
 | DELETE | `/api/v1/events/{id}/documents/{doc_id}` | Bearer organizer+ | удалить документ + файл |
 | GET | `/api/v1/events/{id}/documents/{doc_id}/file` | Bearer | скачать файл |
 | GET | `/api/v1/events/{id}/checklist` | Bearer | чеклист подготовки (auto-seed + auto-tick) |
@@ -80,6 +83,18 @@
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
 | GET | `/api/v1/events/{id}/schedule-hint` | optional | текстовая подсказка расписания |
 | GET | `/api/v1/audit` | Bearer admin | audit |
+
+## Import Center (0.5.8)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| POST | `/api/v1/events/{id}/imports` | Bearer organizer+ | multipart `file` (.xlsx ≤5 МБ). Идемпотентно по SHA-256 |
+| GET | `/api/v1/events/{id}/imports` | Bearer organizer+ | список пакетов |
+| GET | `/api/v1/events/{id}/imports/{batch_id}` | Bearer organizer+ | пакет + строки (телефон маскирован) |
+| PATCH | `/api/v1/events/{id}/imports/{batch_id}/rows/{row_id}` | Bearer organizer+ | `{"decision":"approve\|reject"}` |
+| POST | `/api/v1/events/{id}/imports/{batch_id}/commit` | Bearer organizer+ | профили + pending_claim аккаунты + participants |
+
+Повторная загрузка того же файла возвращает существующий пакет, без дубликатов. PII-файлы в GitHub не коммитятся.
 
 ## Rules & protocol (0.5.2)
 
@@ -112,7 +127,7 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 
 ## Athlete ID & archive (0.5.5)
 
-- `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); в `TokenResponse` / `MeResponse` / roster `ParticipantOut.athlete_id`.
+- `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); канон 0.5.8 — `AthleteProfile.athlete_id`, аккаунт синхронизируется после confirm.
 - `EventDetail.archived` — true при `completed` | `cancelled`.
 - Мутации на архивном событии → **409** `event_archived`.
 - Исключение: `PATCH /api/v1/events/{id}/status` (можно вернуть в `live`).

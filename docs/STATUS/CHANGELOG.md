@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.8 — 2026-08-30
+
+- Import Center: staging xlsx → match/conflicts → commit в `AthleteProfile` + `EventRegistration` (`Participant`). Повтор того же файла идемпотентен.
+- MyWave Athlete ID на профиле спортсмена; `pending_claim` аккаунты для известных телефонов; OTP обязателен; подтверждение связи в профиле.
+- Документы: `access_class`; medical-restricted скрыт от participant.
+- ADR-0007: категории «до 15/до 19» vs U14/U18 — decision required, без молчаливого маппинга.
+- UI: `/admin/imports`, пункт «Импорт», подтверждение профилей на `/profile`.
+- Казанские xlsx/pdf с PII **не** в git. Загрузка только на сервер через UI.
+
 ## 0.5.7 — 2026-08-27
 
 - Светлая тема: белый/мятный фон, тёмный текст, бирюзовые обводки и тени кнопок.

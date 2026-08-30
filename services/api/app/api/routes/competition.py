@@ -117,6 +117,7 @@ from app.services.scoring_service import (
 from app.domain.scoring_engines import engine_meta
 from app.services.event_service import EventServiceError, get_event, is_event_archived
 from app.models.protocol_capture import ProtocolCapture
+from app.models.athlete import AthleteProfile
 from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/events", tags=["competition"])
@@ -188,14 +189,21 @@ def participants(
         raise_api_error(exc.status_code, exc.code, exc.message)
     masked: list[ParticipantOut] = []
     user_ids = {item.user_id for item in items if item.user_id}
+    profile_ids = {item.athlete_profile_id for item in items if item.athlete_profile_id}
     athlete_map: dict[int, str | None] = {}
+    profile_map: dict[int, str | None] = {}
     if user_ids:
         for row in db.scalars(select(UserModel).where(UserModel.id.in_(user_ids))).all():
             athlete_map[row.id] = row.athlete_id
+    if profile_ids:
+        for row in db.scalars(select(AthleteProfile).where(AthleteProfile.id.in_(profile_ids))).all():
+            profile_map[row.id] = row.athlete_id
     for item in items:
         out = ParticipantOut.model_validate(item)
         out.full_name = public_participant_name(db, item, user)
-        if item.user_id:
+        if item.athlete_profile_id and item.athlete_profile_id in profile_map:
+            out.athlete_id = profile_map.get(item.athlete_profile_id)
+        elif item.user_id:
             out.athlete_id = athlete_map.get(item.user_id)
         masked.append(out)
     return ParticipantListResponse(items=masked, total=len(masked))
@@ -331,6 +339,7 @@ async def post_document(
     kind: str = Form("other"),
     language: str | None = Form(None),
     description: str | None = Form(None),
+    access_class: str = Form("public"),
 ) -> DocumentOut:
     try:
         doc = upload_document(
@@ -342,6 +351,7 @@ async def post_document(
             kind=kind,
             language=language,
             description=description,
+            access_class=access_class,
             repo_root=settings.repo_root,
             audit_enabled=settings.enable_audit_log,
         )
