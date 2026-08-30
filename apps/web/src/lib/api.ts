@@ -21,8 +21,25 @@ export function isSessionExpiredError(err: unknown): boolean {
 }
 
 export function getApiBaseUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-  return base.replace(/\/$/, "");
+  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000").replace(
+    /\/$/,
+    "",
+  );
+  if (typeof window === "undefined") {
+    return configured;
+  }
+  try {
+    const url = new URL(configured);
+    const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+    const pageHost = window.location.hostname;
+    if (loopback && pageHost !== "127.0.0.1" && pageHost !== "localhost") {
+      const port = url.port ? `:${url.port}` : "";
+      return `${window.location.protocol}//${pageHost}${port}`;
+    }
+  } catch {
+    /* keep configured */
+  }
+  return configured;
 }
 
 export class ApiError extends Error {
