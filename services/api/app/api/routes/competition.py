@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
-from app.api.deps import AppSettings, CurrentUser, DbSession
+from app.api.deps import AppSettings, CurrentUser, DbSession, OptionalUser
 from app.api.errors import raise_api_error
 from app.schemas.competition import (
     ApplicationCreate,
@@ -148,7 +148,7 @@ def _protocol_out(capture: ProtocolCapture) -> ProtocolCaptureOut:
 
 
 @router.get("/{event_id}/detail", response_model=EventDetailOut)
-def event_detail(event_id: int, db: DbSession, user: CurrentUser) -> EventDetailOut:
+def event_detail(event_id: int, db: DbSession, user: OptionalUser) -> EventDetailOut:
     try:
         event = get_event(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
@@ -167,7 +167,7 @@ def event_detail(event_id: int, db: DbSession, user: CurrentUser) -> EventDetail
 
 
 @router.get("/{event_id}/categories", response_model=CategoryListResponse)
-def categories(event_id: int, db: DbSession, user: CurrentUser) -> CategoryListResponse:
+def categories(event_id: int, db: DbSession, user: OptionalUser) -> CategoryListResponse:
     try:
         items = list_categories(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
@@ -279,7 +279,7 @@ def patch_application(
 
 
 @router.get("/{event_id}/officials", response_model=OfficialListResponse)
-def officials(event_id: int, db: DbSession, user: CurrentUser) -> OfficialListResponse:
+def officials(event_id: int, db: DbSession, user: OptionalUser) -> OfficialListResponse:
     try:
         items = list_officials(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
@@ -438,7 +438,7 @@ def patch_checklist(
 
 
 @router.get("/{event_id}/heats", response_model=HeatListResponse)
-def heats(event_id: int, db: DbSession, user: CurrentUser) -> HeatListResponse:
+def heats(event_id: int, db: DbSession, user: OptionalUser) -> HeatListResponse:
     try:
         items = list_heats(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
@@ -617,11 +617,17 @@ def heat_runs(
 def results(
     event_id: int,
     db: DbSession,
-    user: CurrentUser,
+    user: OptionalUser,
     status: str | None = Query(default=None),
 ) -> ResultListResponse:
+    public_only = user is None
     try:
-        items = list_results(db, event_id=event_id, actor=user, status=status)
+        items = list_results(
+            db,
+            event_id=event_id,
+            actor=user,
+            status="published" if public_only else status,
+        )
     except EventServiceError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
     return ResultListResponse(items=[ResultOut.model_validate(i) for i in items], total=len(items))
@@ -980,7 +986,7 @@ def official_protocol_html(
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)
-def schedule_hint(event_id: int, db: DbSession, user: CurrentUser) -> ScheduleHint:
+def schedule_hint(event_id: int, db: DbSession, user: OptionalUser) -> ScheduleHint:
     try:
         event = get_event(db, event_id=event_id, actor=user)
     except EventServiceError as exc:

@@ -19,13 +19,11 @@ if (-not (Test-Path $VenvPython)) {
   throw "Venv not found: $VenvPython. Run scripts/dev.ps1 first."
 }
 
-Write-Host "Stopping processes on port 8000..." -ForegroundColor Yellow
-Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
-  ForEach-Object {
-    Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
-    Write-Host "  killed PID $($_.OwningProcess)"
-  }
-Start-Sleep -Seconds 2
+Write-Host "Stopping MyWave API (port 8000 + orphan workers)..." -ForegroundColor Yellow
+& (Join-Path $Root "scripts\stop-api.ps1")
+if ($LASTEXITCODE -ne 0) {
+  throw "Could not release DB lock. Close API/Web terminal windows from 'npm run dev', then retry."
+}
 
 $dbCandidates = @(
   (Join-Path $ApiDir "data\mywave_event.db"),
@@ -33,13 +31,7 @@ $dbCandidates = @(
 )
 foreach ($db in $dbCandidates) {
   if (-not (Test-Path $db)) { continue }
-  try {
-    $fs = [IO.File]::Open($db, "Open", "ReadWrite", "None")
-    $fs.Close()
-    Write-Host "DB unlocked: $db" -ForegroundColor DarkGray
-  } catch {
-    throw "DB still locked: $db. Close all uvicorn/python using it, then retry."
-  }
+  Write-Host "DB ready: $db" -ForegroundColor DarkGray
 }
 
 Write-Host "Running seed --reset-db..." -ForegroundColor Yellow

@@ -35,6 +35,7 @@ import {
   getScoringEngine,
   getStoredToken,
   getStoredUser,
+  isSessionExpiredError,
   listCategories,
   listChecklist,
   listDocuments,
@@ -65,6 +66,14 @@ import {
   upsertResultDraft,
   updateEventStatus,
 } from "@/lib/api";
+import { formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
+import {
+  DOCUMENT_KIND_LABELS,
+  ENTRY_STATUS_LABELS,
+  PROTOCOL_KIND_LABELS,
+  labelOf,
+} from "@/lib/labels";
+import { isBroadcastRole, isJudgeRole, isStaffRole } from "@/lib/roles";
 import styles from "../events.module.css";
 
 type TabId =
@@ -79,21 +88,38 @@ type TabId =
   | "results"
   | "apps";
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat("ru-RU", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
+const ALL_TABS: TabId[] = [
+  "overview",
+  "checklist",
+  "participants",
+  "slots",
+  "docs",
+  "protocol",
+  "scoring",
+  "heats",
+  "results",
+  "apps",
+];
+
+function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
+  if (isGuest) return ["overview", "results"];
+  if (isStaffRole(role ?? "")) return ALL_TABS;
+  if (role === "judge") {
+    return ["overview", "scoring", "heats", "protocol", "results", "participants"];
   }
+  if (isBroadcastRole(role)) {
+    return ["overview", "heats", "results", "participants", "docs"];
+  }
+  if (role === "support") {
+    return ["overview", "participants", "docs", "results", "apps"];
+  }
+  return ["overview", "apps", "participants", "slots", "docs", "results"];
 }
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
   const eventId = params.id;
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [categories, setCategories] = useState<CategoryOut[]>([]);
@@ -131,7 +157,7 @@ export default function EventDetailPage() {
   const [officials, setOfficials] = useState<OfficialOut[]>([]);
   const [training, setTraining] = useState<TrainingSlotOut[]>([]);
   const [hint, setHint] = useState<ScheduleHint | null>(null);
-  const [onlyBooked, setOnlyBooked] = useState(true);
+  const [onlyBooked, setOnlyBooked] = useState(false);
   const [filter, setFilter] = useState("");
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [myApp, setMyApp] = useState<ApplicationOut | null>(null);
@@ -143,33 +169,48 @@ export default function EventDetailPage() {
   const [appBusy, setAppBusy] = useState(false);
   const [tab, setTab] = useState<TabId>("overview");
   const user = getStoredUser();
+  const isGuest = !user;
   const isArchived = Boolean(detail?.archived);
-  const canOrganize =
-    user?.role === "organizer" ||
-    user?.role === "event_admin" ||
-    user?.role === "platform_admin" ||
-    user?.role === "federation_manager";
+  const canOrganize = isStaffRole(user?.role ?? "");
   const canModerate = canOrganize && !isArchived;
   const canUploadProtocol = !isArchived && (canModerate || user?.role === "judge");
   const canJudge = canUploadProtocol;
+  const allowedTabs = visibleTabs(user?.role, isGuest);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       const token = getStoredToken();
-      if (!token) {
-        setError("Нужен вход.");
-        return;
-      }
       try {
-        const [d, cats, parts, docs, offs, schedule, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores] =
-          await Promise.all([
+        const [d, cats, offs, schedule] = await Promise.all([
           getEventDetail(token, eventId),
           listCategories(token, eventId),
+          listOfficials(token, eventId),
+          getScheduleHint(token, eventId).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setDetail(d);
+        setCategories(cats);
+        setOfficials(offs);
+        setHint(schedule);
+        rememberLastEvent(eventId);
+
+        if (!token) {
+          const [published, heatItems] = await Promise.all([
+            listResults(null, eventId, "published").catch(() => []),
+            listHeats(null, eventId).catch(() => []),
+          ]);
+          if (!cancelled) {
+            setResults(published);
+            setHeats(heatItems);
+          }
+          return;
+        }
+
+        const [parts, docs, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores] =
+          await Promise.all([
           listParticipants(token, eventId),
           listDocuments(token, eventId),
-          listOfficials(token, eventId),
-          getScheduleHint(token, eventId),
           getMyApplication(token, eventId).catch(() => null),
           listChecklist(token, eventId).catch(() => ({ items: [], total: 0, done_count: 0 })),
           listHeats(token, eventId).catch(() => []),
@@ -180,12 +221,8 @@ export default function EventDetailPage() {
           listJudgeScores(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
-        setDetail(d);
-        setCategories(cats);
         setParticipants(parts);
         setDocuments(docs);
-        setOfficials(offs);
-        setHint(schedule);
         setMyApp(mine);
         setChecklist(checks.items);
         setChecklistDone(checks.done_count);
@@ -200,12 +237,7 @@ export default function EventDetailPage() {
         }
         if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
         const stored = getStoredUser();
-        if (
-          stored &&
-          ["organizer", "event_admin", "platform_admin", "federation_manager"].includes(
-            stored.role,
-          )
-        ) {
+        if (stored && isStaffRole(stored.role)) {
           try {
             setPendingApps(await listEventApplications(token, eventId, "pending"));
           } catch {
@@ -220,6 +252,32 @@ export default function EventDetailPage() {
         }
       } catch (err) {
         if (cancelled) return;
+        if (isSessionExpiredError(err)) {
+          setSessionExpired(true);
+          try {
+            const [d, cats, offs, schedule, published, heatItems] = await Promise.all([
+              getEventDetail(null, eventId),
+              listCategories(null, eventId),
+              listOfficials(null, eventId),
+              getScheduleHint(null, eventId).catch(() => null),
+              listResults(null, eventId, "published").catch(() => []),
+              listHeats(null, eventId).catch(() => []),
+            ]);
+            if (cancelled) return;
+            setDetail(d);
+            setCategories(cats);
+            setOfficials(offs);
+            setHint(schedule);
+            setResults(published);
+            setHeats(heatItems);
+            setError(null);
+          } catch {
+            if (!cancelled) {
+              setError("Сессия истекла. Войдите снова, чтобы продолжить.");
+            }
+          }
+          return;
+        }
         setError(err instanceof ApiError ? err.message : "Ошибка загрузки события");
       }
     }
@@ -293,6 +351,10 @@ export default function EventDetailPage() {
   async function onSubmitApplication() {
     const token = getStoredToken();
     if (!token) return;
+    if (!categoryId) {
+      setError("Выберите категорию — без неё заявку не примем.");
+      return;
+    }
     setAppBusy(true);
     setAppMessage(null);
     setError(null);
@@ -700,20 +762,36 @@ export default function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHeatId, eventId]);
 
-  const tabs: { id: TabId; label: string; show?: boolean }[] = [
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
+    if (raw && (allowedTabs as string[]).includes(raw)) {
+      setTab(raw as TabId);
+    }
+  }, [eventId, allowedTabs.join("|")]);
+
+  function selectTab(id: TabId) {
+    setTab(id);
+    if (typeof window !== "undefined") {
+      history.replaceState(null, "", `#${id}`);
+    }
+  }
+
+  const liveHeat = heats.find((h) => h.status === "on_water") ?? heats.find((h) => h.status === "ready");
+  const publishedResults = results.filter((r) => r.status === "published");
+
+  const tabs: { id: TabId; label: string }[] = [
     { id: "overview", label: "Обзор" },
-    { id: "checklist", label: `Чеклист (${checklistDone}/${checklist.length || 7})` },
-    { id: "participants", label: `Участники (${participants.length})` },
+    { id: "checklist", label: `Подготовка (${checklistDone}/${checklist.length || 7})` },
+    { id: "participants", label: `Состав (${participants.length})` },
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "protocol", label: `Протокол (${protocols.length})` },
-    { id: "scoring", label: `Судейство (${judgeScores.length})` },
-    { id: "heats", label: `Heats (${heats.length})` },
-    { id: "results", label: `Results (${results.length})` },
+    { id: "scoring", label: "Судейство" },
+    { id: "heats", label: `Заезды (${heats.length})` },
+    { id: "results", label: "Результаты" },
     {
       id: "apps",
-      label: canModerate ? `Заявки (${pendingApps.length})` : "Моя заявка",
-      show: true,
+      label: canModerate ? `Заявки (${pendingApps.length})` : "Заявка",
     },
   ];
 
@@ -725,12 +803,19 @@ export default function EventDetailPage() {
           <Link href="/events">← К списку событий</Link>
         </p>
 
-        {error ? (
+        {sessionExpired ? (
+          <div className={styles.nextAction} role="status">
+            <strong>Сессия истекла</strong>
+            <p className={styles.muted}>Войдите снова — вернёмся на эту карточку события.</p>
+            <Link href={loginHref(`/events/${eventId}`)} className="btn btnPrimary btnSm">
+              Войти снова
+            </Link>
+          </div>
+        ) : null}
+
+        {error && !sessionExpired ? (
           <div className={styles.panel} role="alert">
             <p className={styles.error}>{error}</p>
-            <Link href="/login" className={styles.linkBtn}>
-              Войти
-            </Link>
           </div>
         ) : null}
 
@@ -749,7 +834,7 @@ export default function EventDetailPage() {
                 {canOrganize ? (
                   <button
                     type="button"
-                    className={styles.linkBtn}
+                    className="btn btnPrimary btnSm"
                     onClick={() => {
                       const token = getStoredToken();
                       if (!token) return;
@@ -761,7 +846,7 @@ export default function EventDetailPage() {
                         );
                     }}
                   >
-                    Вернуть в live
+                    Вернуть в работу
                   </button>
                 ) : null}
               </div>
@@ -773,51 +858,80 @@ export default function EventDetailPage() {
                 <dd>{detail.city || "—"}</dd>
               </div>
               <div>
-                <dt>Период</dt>
-                <dd>
-                  {formatDate(detail.starts_at)} — {formatDate(detail.ends_at)}
-                </dd>
+                <dt>Даты</dt>
+                <dd>{formatEventPeriod(detail.starts_at, detail.ends_at)}</dd>
               </div>
               <div>
                 <dt>Дисциплины</dt>
                 <dd>{detail.disciplines || "—"}</dd>
               </div>
-              {rulesProfile ? (
-                <div>
-                  <dt>Правила / протокол</dt>
-                  <dd>
-                    {rulesProfile.governing_body} · санкция {rulesProfile.sanction_body} ·{" "}
-                    {rulesProfile.scoring_mode}
-                  </dd>
-                </div>
-              ) : null}
               <div>
-                <dt>Сводка</dt>
+                <dt>Состав</dt>
                 <dd>
-                  {detail.categories_count} кат. · {detail.participants_count} уч. ·{" "}
-                  {detail.documents_count} док. · {detail.officials_count ?? 0} судей ·{" "}
-                  {detail.training_slots_count ?? 0} слотов
-                </dd>
-              </div>
-              <div>
-                <dt>Медсправки</dt>
-                <dd>
-                  {medicalStats.withMed} / {medicalStats.total}
+                  {detail.participants_count} участников · {detail.categories_count} категорий
                 </dd>
               </div>
             </dl>
 
+            {liveHeat ? (
+              <div className={styles.liveBar} role="status">
+                <div>
+                  <strong>Сейчас: {liveHeat.title}</strong>
+                  <p className={styles.muted} style={{ margin: "0.25rem 0 0" }}>
+                    Заезд {liveHeat.code}
+                    {liveHeat.status === "on_water" ? " — на воде" : " — готов к старту"}
+                  </p>
+                </div>
+                {allowedTabs.includes("heats") ? (
+                  <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("heats")}>
+                    К заездам
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {isGuest && !sessionExpired ? (
+              <div className={styles.nextAction}>
+                <strong>Хотите участвовать?</strong>
+                <p className={styles.muted}>Войдите, чтобы подать заявку и увидеть свой слот.</p>
+                <Link href={loginHref(`/events/${eventId}`)} className="btn btnPrimary btnSm">
+                  Войти
+                </Link>
+              </div>
+            ) : null}
+
+            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: заявка</strong>
+                <p className={styles.muted}>Выберите категорию и отправьте заявку организатору.</p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("apps")}>
+                  Подать заявку
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && myApp ? (
+              <div className={styles.nextAction}>
+                <strong>Ваша заявка</strong>
+                <p className={styles.muted} style={{ margin: "0.35rem 0 0" }}>
+                  <StatusBadge status={myApp.status} kind="application" /> {myApp.full_name}
+                </p>
+              </div>
+            ) : null}
+
             <div className={styles.tabs} role="tablist" aria-label="Разделы события">
               {tabs
-                .filter((t) => t.show !== false)
+                .filter((t) => allowedTabs.includes(t.id))
                 .map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     role="tab"
+                    id={`tab-${t.id}`}
                     aria-selected={tab === t.id}
+                    aria-controls={`panel-${t.id}`}
                     className={`${styles.tab} ${tab === t.id ? styles.tabActive : ""}`}
-                    onClick={() => setTab(t.id)}
+                    onClick={() => selectTab(t.id)}
                   >
                     {t.label}
                   </button>
@@ -879,7 +993,7 @@ export default function EventDetailPage() {
                 {myApp ? (
                   <div className={styles.panel}>
                     <p>
-                      Статус: <strong>{myApp.status}</strong> · {myApp.full_name}
+                      Статус: <StatusBadge status={myApp.status} kind="application" /> · {myApp.full_name}
                     </p>
                     <p className={styles.muted}>
                       {[myApp.region, myApp.club].filter(Boolean).join(" · ") || "—"}
@@ -897,7 +1011,7 @@ export default function EventDetailPage() {
                         onChange={(e) => setCategoryId(e.target.value)}
                         style={{ marginLeft: "0.4rem" }}
                       >
-                        <option value="">Без категории</option>
+                        <option value="">Выберите категорию</option>
                         {categories.map((c) => (
                           <option key={c.id} value={String(c.id)}>
                             {c.discipline ? `${c.discipline}: ` : ""}
@@ -919,11 +1033,11 @@ export default function EventDetailPage() {
                       />
                       <button
                         type="button"
-                        className={styles.linkBtn}
+                        className="btn btnPrimary"
                         disabled={appBusy}
                         onClick={() => void onSubmitApplication()}
                       >
-                        {appBusy ? "Отправка…" : "Подать заявку"}
+                        {appBusy ? "Отправка…" : "Отправить заявку"}
                       </button>
                     </div>
                   </div>
@@ -939,7 +1053,7 @@ export default function EventDetailPage() {
                     <ul className={styles.list}>
                       {pendingApps.length === 0 ? (
                         <li className={styles.item}>
-                          <span className={styles.muted}>Нет pending-заявок.</span>
+                          <span className={styles.muted}>Нет новых заявок.</span>
                         </li>
                       ) : (
                         pendingApps.map((a) => (
@@ -949,7 +1063,7 @@ export default function EventDetailPage() {
                               <span>
                                 <button
                                   type="button"
-                                  className={styles.linkBtn}
+                                  className="btn btnPrimary btnSm"
                                   disabled={appBusy}
                                   onClick={() => void onDecideApp(a.id, "accepted")}
                                 >
@@ -957,9 +1071,13 @@ export default function EventDetailPage() {
                                 </button>{" "}
                                 <button
                                   type="button"
-                                  className={styles.linkBtn}
+                                  className="btn btnDanger btnSm"
                                   disabled={appBusy}
-                                  onClick={() => void onDecideApp(a.id, "rejected")}
+                                  onClick={() => {
+                                    if (window.confirm(`Отклонить заявку ${a.full_name}?`)) {
+                                      void onDecideApp(a.id, "rejected");
+                                    }
+                                  }}
                                 >
                                   Отклонить
                                 </button>
@@ -1036,14 +1154,14 @@ export default function EventDetailPage() {
                         {canModerate ? (
                           <button
                             type="button"
-                            className={styles.linkBtn}
+                            className="btn btnPrimary btnSm"
                             onClick={() => void onToggleChecklist(item)}
                           >
                             {item.is_done ? "Снять" : "Отметить"}
                           </button>
                         ) : null}
                       </div>
-                      <div className={styles.muted}>{item.code}</div>
+                      {canModerate ? <div className={styles.muted}>{item.code}</div> : null}
                     </li>
                   ))}
                 </ul>
@@ -1086,12 +1204,12 @@ export default function EventDetailPage() {
                           color: "inherit",
                         }}
                       >
-                        <option value="bulletin">bulletin</option>
-                        <option value="protocol">protocol</option>
-                        <option value="schedule">schedule</option>
-                        <option value="rules">rules</option>
-                        <option value="start_list">start_list</option>
-                        <option value="other">other</option>
+                        <option value="bulletin">Бюллетень</option>
+                        <option value="protocol">Протокол</option>
+                        <option value="schedule">Расписание</option>
+                        <option value="rules">Правила</option>
+                        <option value="start_list">Стартовый список</option>
+                        <option value="other">Другое</option>
                       </select>
                     </label>{" "}
                     <input
@@ -1119,7 +1237,7 @@ export default function EventDetailPage() {
                           <span>
                             <button
                               type="button"
-                              className={styles.linkBtn}
+                              className="btn btnPrimary btnSm"
                               onClick={() => void downloadDoc(d)}
                             >
                               Скачать
@@ -1127,8 +1245,7 @@ export default function EventDetailPage() {
                             {canModerate ? (
                               <button
                                 type="button"
-                                className={styles.linkBtn}
-                                onClick={() => void onDeleteDoc(d)}
+                                className="btn btnDanger btnSm"
                                 style={{ marginLeft: "0.5rem" }}
                               >
                                 Удалить
@@ -1137,7 +1254,7 @@ export default function EventDetailPage() {
                           </span>
                         </div>
                         <div className={styles.muted}>
-                          {d.kind} · {d.language || "—"} · {d.file_name}
+                          {labelOf(DOCUMENT_KIND_LABELS, d.kind)} · {d.file_name}
                         </div>
                       </li>
                     ))
@@ -1156,7 +1273,7 @@ export default function EventDetailPage() {
                   <div className={styles.panel}>
                     <strong>Официальный протокол (export)</strong>
                     <p className={styles.muted}>
-                      JSON-bundle + печатная HTML-версия для FVLS/IWWF. Нужны опубликованные результаты
+                      JSON-файл для федерации и печатная версия. Нужны опубликованные результаты
                       или опубликованные вложения протокола.
                       {protocolReadiness ? (
                         <>
@@ -1172,19 +1289,19 @@ export default function EventDetailPage() {
                     </p>
                     <button
                       type="button"
-                      className={styles.linkBtn}
+                      className="btn btnSecondary btnSm"
                       disabled={exportBusy}
                       onClick={() => void downloadOfficialProtocolJson()}
                     >
-                      Скачать JSON
+                      Файл для федерации
                     </button>{" "}
                     <button
                       type="button"
-                      className={styles.linkBtn}
+                      className="btn btnPrimary btnSm"
                       disabled={exportBusy}
                       onClick={() => void openOfficialProtocolHtml()}
                     >
-                      Печатная HTML
+                      Открыть для печати
                     </button>
                   </div>
                 ) : null}
@@ -1250,12 +1367,12 @@ export default function EventDetailPage() {
                         <div className={styles.itemHead}>
                           <strong>
                             {p.title}{" "}
-                            <span className={styles.muted}>({p.status})</span>
+                            <StatusBadge status={p.status} kind="protocol" />
                           </strong>
                           <span>
                             <button
                               type="button"
-                              className={styles.linkBtn}
+                              className="btn btnPrimary btnSm"
                               onClick={() => void downloadProtocol(p)}
                             >
                               Открыть
@@ -1263,7 +1380,7 @@ export default function EventDetailPage() {
                             {canModerate && p.status === "draft" ? (
                               <button
                                 type="button"
-                                className={styles.linkBtn}
+                                className="btn btnPrimary btnSm"
                                 style={{ marginLeft: "0.5rem" }}
                                 onClick={() => void onVerifyProtocol(p, "verified")}
                               >
@@ -1273,7 +1390,7 @@ export default function EventDetailPage() {
                             {canModerate && p.status === "verified" ? (
                               <button
                                 type="button"
-                                className={styles.linkBtn}
+                                className="btn btnPrimary btnSm"
                                 style={{ marginLeft: "0.5rem" }}
                                 onClick={() => void onVerifyProtocol(p, "published")}
                               >
@@ -1283,8 +1400,8 @@ export default function EventDetailPage() {
                           </span>
                         </div>
                         <div className={styles.muted}>
-                          {p.kind} · {p.file_name}
-                          {p.heat_id ? ` · heat #${p.heat_id}` : ""}
+                          {labelOf(PROTOCOL_KIND_LABELS, p.kind)} · {p.file_name}
+                          {p.heat_id ? ` · заезд ${heats.find((h) => h.id === p.heat_id)?.code || p.heat_id}` : ""}
                           {p.notes ? ` · ${p.notes}` : ""}
                         </div>
                       </li>
@@ -1300,8 +1417,8 @@ export default function EventDetailPage() {
                 <p className={styles.muted}>
                   Движок: <strong>{scoringEngine?.engine || "—"}</strong>
                   {scoringEngine?.engine === "MANUAL_PLACE"
-                    ? " — для этого события используйте вкладки Results или Протокол."
-                    : " — каждый судья вводит критерии; организатор собирает панель в result draft."}
+                    ? " — для этого события введите место на вкладке «Результаты» или приложите фото протокола."
+                    : " — каждый судья вводит критерии; организатор считает итог и отправляет в результаты."}
                 </p>
                 {scoringEngine && scoringEngine.engine !== "MANUAL_PLACE" && canJudge ? (
                   <div className={styles.panel}>
@@ -1356,7 +1473,7 @@ export default function EventDetailPage() {
                     <div style={{ marginTop: "0.75rem" }}>
                       <button
                         type="button"
-                        className={styles.linkBtn}
+                        className="btn btnPrimary"
                         disabled={scoreBusy}
                         onClick={() => void onSubmitJudgeScore()}
                       >
@@ -1365,12 +1482,12 @@ export default function EventDetailPage() {
                       {canModerate ? (
                         <button
                           type="button"
-                          className={styles.linkBtn}
+                          className="btn btnSecondary"
                           style={{ marginLeft: "0.75rem" }}
                           disabled={scoreBusy}
                           onClick={() => void onAggregateScores()}
                         >
-                          Собрать панель → result draft
+                          Посчитать итог
                         </button>
                       ) : null}
                     </div>
@@ -1382,20 +1499,26 @@ export default function EventDetailPage() {
                       <span className={styles.muted}>Оценок судей пока нет.</span>
                     </li>
                   ) : (
-                    judgeScores.map((s) => (
+                    judgeScores.map((s) => {
+                      const athlete = participants.find((x) => x.id === s.participant_id);
+                      const mine = user && String(s.judge_user_id) === String(user.id);
+                      return (
                       <li key={s.id} className={styles.item}>
                         <div className={styles.itemHead}>
                           <strong>
-                            Участник #{s.participant_id} · судья #{s.judge_user_id}
+                            {athlete?.full_name || `Участник ${s.participant_id}`}
+                            {" · "}
+                            {mine ? "ваша оценка" : "оценка судьи"}
                           </strong>
                           <span className={styles.muted}>итог {s.total}</span>
                         </div>
                         <div className={styles.muted}>
-                          {s.engine} · попытка {s.attempt_no}
-                          {s.heat_id ? ` · heat #${s.heat_id}` : ""}
+                          попытка {s.attempt_no}
+                          {s.heat_id ? ` · заезд ${heats.find((h) => h.id === s.heat_id)?.code || s.heat_id}` : ""}
                         </div>
                       </li>
-                    ))
+                      );
+                    })
                   )}
                 </ul>
               </>
@@ -1403,10 +1526,10 @@ export default function EventDetailPage() {
 
             {tab === "heats" ? (
               <>
-                <h2 className={styles.itemTitle}>Heats / Start lists</h2>
+                <h2 className={styles.itemTitle}>Заезды и стартовый список</h2>
                 <p className={styles.muted}>
-                  День старта: heat ≠ тренировочный слот. Статусы участника: check-in → ready →
-                  on-water → completed / DNS / DNF.
+                  День старта: заезд — это не тренировочный слот. Статусы: регистрация → готов → на
+                  воде → финиш / не стартовал / не финишировал.
                 </p>
                 {canModerate ? (
                   <div className={styles.panel}>
@@ -1426,7 +1549,7 @@ export default function EventDetailPage() {
                     <input
                       value={heatTitle}
                       onChange={(e) => setHeatTitle(e.target.value)}
-                      placeholder="Название heat"
+                      placeholder="Название заезда"
                       style={{
                         marginRight: "0.5rem",
                         padding: "0.45rem 0.7rem",
@@ -1436,15 +1559,15 @@ export default function EventDetailPage() {
                         color: "inherit",
                       }}
                     />
-                    <button type="button" className={styles.linkBtn} onClick={() => void onCreateHeat()}>
-                      Создать heat
+                    <button type="button" className="btn btnPrimary btnSm" onClick={() => void onCreateHeat()}>
+                      Создать заезд
                     </button>
                   </div>
                 ) : null}
                 <ul className={styles.list}>
                   {heats.length === 0 ? (
                     <li className={styles.item}>
-                      <span className={styles.muted}>Heats ещё не созданы.</span>
+                      <span className={styles.muted}>Заезды ещё не созданы.</span>
                     </li>
                   ) : (
                     heats.map((h) => (
@@ -1455,23 +1578,31 @@ export default function EventDetailPage() {
                           </strong>
                           <button
                             type="button"
-                            className={styles.linkBtn}
+                            className="btn btnPrimary btnSm"
                             onClick={() => void onSelectHeat(h.id)}
                           >
                             {selectedHeatId === h.id ? "Открыт" : "Открыть"}
                           </button>
                         </div>
-                        <div className={styles.muted}>status: {h.status}</div>
+                        <div className={styles.muted}>
+                          <StatusBadge status={h.status} kind="heat" />
+                        </div>
                         {canModerate ? (
-                          <div style={{ marginTop: "0.5rem", display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                          <div className={styles.actions}>
                             {["planned", "ready", "on_water", "completed"].map((st) => (
                               <button
                                 key={st}
                                 type="button"
-                                className={styles.linkBtn}
+                                className={`btn btnSm ${h.status === st ? "btnActive" : "btnSecondary"}`}
                                 onClick={() => void onHeatStatus(h, st)}
                               >
-                                {st}
+                                {st === "planned"
+                                  ? "План"
+                                  : st === "ready"
+                                    ? "Готов"
+                                    : st === "on_water"
+                                      ? "На воде"
+                                      : "Финиш"}
                               </button>
                             ))}
                           </div>
@@ -1483,7 +1614,7 @@ export default function EventDetailPage() {
 
                 {selectedHeatId != null ? (
                   <>
-                    <h2 className={styles.itemTitle}>Start list</h2>
+                    <h2 className={styles.itemTitle}>Стартовый список</h2>
                     {canModerate ? (
                       <div className={styles.panel}>
                         <select
@@ -1507,18 +1638,18 @@ export default function EventDetailPage() {
                         </select>
                         <button
                           type="button"
-                          className={styles.linkBtn}
+                          className="btn btnPrimary btnSm"
                           onClick={() => void onAddToStartList()}
                         >
-                          В start list
+                          В список
                         </button>
                         <button
                           type="button"
-                          className={styles.linkBtn}
+                          className="btn btnSecondary btnSm"
                           style={{ marginLeft: "0.5rem" }}
                           onClick={() => void onFillStartList()}
                         >
-                          Заполнить из roster
+                          Добавить всех из состава
                         </button>
                       </div>
                     ) : null}
@@ -1538,31 +1669,21 @@ export default function EventDetailPage() {
                                   {p?.athlete_id ? ` · ${p.athlete_id}` : ""}
                                   {e.bib_number ? ` · №${e.bib_number}` : ""}
                                 </strong>
-                                <span className={styles.muted}>{e.status}</span>
+                                <span className={styles.muted}>
+                                  <StatusBadge status={e.status} kind="entry" />
+                                </span>
                               </div>
                               {canModerate ? (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                                <div className={styles.actions}>
                                   {["checked_in", "ready", "on_water", "completed", "dns", "dnf"].map(
                                     (st) => (
                                       <button
                                         key={st}
                                         type="button"
-                                        className={styles.linkBtn}
+                                        className={`btn btnSm ${e.status === st ? "btnActive" : st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
                                         onClick={() => void onEntryStatus(e, st)}
                                       >
-                                        {st === "checked_in"
-                                          ? "Check-in"
-                                          : st === "dns"
-                                            ? "DNS"
-                                            : st === "dnf"
-                                              ? "DNF"
-                                              : st === "on_water"
-                                                ? "На воде"
-                                                : st === "completed"
-                                                  ? "Финиш"
-                                                  : st === "ready"
-                                                    ? "Ready"
-                                                    : st}
+                                        {labelOf(ENTRY_STATUS_LABELS, st)}
                                       </button>
                                     ),
                                   )}
@@ -1580,10 +1701,9 @@ export default function EventDetailPage() {
 
             {tab === "results" ? (
               <>
-                <h2 className={styles.itemTitle}>Results</h2>
+                <h2 className={styles.itemTitle}>Результаты</h2>
                 <p className={styles.muted}>
-                  Контур draft → verified → published (+ history/audit). Полный judge scoring —
-                  следующий шаг.
+                  Путь: черновик → проверен → опубликован. Аннулирование видно только организатору.
                 </p>
                 {canModerate ? (
                   <div className={styles.panel}>
@@ -1609,7 +1729,7 @@ export default function EventDetailPage() {
                     <input
                       value={resultScore}
                       onChange={(e) => setResultScore(e.target.value)}
-                      placeholder="Score"
+                      placeholder="Балл"
                       style={{
                         width: "5rem",
                         marginRight: "0.5rem",
@@ -1623,7 +1743,7 @@ export default function EventDetailPage() {
                     <input
                       value={resultPlace}
                       onChange={(e) => setResultPlace(e.target.value)}
-                      placeholder="Place"
+                      placeholder="Место"
                       style={{
                         width: "5rem",
                         marginRight: "0.5rem",
@@ -1636,57 +1756,67 @@ export default function EventDetailPage() {
                     />
                     <button
                       type="button"
-                      className={styles.linkBtn}
+                      className="btn btnPrimary btnSm"
                       onClick={() => void onSaveResultDraft()}
                     >
-                      Save draft
+                      Сохранить черновик
                     </button>
                   </div>
                 ) : null}
                 <ul className={styles.list}>
-                  {results.length === 0 ? (
+                  {(canModerate ? results : publishedResults).length === 0 ? (
                     <li className={styles.item}>
-                      <span className={styles.muted}>Результатов пока нет.</span>
+                      <span className={styles.muted}>
+                        {canModerate ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
+                      </span>
                     </li>
                   ) : (
-                    results.map((r) => {
+                    (canModerate ? results : publishedResults)
+                      .slice()
+                      .sort((a, b) => (a.place ?? 999) - (b.place ?? 999))
+                      .map((r) => {
                       const p = participants.find((x) => x.id === r.participant_id);
                       return (
                         <li key={r.id} className={styles.item}>
                           <div className={styles.itemHead}>
                             <strong>
-                              {p?.full_name || `#${r.participant_id}`} · {r.score ?? "—"} pts · place{" "}
-                              {r.place ?? "—"}
+                              {r.place ? `${r.place} место · ` : ""}
+                              {p?.full_name || `Участник ${r.participant_id}`}
+                              {r.score != null ? ` · ${r.score}` : ""}
                             </strong>
-                            <span className={styles.muted}>{r.status}</span>
+                            <StatusBadge status={r.status} kind="result" />
                           </div>
                           {canModerate ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                            <div className={styles.actions}>
                               {r.status === "draft" ? (
                                 <button
                                   type="button"
-                                  className={styles.linkBtn}
+                                  className="btn btnPrimary btnSm"
                                   onClick={() => void onResultStatus(r, "verified")}
                                 >
-                                  Verify
+                                  Проверить
                                 </button>
                               ) : null}
                               {r.status === "verified" ? (
                                 <button
                                   type="button"
-                                  className={styles.linkBtn}
+                                  className="btn btnPrimary btnSm"
                                   onClick={() => void onResultStatus(r, "published")}
                                 >
-                                  Publish
+                                  Опубликовать
                                 </button>
                               ) : null}
                               {r.status !== "void" ? (
                                 <button
                                   type="button"
-                                  className={styles.linkBtn}
-                                  onClick={() => void onResultStatus(r, "void")}
+                                  className="btn btnDanger btnSm"
+                                  onClick={() => {
+                                    if (window.confirm("Аннулировать результат?")) {
+                                      void onResultStatus(r, "void");
+                                    }
+                                  }}
                                 >
-                                  Void
+                                  Аннулировать
                                 </button>
                               ) : null}
                             </div>
@@ -1730,7 +1860,7 @@ export default function EventDetailPage() {
                         <div className={styles.itemHead}>
                           <strong>{p.full_name}</strong>
                           <span className={p.has_medical_cert ? styles.medOk : styles.medMiss}>
-                            {p.has_medical_cert ? "мед ✓" : "мед —"}
+                            {p.has_medical_cert ? "Справка есть" : "Справки нет"}
                           </span>
                         </div>
                         <div className={styles.muted}>

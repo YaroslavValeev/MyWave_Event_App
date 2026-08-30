@@ -59,6 +59,7 @@ Write-Host "API  -> http://127.0.0.1:8000/health" -ForegroundColor Green
 Write-Host "Web  -> http://127.0.0.1:3000" -ForegroundColor Green
 Write-Host "Docs -> http://127.0.0.1:8000/docs" -ForegroundColor Green
 Write-Host "Stop: close both windows or Ctrl+C in each." -ForegroundColor DarkGray
+Write-Host "Reseed DB: close API window first, then npm run reseed" -ForegroundColor DarkGray
 
 # Prefer Windows PowerShell 5.1 (always present); pwsh if available.
 $shell = "powershell"

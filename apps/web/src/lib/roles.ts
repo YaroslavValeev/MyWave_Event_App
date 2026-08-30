@@ -62,3 +62,21 @@ export function isStaffRole(value: string): boolean {
     value === "platform_admin"
   );
 }
+
+export function isJudgeRole(value: string | undefined | null): boolean {
+  return value === "judge" || isStaffRole(value ?? "");
+}
+
+export function isBroadcastRole(value: string | undefined | null): boolean {
+  return value === "commentator" || value === "media";
+}
+
+/** Self-serve staff request — без platform_admin / event_admin. */
+export const REQUESTABLE_STAFF_ROLES = [
+  "judge",
+  "organizer",
+  "commentator",
+  "media",
+  "support",
+  "federation_manager",
+] as const satisfies readonly Role[];

@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
@@ -11,11 +11,16 @@ import {
   saveSession,
   verifyPhoneOtp,
 } from "@/lib/api";
+import { postLoginPath } from "@/lib/format";
 import type { Role } from "@/lib/roles";
 import styles from "./login.module.css";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const showDev =
+    process.env.NODE_ENV === "development" && searchParams.get("dev") === "1";
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -23,6 +28,11 @@ export default function LoginPage() {
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  const nextPath = useMemo(
+    () => postLoginPath(searchParams.get("next")),
+    [searchParams],
+  );
 
   async function onRequestOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,9 +59,9 @@ export default function LoginPage() {
     try {
       const result = await verifyPhoneOtp(phone.trim(), code.trim());
       saveSession(result.access_token, result.user);
-      router.replace("/events");
+      router.replace(nextPath);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Неверный код или аккаунт не активен.");
+      setError(err instanceof ApiError ? err.message : "Неверный код. Если аккаунт ждёт подтверждения — дождитесь решения организатора.");
     } finally {
       setPending(false);
     }
@@ -63,12 +73,12 @@ export default function LoginPage() {
     try {
       const result = await devLogin({ email, role, display_name: displayName });
       saveSession(result.access_token, result.user);
-      router.replace("/events");
+      router.replace(nextPath);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Dev-login недоступен. Проверьте, что API MyWave Event App на :8000.",
+          : "Dev-login недоступен. Проверьте, что API запущен на :8000.",
       );
     } finally {
       setPending(false);
@@ -80,42 +90,15 @@ export default function LoginPage() {
       <AppHeader subtitle="Вход по телефону" />
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Вход</h1>
-        <p className={styles.hint}>
-          Войдите по номеру телефона. Код придёт на email аккаунта (SMS подключим позже).
-          Нет аккаунта? <Link href="/register">Зарегистрироваться</Link>
-        </p>
-
-        <div className={styles.form} style={{ marginBottom: "1.25rem" }}>
-          <p className={styles.hint} style={{ marginBottom: "0.75rem" }}>
-            Быстрый вход (только local development):
+        {searchParams.get("next") ? (
+          <p className={styles.hint} role="status">
+            После входа вернёмся к прерванному действию.
           </p>
-          <button
-            type="button"
-            className={styles.submit}
-            disabled={pending}
-            onClick={() => void onDevLogin("organizer@example.com", "organizer", "Организатор (dev)")}
-          >
-            Войти как организатор
-          </button>
-          <button
-            type="button"
-            className={styles.secondary}
-            disabled={pending}
-            style={{ marginTop: "0.5rem" }}
-            onClick={() => void onDevLogin("y.valeev@gmail.com", "platform_admin", "Владелец")}
-          >
-            Войти как admin
-          </button>
-          <button
-            type="button"
-            className={styles.secondary}
-            disabled={pending}
-            style={{ marginTop: "0.5rem" }}
-            onClick={() => void onDevLogin("judge@example.com", "judge", "Судья (dev)")}
-          >
-            Войти как судья
-          </button>
-        </div>
+        ) : null}
+        <p className={styles.hint}>
+          Введите номер телефона. Код отправим на email, привязанный к аккаунту (SMS подключим
+          позже). Нет аккаунта? <Link href="/register">Создать</Link>
+        </p>
 
         {step === "phone" ? (
           <form className={styles.form} onSubmit={onRequestOtp} noValidate>
@@ -148,7 +131,7 @@ export default function LoginPage() {
         ) : (
           <form className={styles.form} onSubmit={onVerify} noValidate>
             <div className={styles.field}>
-              <label htmlFor="code">Код из письма</label>
+              <label htmlFor="code">Код из email</label>
               <input
                 id="code"
                 name="code"
@@ -156,6 +139,7 @@ export default function LoginPage() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 required
+                maxLength={6}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="6 цифр"
@@ -166,7 +150,7 @@ export default function LoginPage() {
             {hint ? <p className={styles.hint}>{hint}</p> : null}
             {devOtp ? (
               <p className={styles.hint} role="status">
-                Dev-код: <strong>{devOtp}</strong>
+                Код для разработки: <strong>{devOtp}</strong>
               </p>
             ) : null}
 
@@ -193,7 +177,49 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+
+        {showDev ? (
+          <div className={styles.form} style={{ marginTop: "2rem" }}>
+            <p className={styles.hint} style={{ marginBottom: "0.75rem" }}>
+              Локальная отладка (не показывается без ?dev=1):
+            </p>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={pending}
+              onClick={() => void onDevLogin("organizer@example.com", "organizer", "Организатор (dev)")}
+            >
+              Войти как организатор
+            </button>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={pending}
+              style={{ marginTop: "0.5rem" }}
+              onClick={() => void onDevLogin("y.valeev@gmail.com", "platform_admin", "Владелец")}
+            >
+              Войти как admin
+            </button>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={pending}
+              style={{ marginTop: "0.5rem" }}
+              onClick={() => void onDevLogin("judge@example.com", "judge", "Судья (dev)")}
+            >
+              Войти как судья
+            </button>
+          </div>
+        ) : null}
       </main>
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<p className={styles.hint}>Загрузка входа…</p>}>
+      <LoginForm />
+    </Suspense>
   );
 }

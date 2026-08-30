@@ -10,6 +10,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api";
+import { AuthNeeded } from "@/components/AuthNeeded";
 import styles from "../login/login.module.css";
 
 export default function NotificationsPage() {
@@ -17,13 +18,16 @@ export default function NotificationsPage() {
   const [unread, setUnread] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   const load = useCallback(async () => {
     const token = getStoredToken();
     if (!token) {
-      setError("Нужен вход, чтобы видеть уведомления.");
+      setNeedsAuth(true);
+      setItems([]);
       return;
     }
+    setNeedsAuth(false);
     setError(null);
     try {
       const payload = await listMyNotifications(token);
@@ -31,6 +35,9 @@ export default function NotificationsPage() {
       setUnread(payload.unread_count);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось загрузить уведомления");
+      if (err instanceof ApiError && (err.status === 401 || err.code === "token_expired")) {
+        setNeedsAuth(true);
+      }
     }
   }, []);
 
@@ -68,13 +75,18 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <AppHeader subtitle="Журнал статусов" />
+      <AppHeader subtitle="Уведомления" />
       <main id="main" className={styles.main} style={{ maxWidth: "40rem" }}>
         <h1 className={styles.title}>Уведомления</h1>
         <p className={styles.hint}>
-          Статусы заявок и ролей видны здесь даже без SMTP. Непрочитанных: {unread}.
+          Статусы заявок и ролей приходят сюда. Непрочитанных: {unread}.
         </p>
-        {unread > 0 ? (
+        {needsAuth ? (
+          <AuthNeeded next="/notifications" title="Нужен вход" actionLabel="Войти">
+            Уведомления о заявках и ролях видны после входа. После входа вернёмся сюда.
+          </AuthNeeded>
+        ) : null}
+        {unread > 0 && !needsAuth ? (
           <p>
             <button type="button" className={styles.secondary} disabled={pending} onClick={() => void markAll()}>
               Отметить все прочитанными
@@ -82,15 +94,16 @@ export default function NotificationsPage() {
           </p>
         ) : null}
 
-        {error ? (
+        {error && !needsAuth ? (
           <p className={styles.error} role="alert">
             {error}
           </p>
         ) : null}
 
-        {items.length === 0 && !error ? (
-          <p className={styles.hint}>Пока нет уведомлений.</p>
-        ) : (
+        {items.length === 0 && !error && !needsAuth ? (
+          <p className={styles.hint}>Здесь появятся решение по заявке и изменения роли.</p>
+        ) : null}
+        {items.length > 0 && !needsAuth ? (
           <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.85rem" }}>
             {items.map((item) => (
               <li
@@ -120,7 +133,7 @@ export default function NotificationsPage() {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </main>
     </>
   );

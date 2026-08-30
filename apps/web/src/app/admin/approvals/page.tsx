@@ -11,7 +11,8 @@ import {
   getStoredUser,
   listPendingApprovals,
 } from "@/lib/api";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { ROLE_LABELS, isStaffRole, type Role } from "@/lib/roles";
+import { AuthNeeded } from "@/components/AuthNeeded";
 import styles from "../../login/login.module.css";
 
 export default function ApprovalsAdminPage() {
@@ -19,19 +20,35 @@ export default function ApprovalsAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [gate, setGate] = useState<"ok" | "auth" | "forbidden">("ok");
 
   const load = useCallback(async () => {
     const token = getStoredToken();
     const user = getStoredUser();
     if (!token || !user) {
-      setError("Нужен вход с ролью организатора/админа.");
+      setGate("auth");
+      setItems([]);
       return;
     }
+    if (!isStaffRole(user.role)) {
+      setGate("forbidden");
+      setItems([]);
+      return;
+    }
+    setGate("ok");
     setError(null);
     try {
       const list = await listPendingApprovals(token);
       setItems(list);
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.code === "token_expired")) {
+        setGate("auth");
+        return;
+      }
+      if (err instanceof ApiError && err.status === 403) {
+        setGate("forbidden");
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Не удалось загрузить заявки");
     }
   }, []);
@@ -61,14 +78,31 @@ export default function ApprovalsAdminPage() {
     <>
       <AppHeader subtitle="Очередь ролей" />
       <main id="main" className={styles.main} style={{ maxWidth: "40rem" }}>
-        <h1 className={styles.title}>Заявки на роли</h1>
+        <h1 className={styles.title}>Доступы и роли</h1>
         <p className={styles.hint}>
-          Без SMTP письма лежат в <code>data/mail_outbox</code>. Здесь можно утверждать прямо в UI.
-          Ссылки на email тоже работают.{" "}
+          Подтвердите судью, комментатора или организатора.{" "}
           <Link href="/events">К событиям</Link>
         </p>
 
-        {error ? (
+        {gate === "auth" ? (
+          <AuthNeeded next="/admin/approvals" title="Нужен вход организатора">
+            Очередь ролей видна только организатору и админу. После входа вернёмся сюда.
+          </AuthNeeded>
+        ) : null}
+        {gate === "forbidden" ? (
+          <div className="card" role="status">
+            <strong>Недостаточно прав</strong>
+            <p className={styles.hint}>
+              Подтверждать роли может организатор или админ платформы. Откройте события — там ваш рабочий
+              путь.
+            </p>
+            <Link href="/events" className="btn btnPrimary">
+              К событиям
+            </Link>
+          </div>
+        ) : null}
+
+        {error && gate === "ok" ? (
           <p className={styles.error} role="alert">
             {error}
           </p>
@@ -79,9 +113,10 @@ export default function ApprovalsAdminPage() {
           </p>
         ) : null}
 
-        {items.length === 0 && !error ? (
+        {gate === "ok" && items.length === 0 && !error ? (
           <p className={styles.hint}>Очередь пуста.</p>
-        ) : (
+        ) : null}
+        {gate === "ok" && items.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "1rem" }}>
             {items.map((item) => (
               <li
@@ -121,7 +156,7 @@ export default function ApprovalsAdminPage() {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </main>
     </>
   );

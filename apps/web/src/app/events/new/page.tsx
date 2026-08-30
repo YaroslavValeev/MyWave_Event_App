@@ -4,7 +4,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
-import { ApiError, RulesCatalog, createEvent, getRulesCatalog, getStoredToken } from "@/lib/api";
+import { ApiError, RulesCatalog, createEvent, getRulesCatalog, getStoredToken, getStoredUser } from "@/lib/api";
+import { isStaffRole } from "@/lib/roles";
+import { AuthNeeded } from "@/components/AuthNeeded";
 import styles from "../../login/login.module.css";
 
 const CYR_TO_LAT: Record<string, string> = {
@@ -78,6 +80,9 @@ function friendlyCreateError(err: unknown): string {
   if (msg.includes("slug") || err.code === "slug_taken") {
     return "Событие с таким техническим кодом уже есть. Измените название или год в датах и попробуйте снова.";
   }
+  if (err.status === 403) {
+    return "Создавать события может организатор. Откройте список стартов и подайте заявку как участник — или запросите роль организатора.";
+  }
   if (msg.includes("pattern") || msg.includes("body.")) {
     return "Проверьте поля формы: название, даты и дисциплины обязательны.";
   }
@@ -96,8 +101,18 @@ export default function NewEventPage() {
   const [scoringMode, setScoringMode] = useState("photo_protocol");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [gate, setGate] = useState<"loading" | "ok" | "auth" | "forbidden">("loading");
 
   useEffect(() => {
+    const token = getStoredToken();
+    const user = getStoredUser();
+    if (!token || !user) {
+      setGate("auth");
+    } else if (!isStaffRole(user.role)) {
+      setGate("forbidden");
+    } else {
+      setGate("ok");
+    }
     getRulesCatalog()
       .then((data) => {
         setCatalog(data);
@@ -114,13 +129,18 @@ export default function NewEventPage() {
   }
 
   const yearHint = startsOn.slice(0, 4);
-  const previewSlug = slugify(title || "event", yearHint);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = getStoredToken();
     if (!token) {
+      setGate("auth");
       setError("Нужен вход организатора.");
+      return;
+    }
+    const user = getStoredUser();
+    if (!user || !isStaffRole(user.role)) {
+      setGate("forbidden");
       return;
     }
     if (!title.trim()) {
@@ -176,6 +196,27 @@ export default function NewEventPage() {
       <AppHeader subtitle="Новое событие" />
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Создать событие</h1>
+        {gate === "auth" ? (
+          <AuthNeeded next="/events/new" title="Нужен вход организатора">
+            Создавать соревнование может организатор или админ. После входа вернёмся к этой форме.
+          </AuthNeeded>
+        ) : null}
+        {gate === "forbidden" ? (
+          <div className="card" role="status">
+            <strong>Эта роль не создаёт события</strong>
+            <p className={styles.hint}>
+              Участник, судья и комментатор работают внутри уже опубликованного старта. Откройте список
+              событий и подайте заявку — или запросите роль организатора в «Доступах».
+            </p>
+            <p className={styles.hint}>
+              <Link href="/events" className="btn btnPrimary">
+                К списку событий
+              </Link>
+            </p>
+          </div>
+        ) : null}
+        {gate === "ok" ? (
+        <>
         <p className={styles.hint}>
           Черновик соревнования: название, даты, город, дисциплины. Правила по умолчанию — FVLS, санкция
           IWWF. <Link href="/events">Назад к списку</Link>
@@ -191,7 +232,7 @@ export default function NewEventPage() {
               placeholder="Например: Чемпионат России — Казань 2026"
               disabled={pending}
             />
-            <p className={styles.fieldHint}>Код в системе: {previewSlug}</p>
+            <p className={styles.fieldHint}>Технический код создаётся автоматически.</p>
           </div>
           <div className={styles.field}>
             <label htmlFor="city">Город</label>
@@ -296,6 +337,8 @@ export default function NewEventPage() {
             {pending ? "Создаём…" : "Создать черновик"}
           </button>
         </form>
+        </>
+        ) : null}
       </main>
     </>
   );

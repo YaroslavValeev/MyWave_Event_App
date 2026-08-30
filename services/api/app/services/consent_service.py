@@ -173,12 +173,14 @@ def grant_registration_consents(
         grant_consent(db, user=user, purpose=PURPOSE_ANALYTICS, source="register", settings=settings)
 
 
-def public_participant_name(db: Session, participant: Participant, actor: User) -> str:
+def public_participant_name(db: Session, participant: Participant, actor: User | None) -> str:
     """Mask self-serve names without publish consent. Organizer imports stay visible."""
-    try:
-        privileged = Role(actor.role) in EVENT_WRITE_ROLES
-    except ValueError:
-        privileged = False
+    privileged = False
+    if actor is not None:
+        try:
+            privileged = Role(actor.role) in EVENT_WRITE_ROLES
+        except ValueError:
+            privileged = False
     if privileged:
         return participant.full_name
     if participant.source_row is not None:

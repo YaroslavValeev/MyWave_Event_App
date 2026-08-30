@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { clearSession, getStoredToken, getStoredUser, getUnreadCount, type UserOut } from "@/lib/api";
+import { usePathname, useRouter } from "next/navigation";
+import { clearSession, getStoredToken, getStoredUser, getUnreadCount, SESSION_CHANGED_EVENT, type UserOut } from "@/lib/api";
+import { loginHref } from "@/lib/format";
 import { ROLE_LABELS, isStaffRole, type Role } from "@/lib/roles";
 import styles from "./AppHeader.module.css";
 
@@ -11,19 +12,49 @@ type AppHeaderProps = {
   subtitle?: string;
 };
 
+function NavLink({
+  href,
+  children,
+  pathname,
+}: {
+  href: string;
+  children: React.ReactNode;
+  pathname: string;
+}) {
+  const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+  return (
+    <Link
+      href={href}
+      className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
+      aria-current={active ? "page" : undefined}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function AppHeader({ subtitle }: AppHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname() || "/";
   const [user, setUser] = useState<UserOut | null>(null);
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    setUser(getStoredUser());
-    const token = getStoredToken();
-    if (!token) return;
-    void getUnreadCount(token)
-      .then((count) => setUnread(count))
-      .catch(() => setUnread(0));
-  }, []);
+    function refresh() {
+      setUser(getStoredUser());
+      const token = getStoredToken();
+      if (!token) {
+        setUnread(0);
+        return;
+      }
+      void getUnreadCount(token)
+        .then((count) => setUnread(count))
+        .catch(() => setUnread(0));
+    }
+    refresh();
+    window.addEventListener(SESSION_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SESSION_CHANGED_EVENT, refresh);
+  }, [pathname]);
 
   function onLogout() {
     clearSession();
@@ -32,15 +63,56 @@ export function AppHeader({ subtitle }: AppHeaderProps) {
   }
 
   const roleLabel =
-    user && user.role in ROLE_LABELS
-      ? ROLE_LABELS[user.role as Role]
-      : user?.role;
+    user && user.role in ROLE_LABELS ? ROLE_LABELS[user.role as Role] : user?.role;
+
+  const links = (
+    <>
+      <NavLink href="/events" pathname={pathname}>
+        События
+      </NavLink>
+      {user && isStaffRole(user.role) ? (
+        <NavLink href="/admin/approvals" pathname={pathname}>
+          Доступы
+        </NavLink>
+      ) : null}
+      {user ? (
+        <>
+          <NavLink href="/notifications" pathname={pathname}>
+            Уведомления
+            {unread > 0 ? (
+              <span className={styles.badge} aria-label={`Непрочитанных: ${unread}`}>
+                {unread}
+              </span>
+            ) : null}
+          </NavLink>
+          <NavLink href="/profile" pathname={pathname}>
+            Профиль
+          </NavLink>
+          <button type="button" className={styles.navButton} onClick={onLogout}>
+            Выйти
+          </button>
+        </>
+      ) : (
+        <>
+          <Link
+            href={loginHref(pathname)}
+            className={`${styles.navLink} ${pathname === "/login" || pathname.startsWith("/login") ? styles.navLinkActive : ""}`}
+          >
+            Вход
+          </Link>
+          <NavLink href="/register" pathname={pathname}>
+            Регистрация
+          </NavLink>
+        </>
+      )}
+    </>
+  );
 
   return (
     <header className={styles.header}>
       <div className={styles.brandRow}>
         <Link href="/" className={styles.brand}>
-          MyWave Event App
+          MyWave Event
         </Link>
         {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
         {user ? (
@@ -50,45 +122,11 @@ export function AppHeader({ subtitle }: AppHeaderProps) {
           </p>
         ) : null}
       </div>
-      <nav className={styles.nav} aria-label="Основная навигация">
-        <Link href="/events" className={styles.navLink}>
-          События
-        </Link>
-        {user && isStaffRole(user.role) ? (
-          <Link href="/admin/approvals" className={styles.navLink}>
-            Заявки
-          </Link>
-        ) : null}
-        {user ? (
-          <>
-            <Link href="/notifications" className={styles.navLink}>
-              Уведомления
-              {unread > 0 ? (
-                <span className={styles.badge} aria-label={`Непрочитанных: ${unread}`}>
-                  {unread}
-                </span>
-              ) : null}
-            </Link>
-            <Link href="/profile" className={styles.navLink}>
-              Профиль
-            </Link>
-            <button type="button" className={styles.navButton} onClick={onLogout}>
-              Выйти
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href="/login" className={styles.navLink}>
-              Вход
-            </Link>
-            <Link href="/register" className={styles.navLink}>
-              Регистрация
-            </Link>
-          </>
-        )}
-        <Link href="/health" className={styles.navLink}>
-          Статус
-        </Link>
+      <nav className={`${styles.nav} ${styles.desktopNav}`} aria-label="Основная навигация">
+        {links}
+      </nav>
+      <nav className={styles.bottomNav} aria-label="Мобильная навигация">
+        {links}
       </nav>
     </header>
   );

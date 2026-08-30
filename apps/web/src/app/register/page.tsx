@@ -5,16 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { ApiError, registerAccount, saveSession } from "@/lib/api";
-import { ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
+import { postLoginPath } from "@/lib/format";
+import { ROLE_LABELS, REQUESTABLE_STAFF_ROLES, type Role } from "@/lib/roles";
 import styles from "../login/login.module.css";
-
-const REQUESTABLE_ROLES = ROLES;
 
 export default function RegisterPage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [wantStaff, setWantStaff] = useState(false);
   const [role, setRole] = useState<Role>("participant");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +31,13 @@ export default function RegisterPage() {
     setLoginHint(false);
     setMessage(null);
     setPending(true);
+    const requested = wantStaff ? role : "participant";
     try {
       const result = await registerAccount({
         phone: phone.trim(),
         email: email.trim(),
         display_name: displayName.trim(),
-        requested_role: role,
+        requested_role: requested,
         accept_terms: acceptTerms,
         accept_privacy: acceptPrivacy,
         accept_publish_name: acceptPublishName,
@@ -52,7 +53,7 @@ export default function RegisterPage() {
           status: result.status,
           phone: result.phone,
         });
-        router.replace("/events");
+        router.replace(postLoginPath());
         return;
       }
     } catch (err) {
@@ -73,10 +74,10 @@ export default function RegisterPage() {
     <>
       <AppHeader subtitle="Регистрация" />
       <main id="main" className={styles.main}>
-        <h1 className={styles.title}>Регистрация</h1>
+        <h1 className={styles.title}>Создать аккаунт</h1>
         <p className={styles.hint}>
-          Роль «Участник» подтверждается сразу. Остальные роли — после утверждения на
-          y.valeev@gmail.com. Уже есть аккаунт? <Link href="/login">Войти</Link>
+          Участник входит сразу. Доступ судьи или организатора подтверждает организатор события.
+          Уже есть аккаунт? <Link href="/login">Войти</Link>
         </p>
 
         <form className={styles.form} onSubmit={onSubmit} noValidate>
@@ -110,7 +111,7 @@ export default function RegisterPage() {
           </div>
 
           <div className={styles.field}>
-            <label htmlFor="email">Email (для кода входа)</label>
+            <label htmlFor="email">Email (на него придёт код входа)</label>
             <input
               id="email"
               name="email"
@@ -124,23 +125,39 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div className={styles.field}>
-            <label htmlFor="role">Запрашиваемая роль</label>
-            <select
-              id="role"
-              name="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
+          <div className={styles.checkboxRow}>
+            <input
+              id="want_staff"
+              type="checkbox"
+              checked={wantStaff}
+              onChange={(e) => {
+                setWantStaff(e.target.checked);
+                setRole(e.target.checked ? "judge" : "participant");
+              }}
               disabled={pending}
-            >
-              {REQUESTABLE_ROLES.map((value) => (
-                <option key={value} value={value}>
-                  {ROLE_LABELS[value]}
-                  {value === "participant" ? " (сразу)" : " (нужно утверждение)"}
-                </option>
-              ))}
-            </select>
+            />
+            <label htmlFor="want_staff">Нужен доступ судьи, организатора или другой роли</label>
           </div>
+
+          {wantStaff ? (
+            <div className={styles.field}>
+              <label htmlFor="role">Кто вы на соревновании</label>
+              <select
+                id="role"
+                name="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+                disabled={pending}
+              >
+                {REQUESTABLE_STAFF_ROLES.map((value) => (
+                  <option key={value} value={value}>
+                    {ROLE_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+              <p className={styles.fieldHint}>Организатор подтвердит доступ. До этого войти как эта роль нельзя.</p>
+            </div>
+          ) : null}
 
           <div className={styles.checkboxRow}>
             <input

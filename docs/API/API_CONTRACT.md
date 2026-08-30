@@ -42,17 +42,17 @@
 
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
-| GET | `/api/v1/events` | Bearer | список |
+| GET | `/api/v1/events` | optional | список; без токена — только published / registration_open / live / completed |
 | POST | `/api/v1/events` | Bearer organizer+ | создать (optional `rules_profile`: governing_body, sanction_body, discipline_codes[], scoring_mode) |
-| GET | `/api/v1/events/{id}` | Bearer | получить |
+| GET | `/api/v1/events/{id}` | optional | получить (гости — только публичные статусы) |
 | PATCH | `/api/v1/events/{id}` | Bearer organizer+ | обновить |
-| GET | `/api/v1/events/{id}/detail` | Bearer | сводка + counts |
+| GET | `/api/v1/events/{id}/detail` | optional | сводка + counts |
 
 ## Competition
 
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
-| GET | `/api/v1/events/{id}/categories` | Bearer | категории |
+| GET | `/api/v1/events/{id}/categories` | optional | категории |
 | GET | `/api/v1/events/{id}/participants` | Bearer | участники (**accepted/registered**, без phone; self-serve без publish-consent — псевдоним) |
 | POST | `/api/v1/events/{id}/applications` | Bearer | подать заявку (registration_open) |
 | GET | `/api/v1/events/{id}/applications/me` | Bearer | своя заявка |
@@ -64,7 +64,7 @@
 | GET | `/api/v1/events/{id}/documents/{doc_id}/file` | Bearer | скачать файл |
 | GET | `/api/v1/events/{id}/checklist` | Bearer | чеклист подготовки (auto-seed + auto-tick) |
 | PATCH | `/api/v1/events/{id}/checklist/{item_id}` | Bearer organizer+ | `{"is_done": true\|false}` |
-| GET | `/api/v1/events/{id}/heats` | Bearer | heats (≠ training slots) |
+| GET | `/api/v1/events/{id}/heats` | optional | heats на публичном событии; start list — отдельно с Bearer |
 | POST | `/api/v1/events/{id}/heats` | Bearer organizer+ | создать heat |
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/status` | Bearer organizer+ | planned\|ready\|on_water\|completed\|cancelled |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer | start list |
@@ -72,13 +72,13 @@
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list/fill` | Bearer organizer+ | bulk из roster (optional category_id) |
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
-| GET | `/api/v1/events/{id}/results` | Bearer | results (`?status=`) |
+| GET | `/api/v1/events/{id}/results` | optional | results (`?status=`; гость — только published) |
 | POST | `/api/v1/events/{id}/results` | Bearer organizer+ | upsert draft (score/place) |
 | PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer organizer+ | draft\|verified\|published\|void |
 | GET | `/api/v1/events/{id}/results/{result_id}/history` | Bearer | history/audit строки |
-| GET | `/api/v1/events/{id}/officials` | Bearer | судьи |
+| GET | `/api/v1/events/{id}/officials` | optional | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
-| GET | `/api/v1/events/{id}/schedule-hint` | Bearer | текстовая подсказка расписания |
+| GET | `/api/v1/events/{id}/schedule-hint` | optional | текстовая подсказка расписания |
 | GET | `/api/v1/audit` | Bearer admin | audit |
 
 ## Rules & protocol (0.5.2)

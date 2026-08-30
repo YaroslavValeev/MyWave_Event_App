@@ -2,6 +2,23 @@ import type { EventStatus, Role } from "./roles";
 
 const TOKEN_KEY = "mywave_event_access_token";
 const USER_KEY = "mywave_event_user";
+export const SESSION_CHANGED_EVENT = "mywave-session-changed";
+
+function notifySessionChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+}
+
+export function isSessionExpiredError(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  return (
+    err.status === 401 ||
+    err.code === "token_expired" ||
+    err.code === "invalid_token" ||
+    err.code === "unauthorized" ||
+    /истекл|expired|недействительн/i.test(err.message)
+  );
+}
 
 export function getApiBaseUrl(): string {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -214,7 +231,14 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    throw await parseError(res);
+    const err = await parseError(res);
+    if (
+      token &&
+      (err.status === 401 || err.code === "token_expired" || err.code === "invalid_token")
+    ) {
+      clearSession();
+    }
+    throw err;
   }
 
   if (res.status === 204) {
@@ -427,7 +451,7 @@ export type ScheduleHint = {
   notes: string[];
 };
 
-export function getScheduleHint(token: string, eventId: number | string) {
+export function getScheduleHint(token: string | null | undefined, eventId: number | string) {
   return apiFetch<ScheduleHint>(
     `/api/v1/events/${eventId}/schedule-hint`,
     { method: "GET" },
@@ -647,7 +671,7 @@ export type EventListResponse = {
   total: number;
 };
 
-export async function listEvents(token: string): Promise<EventOut[]> {
+export async function listEvents(token?: string | null): Promise<EventOut[]> {
   const payload = await apiFetch<EventListResponse | EventOut[]>(
     "/api/v1/events",
     { method: "GET" },
@@ -663,11 +687,11 @@ export async function listEvents(token: string): Promise<EventOut[]> {
   return [];
 }
 
-export function getEventDetail(token: string, eventId: number | string) {
+export function getEventDetail(token: string | null | undefined, eventId: number | string) {
   return apiFetch<EventDetail>(`/api/v1/events/${eventId}/detail`, { method: "GET" }, token);
 }
 
-export async function listCategories(token: string, eventId: number | string) {
+export async function listCategories(token: string | null | undefined, eventId: number | string) {
   const payload = await apiFetch<{ items: CategoryOut[]; total: number }>(
     `/api/v1/events/${eventId}/categories`,
     { method: "GET" },
@@ -788,7 +812,7 @@ export type StartListEntryOut = {
   completed_at: string | null;
 };
 
-export async function listHeats(token: string, eventId: number | string) {
+export async function listHeats(token: string | null, eventId: number | string) {
   const payload = await apiFetch<{ items: HeatOut[]; total: number }>(
     `/api/v1/events/${eventId}/heats`,
     { method: "GET" },
@@ -892,7 +916,7 @@ export type ResultOut = {
   published_at: string | null;
 };
 
-export async function listResults(token: string, eventId: number | string, status?: string) {
+export async function listResults(token: string | null | undefined, eventId: number | string, status?: string) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   const payload = await apiFetch<{ items: ResultOut[]; total: number }>(
     `/api/v1/events/${eventId}/results${qs}`,
@@ -1022,7 +1046,7 @@ export function aggregateJudgeScores(
   );
 }
 
-export async function listOfficials(token: string, eventId: number | string) {
+export async function listOfficials(token: string | null | undefined, eventId: number | string) {
   const payload = await apiFetch<{ items: OfficialOut[]; total: number }>(
     `/api/v1/events/${eventId}/officials`,
     { method: "GET" },
@@ -1152,12 +1176,14 @@ export function saveSession(token: string, user: UserOut): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  notifySessionChanged();
 }
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  notifySessionChanged();
 }
 
 export function getStoredToken(): string | null {

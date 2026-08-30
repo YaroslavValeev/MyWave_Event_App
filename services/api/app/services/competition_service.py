@@ -15,7 +15,7 @@ from app.models.user import User
 from app.services.event_service import EventServiceError, get_event
 
 
-def list_categories(db: Session, *, event_id: int, actor: User) -> list[Category]:
+def list_categories(db: Session, *, event_id: int, actor: User | None) -> list[Category]:
     get_event(db, event_id=event_id, actor=actor)
     return list(
         db.scalars(
@@ -54,7 +54,7 @@ def list_documents(db: Session, *, event_id: int, actor: User) -> list[Document]
     )
 
 
-def list_officials(db: Session, *, event_id: int, actor: User) -> list[Official]:
+def list_officials(db: Session, *, event_id: int, actor: User | None) -> list[Official]:
     get_event(db, event_id=event_id, actor=actor)
     return list(
         db.scalars(
