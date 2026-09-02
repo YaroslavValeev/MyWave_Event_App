@@ -797,6 +797,47 @@ export function commitImportBatch(token: string, eventId: number | string, batch
   );
 }
 
+export type PackIngestOut = {
+  event_id: number;
+  files: Record<string, unknown>[];
+  officials: number;
+  start_entries: number;
+};
+
+export async function ingestEventPack(token: string, eventId: number | string, files: File[]) {
+  const form = new FormData();
+  for (const file of files) {
+    form.append("files", file);
+  }
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/ingest-pack`, {
+    method: "POST",
+    headers,
+    body: form,
+    cache: "no-store",
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as PackIngestOut;
+}
+
+export type ScanProtocolOut = {
+  event_id: number;
+  heats: number;
+  entries: number;
+  results: number;
+  dns: number;
+};
+
+export function applyKazanScanProtocol(token: string, eventId: number | string) {
+  return apiFetch<ScanProtocolOut>(
+    `/api/v1/events/${eventId}/scan-protocol`,
+    { method: "POST" },
+    token,
+  );
+}
+
 export function getEventDetail(token: string | null | undefined, eventId: number | string) {
   return apiFetch<EventDetail>(`/api/v1/events/${eventId}/detail`, { method: "GET" }, token);
 }

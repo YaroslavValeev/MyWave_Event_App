@@ -66,7 +66,7 @@ import {
   upsertResultDraft,
   updateEventStatus,
 } from "@/lib/api";
-import { formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
+import { formatEventDate, formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
 import {
   DOCUMENT_KIND_LABELS,
   ENTRY_STATUS_LABELS,
@@ -940,6 +940,13 @@ export default function EventDetailPage() {
 
             {tab === "overview" ? (
               <>
+                {detail.participants_count === 0 ? (
+                  <p className={styles.muted}>
+                    Состав этого события пуст. Импорт Excel привязывается к событию, выбранному в
+                    разделе «Импорт», а не ко всем карточкам сразу.
+                  </p>
+                ) : null}
+
                 {hint ? (
                   <>
                     <h2 className={styles.itemTitle}>Расписание (кратко)</h2>
@@ -1206,9 +1213,10 @@ export default function EventDetailPage() {
                       >
                         <option value="bulletin">Бюллетень</option>
                         <option value="protocol">Протокол</option>
+                        <option value="start_list">Стартовый список</option>
+                        <option value="official_appointment">Назначение судей</option>
                         <option value="schedule">Расписание</option>
                         <option value="rules">Правила</option>
-                        <option value="start_list">Стартовый список</option>
                         <option value="other">Другое</option>
                       </select>
                     </label>{" "}
@@ -1586,6 +1594,7 @@ export default function EventDetailPage() {
                         </div>
                         <div className={styles.muted}>
                           <StatusBadge status={h.status} kind="heat" />
+                          {h.scheduled_at ? ` · ${formatEventDate(h.scheduled_at)}` : ""}
                         </div>
                         {canModerate ? (
                           <div className={styles.actions}>

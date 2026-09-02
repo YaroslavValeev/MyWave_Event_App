@@ -1,16 +1,16 @@
 # Validation Report — 0.5.8 Import Center / Athlete ID
 
-Дата: 2026-08-30  
+Дата: 2026-08-31  
 Продукт: standalone MyWave Event App  
-Цикл: AthleteProfile + Import Center + pending_claim (Казань-2026 staging, без PII в git)
+Цикл: AthleteProfile + Import Center + pending_claim + scan-protocol Казани (без PII/фото в git)
 
 ## Проверки
 
 | Проверка | Результат |
 |----------|-----------|
 | lint (ruff) | unavailable (не подключён в репо) |
-| typecheck web (`tsc --noEmit`) | **passed** |
-| unit/integration pytest | **65 passed** |
+| typecheck web (`tsc --noEmit`) | не запускался в этом цикле |
+| unit/integration pytest | **76 passed** (включая scan-protocol + места ФВЛС / O30 мастерс) |
 | import / claim / restricted docs | included in pytest |
 | migrations | SQLite `create_all` + `_ensure_sqlite_columns` (Alembic нет) |
 | web production build | не запускался в этом цикле |
@@ -21,6 +21,8 @@
 | Production deploy | **not performed** |
 
 Не отмечено passed то, что не запускалось.
+
+Сканы Казани (транскрипт, без фото в git): 33 заезда, 152 старта, 58 баллов + 2 DNS → черновики. Гость не видит unpublished results.
 
 ## Парсер Казани-2026 (только агрегаты, без телефонов/ДР/меда)
 

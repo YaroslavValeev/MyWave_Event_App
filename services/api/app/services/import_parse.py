@@ -15,7 +15,7 @@ from app.services.phone_utils import normalize_phone
 
 HEADER_ALIASES = {
     "fio": {"фио", "ф.и.о.", "русск", "fullname"},
-    "latin": {"латин", "latin"},
+    "latin": {"латин", "latin", "лат."},
     "gender": {"пол"},
     "category": {"категория"},
     "region": {"регион"},

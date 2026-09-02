@@ -70,6 +70,7 @@ from app.services.application_service import (
 )
 from app.services.checklist_service import ensure_checklist, set_checklist_item
 from app.services.competition_service import (
+    build_schedule_hint,
     event_counts,
     get_document,
     list_categories,
@@ -1001,16 +1002,5 @@ def schedule_hint(event_id: int, db: DbSession, user: OptionalUser) -> ScheduleH
         event = get_event(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
-    _ = event
-    return ScheduleHint(
-        summary=(
-            "Официальные тренировки 11–12.08.2026: Вейкборд — оз. Кабан; "
-            "Вейксерф — ул. Торфяная, 83. Актуальные слоты загружены из Excel."
-        ),
-        notes=[
-            "11.08 — запасной тренировочный день",
-            "12.08 — основные тренировочные слоты",
-            "13.08 — квалификация · 14.08 полуфиналы · 15.08 финалы · 16.08 резерв",
-            "Вкладка «ЧП России» в Excel — реестр заявок (не расписание); телефоны импортируются в User для phone-login",
-        ],
-    )
+    summary, notes = build_schedule_hint(db, event)
+    return ScheduleHint(summary=summary, notes=notes)

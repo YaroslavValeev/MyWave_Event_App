@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -124,3 +126,76 @@ def event_counts(db: Session, event: Event) -> tuple[int, int, int, int, int]:
         or 0
     )
     return int(cats), int(parts), int(docs), int(offs), int(slots)
+
+
+KAZAN_2026_PROGRAM = (
+    "11.08 — запасной тренировочный день",
+    "12.08 — основные тренировочные слоты",
+    "13.08 — квалификация · 14.08 полуфиналы · 15.08 финалы · 16.08 резерв",
+    "Акватория: оз. Нижний Кабан; тренировки Wakesurf/Wakeskim — ул. Торфяная, 83",
+)
+
+
+def _is_kazan_2026(event: Event) -> bool:
+    """Bulletin program is bound to the Kazan championship event, not to every card."""
+    slug = (event.slug or "").casefold()
+    title = (event.title or "").casefold()
+    if slug == "chr-pr-kazan-2026" or "chr-pr-kazan" in slug:
+        return True
+    has_kazan = "казан" in title or "kazan" in title
+    has_champ = any(token in title for token in ("чемпионат", "первенство"))
+    return has_kazan and has_champ
+
+
+def _fmt_day(value: datetime | date | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        value = value.date()
+    return value.strftime("%d.%m.%Y")
+
+
+def build_schedule_hint(db: Session, event: Event) -> tuple[str, list[str]]:
+    """Schedule text must come from this event — never a global Kazan stub."""
+    cats, parts, docs, offs, slot_count = event_counts(db, event)
+    start = _fmt_day(event.starts_at)
+    end = _fmt_day(event.ends_at)
+    if start and end and start != end:
+        period = f"{start} — {end}"
+    else:
+        period = start or end or "даты не заданы"
+
+    place = ", ".join(p for p in (event.city, event.venue or event.location) if p) or "место не задано"
+    discs = (event.disciplines or "").strip() or "дисциплины не заданы"
+    summary = f"{event.title}: {period}, {place}. {discs}."
+
+    notes: list[str] = [
+        f"В этом событии: состав {parts}, категорий {cats}, судей {offs}, документов {docs}.",
+    ]
+    slot_rows = list(
+        db.scalars(
+            select(TrainingSlot)
+            .where(TrainingSlot.event_id == event.id)
+            .order_by(TrainingSlot.slot_date, TrainingSlot.sort_order)
+        ).all()
+    )
+    if slot_rows:
+        days = sorted({_fmt_day(s.slot_date) for s in slot_rows if s.slot_date})
+        venues = sorted({s.venue for s in slot_rows if s.venue})
+        notes.append(
+            f"Тренировочные слоты этого события: {len(slot_rows)}"
+            + (f" ({', '.join(d for d in days if d)})" if days else "")
+            + (f"; площадки: {', '.join(venues)}" if venues else "")
+            + "."
+        )
+    else:
+        notes.append("Тренировочные слоты для этого события ещё не загружены.")
+
+    if _is_kazan_2026(event):
+        notes.append("Программа из бюллетеня ЧР/ПР Казань 2026 (только для этого события):")
+        notes.extend(KAZAN_2026_PROGRAM)
+    elif slot_count == 0:
+        notes.append("Расписание других событий сюда не подставляется.")
+
+    return summary, notes
+

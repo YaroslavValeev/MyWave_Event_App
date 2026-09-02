@@ -6,6 +6,8 @@ import { AuthNeeded } from "@/components/AuthNeeded";
 import {
   ApiError,
   commitImportBatch,
+  ingestEventPack,
+  applyKazanScanProtocol,
   decideImportRow,
   getImportBatch,
   getStoredToken,
@@ -117,6 +119,44 @@ export default function ImportCenterPage() {
     }
   }
 
+  async function onIngestPack(list: FileList | null) {
+    const t = token();
+    const files = list ? Array.from(list) : [];
+    if (!t || !eventId || files.length === 0) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await ingestEventPack(t, eventId, files);
+      setMessage(
+        `Пакет загружен в это событие: судей ${result.officials}, стартовых записей ${result.start_entries}, файлов ${result.files.length}.`,
+      );
+      await loadBatches(eventId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить пакет");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onScanProtocol() {
+    const t = token();
+    if (!t || !eventId) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await applyKazanScanProtocol(t, eventId);
+      setMessage(
+        `Сканы Казани разложены: заездов ${result.heats}, стартов ${result.entries}, черновиков результатов ${result.results} (DNS ${result.dns}). Не опубликовано — на листах Not homologated.`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось разложить сканы");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function onDecide(row: ImportRowOut, decision: "approve" | "reject") {
     const t = token();
     if (!t || !eventId || !batch) return;
@@ -169,8 +209,10 @@ export default function ImportCenterPage() {
         {gate === "ok" ? (
           <>
             <p className={loginStyles.hint}>
-              Загружайте xlsx в staging. Персональные данные остаются в базе сервера и не попадают в GitHub.
-              Повторная загрузка того же файла идемпотентна.
+              Загружайте xlsx и PDF в выбранную карточку события (для Казани — одно событие ЧР+ПР).
+              Категории приводятся к IWWF: U14, U18, O30, O40, Open (чемпионат). Возраст — на 31.12.2026.
+              Сначала пакет заявок, затем кнопка сканов дня старта. Результаты со сканов остаются черновиками
+              (на листах Not homologated). Персональные данные и фото протоколов не попадают в GitHub.
             </p>
             <div className={loginStyles.field}>
               <label htmlFor="event">Событие</label>
@@ -188,7 +230,7 @@ export default function ImportCenterPage() {
               </select>
             </div>
             <div className={`${loginStyles.field} ${styles.fileRow}`}>
-              <label htmlFor="xlsx">Таблица (.xlsx)</label>
+              <label htmlFor="xlsx">Таблица заявок (.xlsx)</label>
               <input
                 id="xlsx"
                 type="file"
@@ -196,6 +238,27 @@ export default function ImportCenterPage() {
                 disabled={pending || !eventId}
                 onChange={(e) => void onUpload(e.target.files?.[0])}
               />
+            </div>
+            <div className={`${loginStyles.field} ${styles.fileRow}`}>
+              <label htmlFor="pack">Пакет документов (xlsx + PDF start list + протокол КС)</label>
+              <input
+                id="pack"
+                type="file"
+                multiple
+                accept=".xlsx,.pdf,.xls,.docx"
+                disabled={pending || !eventId}
+                onChange={(e) => void onIngestPack(e.target.files)}
+              />
+            </div>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={loginStyles.submit}
+                disabled={pending || !eventId}
+                onClick={() => void onScanProtocol()}
+              >
+                Разложить сканы Казани
+              </button>
             </div>
             {error ? (
               <p className={loginStyles.error} role="alert">

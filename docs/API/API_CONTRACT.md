@@ -81,7 +81,7 @@
 | GET | `/api/v1/events/{id}/results/{result_id}/history` | Bearer | history/audit строки |
 | GET | `/api/v1/events/{id}/officials` | optional | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
-| GET | `/api/v1/events/{id}/schedule-hint` | optional | текстовая подсказка расписания |
+| GET | `/api/v1/events/{id}/schedule-hint` | optional | подсказка **этого** события (даты/город/слоты; бюллетень Казани — только для ЧР/ПР Казань) |
 | GET | `/api/v1/audit` | Bearer admin | audit |
 
 ## Import Center (0.5.8)
@@ -89,6 +89,8 @@
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | POST | `/api/v1/events/{id}/imports` | Bearer organizer+ | multipart `file` (.xlsx ≤5 МБ). Идемпотентно по SHA-256 |
+| POST | `/api/v1/events/{id}/ingest-pack` | Bearer organizer+ | пакет файлов (xlsx+PDF) → состав IWWF + судьи + heats/start list + documents |
+| POST | `/api/v1/events/{id}/scan-protocol` | Bearer organizer+ | сканы Казани + итоги поста ФВЛС → заезды, старты, **черновики** мест (Not homologated, без publish) |
 | GET | `/api/v1/events/{id}/imports` | Bearer organizer+ | список пакетов |
 | GET | `/api/v1/events/{id}/imports/{batch_id}` | Bearer organizer+ | пакет + строки (телефон маскирован) |
 | PATCH | `/api/v1/events/{id}/imports/{batch_id}/rows/{row_id}` | Bearer organizer+ | `{"decision":"approve\|reject"}` |

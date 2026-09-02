@@ -17,6 +17,7 @@ from app.models.user import User
 from app.services.athlete_id_service import allocate_athlete_id
 from app.services.audit_service import append_audit
 from app.services.event_service import can_write_events, get_event
+from app.services.category_canon import canonical_category
 from app.services.import_parse import (
     ParsedRow,
     content_sha256,
@@ -45,14 +46,29 @@ def _slugify(value: str) -> str:
     return ascii_bits or "cat"
 
 
-def _get_or_create_category(db: Session, event: Event, discipline: str, cat_title: str) -> Category:
-    code = f"{_slugify(discipline)}-{_slugify(cat_title)}"[:120]
+def _get_or_create_category(
+    db: Session,
+    event: Event,
+    discipline: str,
+    cat_title: str,
+    birth_year: int | None = None,
+) -> Category:
+    canon = canonical_category(cat_title, discipline=discipline, birth_year=birth_year)
     existing = db.scalar(
-        select(Category).where(Category.event_id == event.id, Category.code == code)
+        select(Category).where(Category.event_id == event.id, Category.code == canon.code)
     )
     if existing:
         return existing
-    cat = Category(event_id=event.id, code=code, title=cat_title, discipline=discipline)
+    note_bits = [f"iwwf={canon.iwwf_class}"]
+    if cat_title and cat_title != canon.title:
+        note_bits.append(f"source={cat_title}")
+    cat = Category(
+        event_id=event.id,
+        code=canon.code,
+        title=canon.title,
+        discipline=discipline,
+        notes="; ".join(note_bits),
+    )
     db.add(cat)
     db.flush()
     return cat
@@ -367,7 +383,9 @@ def commit_batch(
         _ensure_pending_account(db, profile, row.phone_e164)
         discipline = row.discipline or "unknown"
         cat_title = row.category_label or "Без категории"
-        category = _get_or_create_category(db, event, discipline, cat_title)
+        category = _get_or_create_category(
+            db, event, discipline, cat_title, birth_year=row.birth_year
+        )
         already = db.scalar(
             select(Participant).where(
                 Participant.event_id == event.id,

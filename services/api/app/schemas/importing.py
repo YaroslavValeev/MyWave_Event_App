@@ -4,6 +4,31 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+class PackFileResult(BaseModel):
+    kind: str
+    document_id: int | None = None
+    batch_id: int | None = None
+    committed: int | None = None
+    schedule_heats: int | None = None
+    heats: int | None = None
+    entries: int | None = None
+    officials: int | None = None
+
+
+class PackIngestOut(BaseModel):
+    event_id: int
+    files: list[dict] = Field(default_factory=list)
+    officials: int = 0
+    start_entries: int = 0
+
+
+class ScanProtocolOut(BaseModel):
+    event_id: int
+    heats: int
+    entries: int
+    results: int
+    dns: int
+
 
 class ImportRowOut(BaseModel):
     id: int

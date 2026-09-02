@@ -6,7 +6,16 @@ from fastapi import APIRouter, File, UploadFile
 
 from app.api.deps import AppSettings, CurrentUser, DbSession
 from app.api.errors import raise_api_error
-from app.schemas.importing import ImportBatchListResponse, ImportBatchOut, ImportRowDecision, ImportRowOut
+from app.schemas.importing import (
+    ImportBatchListResponse,
+    ImportBatchOut,
+    ImportRowDecision,
+    ImportRowOut,
+    PackIngestOut,
+    ScanProtocolOut,
+)
+from app.services.event_pack_service import files_from_uploads, ingest_pack
+from app.services.protocol_pack_service import apply_scan_protocol
 from app.services.event_service import EventServiceError
 from app.services.import_service import (
     ImportServiceError,
@@ -120,3 +129,48 @@ def post_commit_import(
         raise
     rows = list_rows(db, batch_id=batch.id)
     return ImportBatchOut.model_validate(batch_public_dict(batch, rows))
+
+
+@router.post("/{event_id}/ingest-pack", response_model=PackIngestOut)
+async def post_ingest_pack(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    files: list[UploadFile] = File(...),
+) -> PackIngestOut:
+    payloads = await files_from_uploads(files)
+    try:
+        result = ingest_pack(
+            db,
+            event_id=event_id,
+            actor=user,
+            files=payloads,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except (ImportServiceError, EventServiceError) as exc:
+        _raise(exc)
+        raise
+    return PackIngestOut.model_validate(result)
+
+
+@router.post("/{event_id}/scan-protocol", response_model=ScanProtocolOut)
+def post_scan_protocol(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> ScanProtocolOut:
+    """Раскладывает транскрибированные сканы Казани в заезды, старты и черновики результатов."""
+    try:
+        result = apply_scan_protocol(
+            db,
+            event_id=event_id,
+            actor=user,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        _raise(exc)
+        raise
+    return ScanProtocolOut.model_validate(result)

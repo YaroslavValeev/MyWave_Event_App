@@ -1,8 +1,8 @@
 # CURRENT_STATE
 
-Дата: 2026-08-30  
+Дата: 2026-08-31  
 Версия продукта: **0.5.8** (ветка `cursor/p0-import-center-athlete-link`; tag после merge)  
-Путь до DoD v1 (аудит): ~**82%** — identity + import staging есть; live scoring path ещё не закрыт на реальном старте.
+Путь до DoD v1 (аудит): ~**84%** — identity + import + транскрипт сканов Казани в черновики; live scoring / homologation / publish на реальном старте ещё не закрыты.
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
 
@@ -25,12 +25,15 @@
 - ProtocolCapture (фото/PDF).
 - Structured scoring, official protocol export, Athlete ID, archive lock.
 - **UX 0.5.6–0.5.7:** публичная витрина, светлая тема, закрытые ролевые пути.
-- **0.5.8:** AthleteProfile + Import Center + pending_claim + маскировка телефонов в preview. Канон категорий Казани **не** зафиксирован (ADR-0007).
+- **0.5.8:** AthleteProfile + Import Center + pending_claim. ADR-0007 **accepted** (IWWF U14/U18/O30/O40/Open, одно событие ЧР+ПР).
+- Расписание на обзоре события коррелирует с карточкой (город/даты/слоты); хардкод Казани снят.
+- Транскрипт бумажных протоколов Казани + итоговые места из поста ФВЛС 15.08.2026 раскладываются в заезды / start list / **draft** results. Мастерс → O30 (O40 в посте не разделён). Не homologated → не публикуется автоматически. Площадка: оз. Нижний Кабан.
 
 ## Частично / нет
 
-- Казань-2026 в staging roster — после деплоя 0.5.8 и загрузки xlsx владельцем (файлы с Desktop, не из git)
-- Start lists / heats / scoring на реальных данных Казани
+- Казань-2026 в staging: roster после deploy + Import Center; сканы + пост ФВЛС — после `scan-protocol` / кнопки в `/admin/imports`
+- Нет баллов финалов (только места ФВЛС); нет баллов: Junior Men WB qual, Open Men WB/WS qual, U14/U18 skim qual
+- O40 ветераны вейкборд-катер (муж.): пьедестал Чернов / Матвеев / Дементьев — черновик, без баллов финала
 - Commentator / photographer / EXIF / ParserNews
 - PDF protocol export
 - SMTP — owner
@@ -40,12 +43,12 @@
 
 ## Следующий P0 (после деплоя import)
 
-1. Владелец подтверждает категории (ADR-0007), затем officials + event prep
-2. Start lists → check-in → scoring на пилотном событии
+1. Deploy + `scan-protocol` на событии «Чемпионат России в Казани 2026»
+2. Баллы финалов, если появятся IWWF-листы; сплит Мастерс O30/O40 по возрасту
 3. SMTP на staging
 
 ## Проверки
 
-- pytest: import center + pending_claim + restricted documents (см. VALIDATION_REPORT)
+- pytest: import center + pending_claim + ingest-pack IWWF + scan-protocol (см. VALIDATION_REPORT)
 - UI Import Center / claim — после staging deploy, browser smoke владельцем
 
