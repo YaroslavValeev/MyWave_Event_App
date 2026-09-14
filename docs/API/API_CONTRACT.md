@@ -8,7 +8,7 @@
 |--------|------|------|----------|
 | GET | `/health` | no | liveness + db_ok |
 | GET | `/ready` | no | readiness (503 если DB down) |
-| GET | `/api/v1/roles` | no | список ролей |
+| GET | `/api/v1/roles` | no | список ролей (`chief_judge` с 0.5.9) |
 
 ## Auth
 
@@ -49,7 +49,11 @@
 | POST | `/api/v1/events` | Bearer organizer+ | создать (optional `rules_profile`: governing_body, sanction_body, discipline_codes[], scoring_mode) |
 | GET | `/api/v1/events/{id}` | optional | получить (гости — только публичные статусы) |
 | PATCH | `/api/v1/events/{id}` | Bearer organizer+ | обновить |
-| GET | `/api/v1/events/{id}/detail` | optional | сводка + counts |
+| GET | `/api/v1/events/{id}/detail` | optional | сводка + counts (`roster_locked_at`) |
+| POST | `/api/v1/events/{id}/roster/lock` | Bearer organizer+ | зафиксировать состав (идемпотентно; пустой → `400 roster_empty`) |
+| POST | `/api/v1/events/{id}/roster/unlock` | Bearer organizer+ | снять фиксацию (audit `reason`) |
+
+При `roster_locked_at != null`: новые заявки, accept, import commit, ingest-pack, scan-protocol → **409** `roster_locked`. Check-in / heats / scoring остаются.
 
 ## Competition
 
@@ -76,8 +80,8 @@
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
 | GET | `/api/v1/events/{id}/results` | optional | results (`?status=`; гость — только published) |
-| POST | `/api/v1/events/{id}/results` | Bearer organizer+ | upsert draft (score/place) |
-| PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer organizer+ | draft\|verified\|published\|void |
+| POST | `/api/v1/events/{id}/results` | Bearer organizer+/chief_judge | upsert draft (score/place) |
+| PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer | `verified` — organizer+/chief_judge; `published` и void опубликованного — **только** `chief_judge` или `platform_admin` (`403 chief_approval_required`) |
 | GET | `/api/v1/events/{id}/results/{result_id}/history` | Bearer | history/audit строки |
 | GET | `/api/v1/events/{id}/officials` | optional | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
@@ -107,7 +111,7 @@
 | PUT | `/api/v1/events/{id}/rules-profile` | Bearer organizer+ | создать/обновить профиль |
 | GET | `/api/v1/events/{id}/protocol-captures` | Bearer | список фото/PDF протоколов (`?heat_id=`) |
 | POST | `/api/v1/events/{id}/protocol-captures` | Bearer organizer+/judge | upload (multipart: file, title, kind?, heat_id?, notes?) |
-| PATCH | `/api/v1/events/{id}/protocol-captures/{id}` | Bearer | status draft\|verified\|published\|rejected (verify — organizer+) |
+| PATCH | `/api/v1/events/{id}/protocol-captures/{id}` | Bearer | status draft\|verified\|published\|rejected (verify — organizer+/chief; **published** — chief_judge/platform_admin) |
 | GET | `/api/v1/events/{id}/protocol-captures/{id}/file` | Bearer | скачать файл |
 
 Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `other`. Файлы: JPG/PNG/WebP/PDF ≤15 МБ.
@@ -131,6 +135,7 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 
 - `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); канон 0.5.8 — `AthleteProfile.athlete_id`, аккаунт синхронизируется после confirm.
 - `EventDetail.archived` — true при `completed` | `cancelled`.
+- `Event.roster_locked_at` / `roster_locked_by_user_id` — фиксация состава (0.5.9, ADR-0008); не отдельный `Event.status`.
 - Мутации на архивном событии → **409** `event_archived`.
 - Исключение: `PATCH /api/v1/events/{id}/status` (можно вернуть в `live`).
 

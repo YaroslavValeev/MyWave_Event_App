@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.domain.roles import EVENT_ADMIN_READ_ROLES, EVENT_WRITE_ROLES, Role
+from app.domain.roles import (
+    EVENT_ADMIN_READ_ROLES,
+    EVENT_WRITE_ROLES,
+    ROSTER_LOCK_ROLES,
+    Role,
+)
 from app.models.event import Event, EventStatus
+from app.models.participant import Participant
 from app.models.user import User
 from app.schemas.event import EventCreate, EventUpdateStatus
 from app.services.audit_service import append_audit
@@ -53,6 +61,106 @@ def assert_event_mutable(event: Event) -> None:
             "Событие завершено или отменено и доступно только для чтения",
             409,
         )
+
+
+def is_roster_locked(event: Event) -> bool:
+    return event.roster_locked_at is not None
+
+
+def assert_roster_unlocked(event: Event) -> None:
+    """Block roster mutations after organizer lock."""
+    if is_roster_locked(event):
+        raise EventServiceError(
+            "roster_locked",
+            "Состав события зафиксирован. Новые заявки и импорт состава недоступны.",
+            409,
+        )
+
+
+def _can_lock_roster(user: User) -> bool:
+    return _role_of(user) in ROSTER_LOCK_ROLES
+
+
+def _accepted_roster_count(db: Session, event_id: int) -> int:
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(Participant)
+            .where(
+                Participant.event_id == event_id,
+                Participant.status.in_(("accepted", "registered")),
+            )
+        )
+        or 0
+    )
+
+
+def lock_event_roster(
+    db: Session,
+    *,
+    event_id: int,
+    actor: User,
+    reason: str | None = None,
+    audit_enabled: bool = True,
+) -> Event:
+    if not _can_lock_roster(actor):
+        raise EventServiceError("forbidden", "Недостаточно прав, чтобы зафиксировать состав", 403)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    if is_roster_locked(event):
+        return event
+    if _accepted_roster_count(db, event_id) < 1:
+        raise EventServiceError(
+            "roster_empty",
+            "Нельзя зафиксировать пустой состав: нужен хотя бы один принятый участник",
+            400,
+        )
+    event.roster_locked_at = datetime.now(timezone.utc)
+    event.roster_locked_by_user_id = actor.id
+    db.add(event)
+    append_audit(
+        db,
+        action="event.roster.lock",
+        actor_user_id=actor.id,
+        actor_email=actor.email,
+        entity_type="event",
+        entity_id=str(event.id),
+        payload={"reason": reason},
+        enabled=audit_enabled,
+    )
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def unlock_event_roster(
+    db: Session,
+    *,
+    event_id: int,
+    actor: User,
+    reason: str | None = None,
+    audit_enabled: bool = True,
+) -> Event:
+    if not _can_lock_roster(actor):
+        raise EventServiceError("forbidden", "Недостаточно прав, чтобы снять фиксацию состава", 403)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    if not is_roster_locked(event):
+        return event
+    event.roster_locked_at = None
+    event.roster_locked_by_user_id = None
+    db.add(event)
+    append_audit(
+        db,
+        action="event.roster.unlock",
+        actor_user_id=actor.id,
+        actor_email=actor.email,
+        entity_type="event",
+        entity_id=str(event.id),
+        payload={"reason": reason},
+        enabled=audit_enabled,
+    )
+    db.commit()
+    db.refresh(event)
+    return event
 
 
 def create_event(

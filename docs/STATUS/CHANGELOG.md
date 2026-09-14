@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.9 — 2026-09-15
+
+- P0 vertical slice: **roster lock** + публикация official result только **главным судьёй** (ADR-0008).
+- Роль `chief_judge`; API `POST .../roster/lock|unlock`; `403 chief_approval_required` если организатор публикует сам.
+- Целевые journeys перенесены в `docs/PRODUCT/journeys/`; сверка — `docs/STATUS/ROLE_JOURNEYS_RECONCILIATION.md`.
+- Казань на staging по-прежнему draft до утверждения chief judge (Not homologated, без auto-publish).
+
 ## 0.5.8 — 2026-08-30
 
 - Import Center: staging xlsx → match/conflicts → commit в `AthleteProfile` + `EventRegistration` (`Participant`). Повтор того же файла идемпотентен.

@@ -16,7 +16,7 @@ from app.models.participant import Participant
 from app.models.user import User
 from app.services.athlete_id_service import allocate_athlete_id
 from app.services.audit_service import append_audit
-from app.services.event_service import can_write_events, get_event
+from app.services.event_service import assert_roster_unlocked, can_write_events, get_event
 from app.services.category_canon import canonical_category
 from app.services.import_parse import (
     ParsedRow,
@@ -372,6 +372,7 @@ def commit_batch(
     if batch.status == "committed":
         return batch
     event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    assert_roster_unlocked(event)
     rows = list_rows(db, batch_id=batch.id)
     committed = 0
     for row in rows:

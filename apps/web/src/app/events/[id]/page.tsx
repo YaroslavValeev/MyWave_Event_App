@@ -15,6 +15,7 @@ import {
   EventRulesProfileOut,
   HeatOut,
   OfficialOut,
+  OfficialProtocolReadiness,
   ParticipantOut,
   ProtocolCaptureOut,
   ResultOut,
@@ -23,6 +24,7 @@ import {
   StartListEntryOut,
   TrainingSlotOut,
   addStartListEntry,
+  aggregateJudgeScores,
   createHeat,
   decideEventApplication,
   deleteDocument,
@@ -31,6 +33,7 @@ import {
   getEventDetail,
   getEventRulesProfile,
   getMyApplication,
+  getOfficialProtocol,
   getScheduleHint,
   getScoringEngine,
   getStoredToken,
@@ -41,22 +44,22 @@ import {
   listDocuments,
   listEventApplications,
   listHeats,
+  listJudgeScores,
   listOfficials,
   listParticipants,
   listProtocolCaptures,
   listResults,
   listStartList,
   listTrainingSlots,
-  listJudgeScores,
-  aggregateJudgeScores,
-  submitJudgeScore,
+  lockEventRoster,
   officialProtocolDownloadUrl,
   officialProtocolHtmlUrl,
-  getOfficialProtocol,
-  OfficialProtocolReadiness,
   protocolCaptureFileUrl,
   submitApplication,
+  submitJudgeScore,
+  unlockEventRoster,
   updateChecklistItem,
+  updateEventStatus,
   updateHeatStatus,
   updateProtocolCapture,
   updateResultStatus,
@@ -64,7 +67,6 @@ import {
   uploadDocument,
   uploadProtocolCapture,
   upsertResultDraft,
-  updateEventStatus,
 } from "@/lib/api";
 import { formatEventDate, formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
 import {
@@ -73,7 +75,7 @@ import {
   PROTOCOL_KIND_LABELS,
   labelOf,
 } from "@/lib/labels";
-import { isBroadcastRole, isJudgeRole, isStaffRole } from "@/lib/roles";
+import { canPublishOfficialResults, isBroadcastRole, isChiefJudgeRole, isJudgeRole, isStaffRole } from "@/lib/roles";
 import styles from "../events.module.css";
 
 type TabId =
@@ -104,6 +106,9 @@ const ALL_TABS: TabId[] = [
 function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
   if (isGuest) return ["overview", "results"];
   if (isStaffRole(role ?? "")) return ALL_TABS;
+  if (isChiefJudgeRole(role)) {
+    return ["overview", "checklist", "scoring", "heats", "protocol", "results", "participants"];
+  }
   if (role === "judge") {
     return ["overview", "scoring", "heats", "protocol", "results", "participants"];
   }
@@ -167,13 +172,18 @@ export default function EventDetailPage() {
   const [club, setClub] = useState("");
   const [appMessage, setAppMessage] = useState<string | null>(null);
   const [appBusy, setAppBusy] = useState(false);
+  const [rosterBusy, setRosterBusy] = useState(false);
   const [tab, setTab] = useState<TabId>("overview");
   const user = getStoredUser();
   const isGuest = !user;
   const isArchived = Boolean(detail?.archived);
-  const canOrganize = isStaffRole(user?.role ?? "");
+  const role = user?.role ?? "";
+  const canOrganize = isStaffRole(role);
   const canModerate = canOrganize && !isArchived;
-  const canUploadProtocol = !isArchived && (canModerate || user?.role === "judge");
+  const canVerifyOfficial = !isArchived && (canOrganize || isChiefJudgeRole(role));
+  const canPublishOfficial = !isArchived && canPublishOfficialResults(role);
+  const rosterLocked = Boolean(detail?.roster_locked_at);
+  const canUploadProtocol = !isArchived && (canModerate || isJudgeRole(role));
   const canJudge = canUploadProtocol;
   const allowedTabs = visibleTabs(user?.role, isGuest);
 
@@ -389,6 +399,36 @@ export default function EventDetailPage() {
     }
   }
 
+  async function onToggleRosterLock() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    const nextLock = !rosterLocked;
+    const prompt = nextLock
+      ? "Зафиксировать состав? Новые заявки и импорт состава будут закрыты. Check-in и судейство останутся доступны."
+      : "Снять фиксацию состава? Организатор снова сможет принимать заявки и импортировать участников.";
+    if (!window.confirm(prompt)) return;
+    setRosterBusy(true);
+    setError(null);
+    try {
+      if (nextLock) {
+        await lockEventRoster(token, eventId);
+      } else {
+        await unlockEventRoster(token, eventId);
+      }
+      const [d, checks] = await Promise.all([
+        getEventDetail(token, eventId),
+        listChecklist(token, eventId),
+      ]);
+      setDetail(d);
+      setChecklist(checks.items);
+      setChecklistDone(checks.done_count);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось изменить фиксацию состава");
+    } finally {
+      setRosterBusy(false);
+    }
+  }
+
   async function refreshChecklist(token: string) {
     const checks = await listChecklist(token, eventId);
     setChecklist(checks.items);
@@ -447,7 +487,9 @@ export default function EventDetailPage() {
 
   async function onVerifyProtocol(item: ProtocolCaptureOut, status: "verified" | "published" | "rejected") {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token) return;
+    if (status === "published" && !canPublishOfficial) return;
+    if (status !== "published" && !canVerifyOfficial) return;
     try {
       await updateProtocolCapture(token, eventId, item.id, { status });
       setProtocols(await listProtocolCaptures(token, eventId));
@@ -701,7 +743,7 @@ export default function EventDetailPage() {
 
   async function onSaveResultDraft() {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !canVerifyOfficial) return;
     const pid = Number(resultParticipantId);
     if (!pid) {
       setError("Выберите участника для результата");
@@ -724,7 +766,7 @@ export default function EventDetailPage() {
 
   async function onResultStatus(row: ResultOut, status: "verified" | "published" | "void" | "draft") {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !(canVerifyOfficial || canPublishOfficial)) return;
     try {
       await updateResultStatus(token, eventId, row.id, status);
       setResults(await listResults(token, eventId));
@@ -869,9 +911,34 @@ export default function EventDetailPage() {
                 <dt>Состав</dt>
                 <dd>
                   {detail.participants_count} участников · {detail.categories_count} категорий
+                  {rosterLocked ? " · зафиксирован" : ""}
                 </dd>
               </div>
             </dl>
+            {canModerate ? (
+              <div className={styles.panel} role="status">
+                <strong>{rosterLocked ? "Состав зафиксирован" : "Состав ещё открыт"}</strong>
+                <p className={styles.muted}>
+                  {rosterLocked
+                    ? "Новые заявки и импорт закрыты. Check-in, заезды и судейство доступны. Официальный результат публикует главный судья."
+                    : "После проверки заявок зафиксируйте состав — это обязательный шаг перед официальными результатами."}
+                </p>
+                <button
+                  type="button"
+                  className={rosterLocked ? "btn btnSecondary btnSm" : "btn btnPrimary btnSm"}
+                  disabled={rosterBusy}
+                  onClick={() => void onToggleRosterLock()}
+                >
+                  {rosterBusy
+                    ? "Сохранение…"
+                    : rosterLocked
+                      ? "Снять фиксацию"
+                      : "Зафиксировать состав"}
+                </button>
+              </div>
+            ) : rosterLocked ? (
+              <p className={styles.muted}>Состав события зафиксирован — новые заявки не принимаются.</p>
+            ) : null}
 
             {liveHeat ? (
               <div className={styles.liveBar} role="status">
@@ -1006,7 +1073,7 @@ export default function EventDetailPage() {
                       {[myApp.region, myApp.club].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                ) : detail.status === "registration_open" ? (
+                ) : detail.status === "registration_open" && !rosterLocked ? (
                   <div className={styles.panel}>
                     <p className={styles.muted}>
                       Подать заявку на участие (ФИО берётся из профиля аккаунта).
@@ -1071,7 +1138,7 @@ export default function EventDetailPage() {
                                 <button
                                   type="button"
                                   className="btn btnPrimary btnSm"
-                                  disabled={appBusy}
+                                  disabled={appBusy || rosterLocked}
                                   onClick={() => void onDecideApp(a.id, "accepted")}
                                 >
                                   Принять
@@ -1385,7 +1452,7 @@ export default function EventDetailPage() {
                             >
                               Открыть
                             </button>
-                            {canModerate && p.status === "draft" ? (
+                            {canVerifyOfficial && p.status === "draft" ? (
                               <button
                                 type="button"
                                 className="btn btnPrimary btnSm"
@@ -1395,14 +1462,14 @@ export default function EventDetailPage() {
                                 Проверить
                               </button>
                             ) : null}
-                            {canModerate && p.status === "verified" ? (
+                            {canPublishOfficial && p.status === "verified" ? (
                               <button
                                 type="button"
                                 className="btn btnPrimary btnSm"
                                 style={{ marginLeft: "0.5rem" }}
                                 onClick={() => void onVerifyProtocol(p, "published")}
                               >
-                                Опубликовать
+                                Утвердить (главный судья)
                               </button>
                             ) : null}
                           </span>
@@ -1712,9 +1779,10 @@ export default function EventDetailPage() {
               <>
                 <h2 className={styles.itemTitle}>Результаты</h2>
                 <p className={styles.muted}>
-                  Путь: черновик → проверен → опубликован. Аннулирование видно только организатору.
+                  Путь: черновик → проверка организатора → утверждение главного судьи → публикация.
+                  Организатор не публикует официальный результат сам.
                 </p>
-                {canModerate ? (
+                {canVerifyOfficial ? (
                   <div className={styles.panel}>
                     <select
                       value={resultParticipantId}
@@ -1773,14 +1841,14 @@ export default function EventDetailPage() {
                   </div>
                 ) : null}
                 <ul className={styles.list}>
-                  {(canModerate ? results : publishedResults).length === 0 ? (
+                  {(canVerifyOfficial ? results : publishedResults).length === 0 ? (
                     <li className={styles.item}>
                       <span className={styles.muted}>
-                        {canModerate ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
+                        {canVerifyOfficial ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
                       </span>
                     </li>
                   ) : (
-                    (canModerate ? results : publishedResults)
+                    (canVerifyOfficial ? results : publishedResults)
                       .slice()
                       .sort((a, b) => (a.place ?? 999) - (b.place ?? 999))
                       .map((r) => {
@@ -1795,7 +1863,7 @@ export default function EventDetailPage() {
                             </strong>
                             <StatusBadge status={r.status} kind="result" />
                           </div>
-                          {canModerate ? (
+                          {canVerifyOfficial ? (
                             <div className={styles.actions}>
                               {r.status === "draft" ? (
                                 <button
@@ -1806,16 +1874,19 @@ export default function EventDetailPage() {
                                   Проверить
                                 </button>
                               ) : null}
-                              {r.status === "verified" ? (
+                              {canPublishOfficial && r.status === "verified" ? (
                                 <button
                                   type="button"
                                   className="btn btnPrimary btnSm"
                                   onClick={() => void onResultStatus(r, "published")}
                                 >
-                                  Опубликовать
+                                  Утвердить и опубликовать
                                 </button>
                               ) : null}
-                              {r.status !== "void" ? (
+                              {!canPublishOfficial && r.status === "verified" ? (
+                                <span className={styles.muted}>Ждёт главного судью</span>
+                              ) : null}
+                              {r.status !== "void" && (r.status !== "published" || canPublishOfficial) ? (
                                 <button
                                   type="button"
                                   className="btn btnDanger btnSm"

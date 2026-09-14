@@ -1,55 +1,39 @@
-# Validation Report — 0.5.8 Import Center / Athlete ID
+# Validation Report — 0.5.9 Roster lock / chief judge
 
-Дата: 2026-08-31  
+Дата: 2026-09-15  
 Продукт: standalone MyWave Event App  
-Цикл: AthleteProfile + Import Center + pending_claim + scan-protocol Казани (без PII/фото в git)
+Цикл: P0 vertical slice `roster lock → check-in → draft/verify → chief publish` (ADR-0008)
 
 ## Проверки
 
 | Проверка | Результат |
 |----------|-----------|
 | lint (ruff) | unavailable (не подключён в репо) |
-| typecheck web (`tsc --noEmit`) | не запускался в этом цикле |
-| unit/integration pytest | **76 passed** (включая scan-protocol + места ФВЛС / O30 мастерс) |
-| import / claim / restricted docs | included in pytest |
-| migrations | SQLite `create_all` + `_ensure_sqlite_columns` (Alembic нет) |
+| typecheck web (`tsc --noEmit`) | **passed** (2026-09-15, после правки JSX вкладки результатов) |
+| unit/integration pytest | **80 passed** (включая `test_p0_roster_chief.py` + `GET /api/v1/roles`) |
+| migrations | SQLite `create_all` + `_ensure_sqlite_columns` для `roster_locked_at` |
 | web production build | не запускался в этом цикле |
-| security (негативные permission) | participant 403 на import; medical-restricted 403 на file; takeover link 404; phone_taken 409 |
+| security (негативные permission) | organizer/judge **403** `chief_approval_required` на publish; participant **403** на lock; guest не видит draft |
 | accessibility | unavailable (axe/e2e не запускались) |
-| smoke staging | pending владельца после deploy 0.5.8 |
+| smoke staging 0.5.9 | **не выполнен** — образ 0.5.9 ещё не задеплоен |
 | Docker build | not run this cycle |
 | Production deploy | **not performed** |
 
 Не отмечено passed то, что не запускалось.
 
-Сканы Казани (транскрипт, без фото в git): 33 заезда, 152 старта, 58 баллов + 2 DNS → черновики. Гость не видит unpublished results.
+## Поведение P0
 
-## Парсер Казани-2026 (только агрегаты, без телефонов/ДР/меда)
+- Lock пустого состава → `400 roster_empty`
+- После lock: заявка/accept/import commit → `409 roster_locked`; start-list check-in работает
+- Unlock идемпотентен; archive → `409 event_archived`
+- Official publish: только `chief_judge` / `platform_admin`
 
-Локальный разбор Desktop-файлов парсером `import_parse` (файлы **не** в git):
+## Казань staging (факт 0.5.8 ingest, 2026-09-02)
 
-| Источник | kind | строк | уникальных ФИО | уникальных телефонов (count) | без медфлага |
-|----------|------|------:|---------------:|-----------------------------:|-------------:|
-| Предварительная регистрация (ответы) | form_answers | 100 | 90 | 86 | 48 |
-| Регистрация по категориям | category_roster | 68 | 61 | 59 | 33 |
+40 heats / 173 старта / 110 draft results на event_id=1. Не published. 0.5.9 не меняет эти строки, пока chief не утвердит.
 
-Дисциплины формы: Wakeboard (boat) 49, Wakeskim 27, Wakesurf 24.  
-Дисциплины roster: Wakeboard (boat) 30, Wakesurf 18, Wakeskim 20.
+## Оставшиеся блокеры
 
-После commit на staging числа профилей / pending accounts появятся в отчёте импорта UI (без PII). Пока БД staging пустая — commit не выполнялся.
-
-## Что подтверждено тестами
-
-- Повторная загрузка того же xlsx → тот же `ImportBatch`
-- Повторный commit не плодит participants
-- Pending account + OTP + confirm → `active` + Athlete ID
-- Регистрация на занятый импортированный телефон → 409 `phone_taken`
-- Confirm чужого `link_id` → 404
-- Один телефон, два ФИО → два `AccountAthleteLink`
-- Participant не видит medical-restricted документ
-
-## Ограничения
-
-- Реальные xlsx Казани загружает владелец на staging через `/admin/imports`.
-- Категории бюллетеня vs IWWF — ADR-0007, decision required.
-- Seed `scripts/seed_kazan_2026.py` по-прежнему пишет roster напрямую; для пилота использовать Import Center, не silent seed.
+- Deploy 0.5.9 на staging + backup SQLite
+- PR #2 не влит в `main`
+- SMTP, полевой dry-run, homologator, медиа/эфир

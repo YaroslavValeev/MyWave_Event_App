@@ -10,6 +10,7 @@
         "participant",
         "organizer",
         "judge",
+        "chief_judge",
         "commentator",
         "media",
         "support",
@@ -40,6 +41,8 @@
         "starts_at": { "type": ["string", "null"], "format": "date-time" },
         "ends_at": { "type": ["string", "null"], "format": "date-time" },
         "status": { "$ref": "#/definitions/EventStatus" },
+        "roster_locked_at": { "type": ["string", "null"], "format": "date-time" },
+        "roster_locked_by_user_id": { "type": ["integer", "null"] },
         "created_at": { "type": "string", "format": "date-time" },
         "updated_at": { "type": "string", "format": "date-time" }
       }

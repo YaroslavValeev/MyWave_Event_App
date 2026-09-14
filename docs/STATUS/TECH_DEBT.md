@@ -21,5 +21,6 @@
 | TD-15 | Seed Excel пишет roster напрямую, минуя Import Center | совместимость local reseed | после стабилизации Import Center на staging |
 | TD-16 | Нет Alembic; SQLite ALTER best-effort | Stage 1 sqlite | перед Postgres prod |
 | TD-17 | Frontend unit/e2e и axe не гоняются в CI | нет harness | Stage 2 |
+| TD-18 | Event status machine journeys шире, чем runtime enum | не ломать витрину 0.5.6 | отдельный ADR, не смешивать с roster_lock flag |
 
 Не маскировать долг под «готово в prod».

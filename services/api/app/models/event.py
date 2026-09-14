@@ -38,6 +38,11 @@ class Event(Base):
         nullable=False,
         default=EventStatus.draft.value,
     )
+    roster_locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    roster_locked_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

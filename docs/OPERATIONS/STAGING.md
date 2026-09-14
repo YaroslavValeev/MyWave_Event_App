@@ -1,6 +1,6 @@
 # Staging
 
-**Дата:** 2026-08-24  
+**Дата:** 2026-09-15  
 **Статус:** runbook готов; host deploy — blocker владельца.
 
 ## Цель
@@ -59,6 +59,26 @@ Owner:
 После merge/tag: backup volume SQLite, `git fetch && git checkout <tag>`, `docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build`.  
 Казанские xlsx **не** класть в git. Загрузка: войти организатором → `/admin/imports` → выбрать событие (создать draft/published если БД пустая) → загрузить файл с рабочей машины.  
 Rollback: предыдущий tag + restore backup volume. Не `git reset --hard` на боевых данных.
+
+### Обновление staging до 0.5.9 (roster lock / chief judge)
+
+Ветка `cursor/p0-import-center-athlete-link` (или tag после merge). **Production не трогать.**
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+# volume SQLite — имя смотреть: docker volume ls | grep mwe
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/roles
+```
+
+Казань не публиковать автоматически. Нужен пользователь с ролью `chief_judge` для official publish. Rollback: предыдущий SHA + restore backup DB.
 
 ## Что staging не делает
 

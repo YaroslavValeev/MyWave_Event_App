@@ -125,6 +125,8 @@ export type EventOut = {
   starts_at: string | null;
   ends_at: string | null;
   status: EventStatus | string;
+  roster_locked_at?: string | null;
+  roster_locked_by_user_id?: number | null;
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -551,6 +553,30 @@ export function updateEventStatus(
   return apiFetch<EventOut>(
     `/api/v1/events/${eventId}/status`,
     { method: "PATCH", body: JSON.stringify({ status }) },
+    token,
+  );
+}
+
+export function lockEventRoster(
+  token: string,
+  eventId: number | string,
+  reason?: string | null,
+) {
+  return apiFetch<EventOut>(
+    `/api/v1/events/${eventId}/roster/lock`,
+    { method: "POST", body: JSON.stringify({ reason: reason || null }) },
+    token,
+  );
+}
+
+export function unlockEventRoster(
+  token: string,
+  eventId: number | string,
+  reason?: string | null,
+) {
+  return apiFetch<EventOut>(
+    `/api/v1/events/${eventId}/roster/unlock`,
+    { method: "POST", body: JSON.stringify({ reason: reason || null }) },
     token,
   );
 }

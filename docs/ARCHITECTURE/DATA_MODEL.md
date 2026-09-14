@@ -35,6 +35,10 @@
 
 **Document.access_class** — `public|participant|official|commentator|medical-restricted|consent-restricted|media-rights|admin-only`. Restricted классы не отдаются participant.
 
+### Event roster lock / chief judge (0.5.9)
+
+Runtime `Event` (integer PK): колонки `roster_locked_at`, `roster_locked_by_user_id` — фиксация состава без нового `status`. Роль `chief_judge` публикует official result; организатор делает draft/verified. См. ADR-0008.
+
 ### Notification (добавлено 2026-08-24)
 
 | Поле | Тип | Обяз. | Описание |

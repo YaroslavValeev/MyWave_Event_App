@@ -21,7 +21,7 @@ from app.services.athlete_id_service import allocate_athlete_id
 from app.services.audit_service import append_audit
 from app.services.category_canon import category_title
 from app.services.event_pack_service import _get_or_create_canon_category, _latin_key
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, assert_roster_unlocked, can_write_events, get_event
 from app.services.heat_service import clear_start_list
 
 
@@ -151,6 +151,7 @@ def apply_scan_protocol(
     if not can_write_events(actor):
         raise EventServiceError("forbidden", "Недостаточно прав", 403)
     event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    assert_roster_unlocked(event)
     pack = heats if heats is not None else HEATS
     if pack is HEATS:
         if not (event.venue or "").strip():

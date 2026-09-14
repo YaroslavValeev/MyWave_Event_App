@@ -1,54 +1,57 @@
 # CURRENT_STATE
 
-Дата: 2026-08-31  
-Версия продукта: **0.5.8** (ветка `cursor/p0-import-center-athlete-link`; tag после merge)  
-Путь до DoD v1 (аудит): ~**84%** — identity + import + транскрипт сканов Казани в черновики; live scoring / homologation / publish на реальном старте ещё не закрыты.
+Дата: 2026-09-15  
+Версия продукта: **0.5.9** (ветка `cursor/p0-import-center-athlete-link`; tag после merge)  
+Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты.
 
+Сверка с journeys: [ROLE_JOURNEYS_RECONCILIATION.md](./ROLE_JOURNEYS_RECONCILIATION.md).  
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
 
 ## Staging (remote)
 
 - Host: Timeweb VPS `62.113.42.227` (`mywave-bot-server`), каталог `/var/www/mywave-event-app` — отдельно от ботов.
 - Стек: `docker compose -f docker-compose.staging.yml`, `APP_ENV=staging`.
-- Web: http://62.113.42.227:3001 — HTTP 200.
-- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-08-30T04:10:27Z).
-- На сервере до обновления 0.5.8: **v0.5.7** / SHA `ebb43b7`, пустая SQLite, без seed Казани. SMTP нет — OTP в mail_outbox.
+- Web: http://62.113.42.227:3001
+- API: http://62.113.42.227:8001
+- На сервере после 0.5.8 ingest (2026-09-02): событие id=1 «Чемпионат России в Казани 2026» — **40 heats / 173 старта / 110 draft results**. Гость unpublished не видит.
+- SMTP нет — OTP в mail_outbox.
 - Это **не** production. Production не менялся.
+- **0.5.9 на staging ещё не задеплоен**, пока не собран новый образ с roster lock / `chief_judge`.
 
 ## Работает
 
 - Remote + CI + release + staging runbook.
 - Auth / roles / consent / notifications / applications / roster / training slots.
 - Documents, checklist, heats / start list / runs.
-- Results draft → verified → published → void.
+- Results draft → verified → **published только chief_judge** (0.5.9).
+- Roster lock: фиксирует состав; check-in и судейство остаются.
 - Rules catalog + EventRulesProfile (FVLS/IWWF).
-- ProtocolCapture (фото/PDF).
+- ProtocolCapture (фото/PDF); publish протокола — chief_judge.
 - Structured scoring, official protocol export, Athlete ID, archive lock.
 - **UX 0.5.6–0.5.7:** публичная витрина, светлая тема, закрытые ролевые пути.
-- **0.5.8:** AthleteProfile + Import Center + pending_claim. ADR-0007 **accepted** (IWWF U14/U18/O30/O40/Open, одно событие ЧР+ПР).
-- Расписание на обзоре события коррелирует с карточкой (город/даты/слоты); хардкод Казани снят.
-- Транскрипт бумажных протоколов Казани + итоговые места из поста ФВЛС 15.08.2026 раскладываются в заезды / start list / **draft** results. Мастерс → O30 (O40 в посте не разделён). Не homologated → не публикуется автоматически. Площадка: оз. Нижний Кабан.
+- **0.5.8:** AthleteProfile + Import Center + pending_claim. ADR-0007 **accepted**.
+- Транскрипт бумажных протоколов Казани + места ФВЛС 15.08.2026 в **draft**. Не homologated → не публикуется автоматически. Площадка: оз. Нижний Кабан.
+- **0.5.9:** ADR-0008 roster lock + chief_judge; journeys в `docs/PRODUCT/journeys/`.
 
 ## Частично / нет
 
-- Казань-2026 в staging: roster после deploy + Import Center; сканы + пост ФВЛС — после `scan-protocol` / кнопки в `/admin/imports`
-- Нет баллов финалов (только места ФВЛС); нет баллов: Junior Men WB qual, Open Men WB/WS qual, U14/U18 skim qual
-- O40 ветераны вейкборд-катер (муж.): пьедестал Чернов / Матвеев / Дементьев — черновик, без баллов финала
-- Commentator / photographer / EXIF / ParserNews
+- Казань: нет баллов части финалов и части квалиф.; O40 только пьедестал WB boat men
+- Commentator / photographer / EXIF / ParserNews / volunteer / boat captain / broadcast
 - PDF protocol export
 - SMTP — owner
 - Telegram/MAX/native — не Stage 1 этого репо
 - Native iOS/Android — нет (PWA)
-- Полевой dry-run судья+организатор на площадке — не выполнен
+- Полевой dry-run судья+организатор+chief на площадке — не выполнен
+- PR #2 в `main` не влит (`main` = 0.5.7)
 
-## Следующий P0 (после деплоя import)
+## Следующий P0
 
-1. Deploy + `scan-protocol` на событии «Чемпионат России в Казани 2026»
-2. Баллы финалов, если появятся IWWF-листы; сплит Мастерс O30/O40 по возрасту
-3. SMTP на staging
+1. Deploy 0.5.9 на staging (backup SQLite → rebuild). Назначить пользователя `chief_judge` на Казань, если нужно публиковать.
+2. Не публиковать Казань, пока нет homologation / решения владельца.
+3. SMTP на staging.
+4. Медиа/эфир/волонтёры — после стабилизации scoring/publish.
 
 ## Проверки
 
-- pytest: import center + pending_claim + ingest-pack IWWF + scan-protocol (см. VALIDATION_REPORT)
-- UI Import Center / claim — после staging deploy, browser smoke владельцем
-
+- pytest: P0 roster lock + chief publish + прежние suites (см. VALIDATION_REPORT)
+- UI lock / «Ждёт главного судью» — после staging deploy 0.5.9

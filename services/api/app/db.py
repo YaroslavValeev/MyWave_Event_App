@@ -59,6 +59,16 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
         if "athlete_profile_id" not in cols:
             conn.execute(text("ALTER TABLE participants ADD COLUMN athlete_profile_id INTEGER"))
 
+        event_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(events)")).fetchall()
+        }
+        if event_cols:
+            if "roster_locked_at" not in event_cols:
+                conn.execute(text("ALTER TABLE events ADD COLUMN roster_locked_at DATETIME"))
+            if "roster_locked_by_user_id" not in event_cols:
+                conn.execute(text("ALTER TABLE events ADD COLUMN roster_locked_by_user_id INTEGER"))
+
         user_cols = {
             row[1]
             for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()

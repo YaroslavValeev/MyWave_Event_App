@@ -23,7 +23,7 @@ from app.services.athlete_id_service import allocate_athlete_id
 from app.services.audit_service import append_audit
 from app.services.category_canon import canonical_category
 from app.services.document_service import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, assert_roster_unlocked, can_write_events, get_event
 from app.services.heat_service import clear_start_list
 from app.services.import_service import (
     ImportServiceError,
@@ -415,6 +415,7 @@ def ingest_pack(
     if not can_write_events(actor):
         raise PackIngestError("forbidden", "Пакет документов доступен организатору", 403)
     event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    assert_roster_unlocked(event)
     results: list[dict] = []
     officials_count = 0
     start_entries = 0

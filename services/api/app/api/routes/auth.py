@@ -46,6 +46,12 @@ from app.services.phone_utils import mask_phone
 router = APIRouter(tags=["auth"])
 
 
+@router.get("/roles")
+def list_roles() -> dict[str, object]:
+    items = [role.value for role in Role]
+    return {"items": items, "total": len(items)}
+
+
 def _token_response(user, token: str) -> TokenResponse:
     return TokenResponse(
         access_token=token,
