@@ -11,7 +11,7 @@ from app.models.event import EventStatus
 from app.models.participant import Participant
 from app.models.user import User
 from app.services.audit_service import append_audit
-from app.services.event_service import EventServiceError, get_event
+from app.services.event_service import EventServiceError, assert_roster_unlocked, get_event
 from app.services.notification_service import create_notification, notify_event_staff
 
 PUBLIC_ROSTER_STATUSES = frozenset({"accepted", "registered"})
@@ -45,6 +45,10 @@ def create_application(
     audit_enabled: bool,
 ) -> Participant:
     event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    try:
+        assert_roster_unlocked(event)
+    except EventServiceError as exc:
+        raise ApplicationError(exc.code, exc.message, exc.status_code) from exc
     if event.status != EventStatus.registration_open.value:
         raise ApplicationError(
             "registration_closed",
@@ -173,7 +177,7 @@ def decide_application(
     status: str,
     audit_enabled: bool,
 ) -> Participant:
-    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    event = get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     _require_organizer(actor)
     part = db.get(Participant, participant_id)
     if part is None or part.event_id != event_id:
@@ -182,6 +186,11 @@ def decide_application(
         raise ApplicationError("not_pending", "Заявка уже обработана", 409)
     if status not in {"accepted", "rejected"}:
         raise ApplicationError("invalid_status", "status must be accepted|rejected", 400)
+    if status == "accepted":
+        try:
+            assert_roster_unlocked(event)
+        except EventServiceError as exc:
+            raise ApplicationError(exc.code, exc.message, exc.status_code) from exc
 
     part.status = status
     db.add(part)

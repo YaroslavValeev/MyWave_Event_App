@@ -59,7 +59,11 @@ function LoginForm() {
     try {
       const result = await verifyPhoneOtp(phone.trim(), code.trim());
       saveSession(result.access_token, result.user);
-      router.replace(nextPath);
+      if (result.user.status === "pending_claim") {
+        router.replace("/profile");
+      } else {
+        router.replace(nextPath);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Неверный код. Если аккаунт ждёт подтверждения — дождитесь решения организатора.");
     } finally {

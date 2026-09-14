@@ -16,6 +16,11 @@
 | TD-10 | Тексты LEGAL — рабочие редакции | Нет юр. экспертизы | Перед публичным prod |
 | TD-11 | Seed-email `@participants.mywave.local` | Form Excel без личных почт | Когда появятся реальные email |
 | TD-12 | In-app notification log | закрыт 2026-08-24: `/me/notifications` + `/notifications` | — |
-| TD-13 | Нет загрузки документов события через API | seed кладёт файлы в data/ | следующий код-P0 |
+| TD-13 | Нет загрузки документов события через API | закрыт 2026-08-24 upload + 0.5.8 access_class | — |
+| TD-14 | Категории Казани «до 15/до 19» vs U14/U18 | закрыт 2026-08-31: ADR-0007 accepted, канон IWWF | — |
+| TD-15 | Seed Excel пишет roster напрямую, минуя Import Center | совместимость local reseed | после стабилизации Import Center на staging |
+| TD-16 | Нет Alembic; SQLite ALTER best-effort | Stage 1 sqlite | перед Postgres prod |
+| TD-17 | Frontend unit/e2e и axe не гоняются в CI | нет harness | Stage 2 |
+| TD-18 | Event status machine journeys шире, чем runtime enum | не ломать витрину 0.5.6 | отдельный ADR, не смешивать с roster_lock flag |
 
 Не маскировать долг под «готово в prod».

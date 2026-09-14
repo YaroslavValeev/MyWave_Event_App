@@ -27,7 +27,8 @@
 | `mwe_consent_revoked` | пользователь отозвал согласие | `purpose`, `version` |
 | `mwe_legal_document_viewed` | открыт текст документа | `purpose`, `version` |
 | `mwe_result_draft_saved` | черновик результата | `event_id`, `result_id` |
-| `mwe_result_published` | результат опубликован | `event_id`, `result_id` |
+| `mwe_roster_locked` | состав зафиксирован | `event_id` |
+| `mwe_result_published` | результат опубликован (chief judge) | `event_id`, `result_id` |
 | `mwe_permission_denied` | 403 на UI/API | `route_or_action` |
 | `mwe_sync_flush_succeeded` | (Stage 3) offline flush | `count` |
 | `mwe_sync_conflict` | (Stage 3) 409 | `entity_type` |

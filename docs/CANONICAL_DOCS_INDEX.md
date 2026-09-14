@@ -1,6 +1,6 @@
 # Canonical Docs Index — MyWave Event App
 
-Дата: 2026-08-24  
+Дата: 2026-09-15  
 Статус: активный
 
 | Документ | Путь | Назначение | Когда обновлять |
@@ -14,7 +14,9 @@
 | Data model | `docs/ARCHITECTURE/DATA_MODEL.md` | сущности | schema |
 | Offline | `docs/ARCHITECTURE/OFFLINE_SYNC.md` | offline (этап 3+) | sync |
 | Integrations | `docs/ARCHITECTURE/INTEGRATIONS.md` | адаптеры | Telegram/MAX и др. |
-| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное |
+| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное; 0.5.9 — ADR-0008 roster lock / chief judge |
+| Target journeys | `docs/PRODUCT/journeys/` | целевые сценарии 14.09.2026 | сверка, не факт UI |
+| Journey reconciliation | `docs/STATUS/ROLE_JOURNEYS_RECONCILIATION.md` | implemented/partial/missing | каждый цикл ролей |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
 | Analytics | `docs/API/ANALYTICS_EVENTS.md` | события аналитики | новые сценарии |
 | Security | `docs/SECURITY/SECURITY.md` | безопасность | auth/uploads |

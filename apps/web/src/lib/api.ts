@@ -21,8 +21,25 @@ export function isSessionExpiredError(err: unknown): boolean {
 }
 
 export function getApiBaseUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-  return base.replace(/\/$/, "");
+  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000").replace(
+    /\/$/,
+    "",
+  );
+  if (typeof window === "undefined") {
+    return configured;
+  }
+  try {
+    const url = new URL(configured);
+    const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+    const pageHost = window.location.hostname;
+    if (loopback && pageHost !== "127.0.0.1" && pageHost !== "localhost") {
+      const port = url.port ? `:${url.port}` : "";
+      return `${window.location.protocol}//${pageHost}${port}`;
+    }
+  } catch {
+    /* keep configured */
+  }
+  return configured;
 }
 
 export class ApiError extends Error {
@@ -108,6 +125,8 @@ export type EventOut = {
   starts_at: string | null;
   ends_at: string | null;
   status: EventStatus | string;
+  roster_locked_at?: string | null;
+  roster_locked_by_user_id?: number | null;
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -181,6 +200,7 @@ export type DocumentOut = {
   language: string | null;
   file_name: string;
   description: string | null;
+  access_class?: string;
 };
 
 type ErrorPayload = {
@@ -537,6 +557,30 @@ export function updateEventStatus(
   );
 }
 
+export function lockEventRoster(
+  token: string,
+  eventId: number | string,
+  reason?: string | null,
+) {
+  return apiFetch<EventOut>(
+    `/api/v1/events/${eventId}/roster/lock`,
+    { method: "POST", body: JSON.stringify({ reason: reason || null }) },
+    token,
+  );
+}
+
+export function unlockEventRoster(
+  token: string,
+  eventId: number | string,
+  reason?: string | null,
+) {
+  return apiFetch<EventOut>(
+    `/api/v1/events/${eventId}/roster/unlock`,
+    { method: "POST", body: JSON.stringify({ reason: reason || null }) },
+    token,
+  );
+}
+
 export function getRulesCatalog() {
   return apiFetch<RulesCatalog>("/api/v1/rules/catalog", { method: "GET" });
 }
@@ -685,6 +729,139 @@ export async function listEvents(token?: string | null): Promise<EventOut[]> {
     return payload.items;
   }
   return [];
+}
+
+export type ImportRowOut = {
+  id: number;
+  source_sheet: string;
+  source_row: number;
+  display_name: string | null;
+  phone_masked: string | null;
+  birth_year: number | null;
+  region: string | null;
+  discipline: string | null;
+  category_label: string | null;
+  has_medical: boolean;
+  match_kind: string;
+  confidence: number;
+  conflict_codes: string[];
+  admin_decision: string;
+  athlete_profile_id: number | null;
+  participant_id: number | null;
+};
+
+export type ImportBatchOut = {
+  id: number;
+  event_id: number;
+  source_filename: string;
+  source_kind: string;
+  status: string;
+  row_count: number;
+  new_count: number;
+  exact_count: number;
+  probable_count: number;
+  conflict_count: number;
+  excluded_count: number;
+  committed_count: number;
+  created_at: string | null;
+  committed_at: string | null;
+  rows?: ImportRowOut[] | null;
+};
+
+export async function listImportBatches(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: ImportBatchOut[]; total: number }>(
+    `/api/v1/events/${eventId}/imports`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function uploadImportBatch(token: string, eventId: number | string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/imports`, {
+    method: "POST",
+    headers,
+    body: form,
+    cache: "no-store",
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as ImportBatchOut;
+}
+
+export function getImportBatch(token: string, eventId: number | string, batchId: number) {
+  return apiFetch<ImportBatchOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function decideImportRow(
+  token: string,
+  eventId: number | string,
+  batchId: number,
+  rowId: number,
+  decision: "approve" | "reject",
+) {
+  return apiFetch<ImportRowOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}/rows/${rowId}`,
+    { method: "PATCH", body: JSON.stringify({ decision }) },
+    token,
+  );
+}
+
+export function commitImportBatch(token: string, eventId: number | string, batchId: number) {
+  return apiFetch<ImportBatchOut>(
+    `/api/v1/events/${eventId}/imports/${batchId}/commit`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export type PackIngestOut = {
+  event_id: number;
+  files: Record<string, unknown>[];
+  officials: number;
+  start_entries: number;
+};
+
+export async function ingestEventPack(token: string, eventId: number | string, files: File[]) {
+  const form = new FormData();
+  for (const file of files) {
+    form.append("files", file);
+  }
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/ingest-pack`, {
+    method: "POST",
+    headers,
+    body: form,
+    cache: "no-store",
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as PackIngestOut;
+}
+
+export type ScanProtocolOut = {
+  event_id: number;
+  heats: number;
+  entries: number;
+  results: number;
+  dns: number;
+};
+
+export function applyKazanScanProtocol(token: string, eventId: number | string) {
+  return apiFetch<ScanProtocolOut>(
+    `/api/v1/events/${eventId}/scan-protocol`,
+    { method: "POST" },
+    token,
+  );
 }
 
 export function getEventDetail(token: string | null | undefined, eventId: number | string) {
@@ -1151,10 +1328,46 @@ export type MeResponse = {
   status: string;
   display_name: string | null;
   athlete_id?: string | null;
+  pending_claim_count?: number;
+};
+
+export type AthleteLinkOut = {
+  id: number;
+  athlete_id: string;
+  display_name: string;
+  latin_name: string | null;
+  birth_year: number | null;
+  region: string | null;
+  relation: string;
+  status: string;
 };
 
 export function fetchMe(token: string): Promise<MeResponse> {
   return apiFetch<MeResponse>("/api/v1/me", { method: "GET" }, token);
+}
+
+export function listAthleteLinks(token: string) {
+  return apiFetch<{ items: AthleteLinkOut[]; total: number }>(
+    "/api/v1/me/athlete-links",
+    { method: "GET" },
+    token,
+  );
+}
+
+export function confirmAthleteLink(token: string, linkId: number) {
+  return apiFetch<AthleteLinkOut>(
+    `/api/v1/me/athlete-links/${linkId}/confirm`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export function rejectAthleteLink(token: string, linkId: number) {
+  return apiFetch<AthleteLinkOut>(
+    `/api/v1/me/athlete-links/${linkId}/reject`,
+    { method: "POST" },
+    token,
+  );
 }
 
 export function updateMyProfile(

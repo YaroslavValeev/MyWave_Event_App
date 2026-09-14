@@ -71,9 +71,14 @@ export function AppHeader({ subtitle }: AppHeaderProps) {
         События
       </NavLink>
       {user && isStaffRole(user.role) ? (
-        <NavLink href="/admin/approvals" pathname={pathname}>
-          Доступы
-        </NavLink>
+        <>
+          <NavLink href="/admin/approvals" pathname={pathname}>
+            Доступы
+          </NavLink>
+          <NavLink href="/admin/imports" pathname={pathname}>
+            Импорт
+          </NavLink>
+        </>
       ) : null}
       {user ? (
         <>

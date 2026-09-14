@@ -54,6 +54,9 @@ export const DOCUMENT_KIND_LABELS: Record<string, string> = {
   schedule: "Расписание",
   rules: "Правила",
   start_list: "Стартовый список",
+  questionnaire: "Анкета / реестр",
+  official_appointment: "Назначение судей",
+  rulebook: "Регламент",
   other: "Другое",
 };
 

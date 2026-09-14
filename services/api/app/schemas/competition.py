@@ -86,6 +86,7 @@ class DocumentOut(BaseModel):
     language: str | None = None
     file_name: str
     description: str | None = None
+    access_class: str = "public"
     created_at: datetime
 
 
@@ -101,6 +102,8 @@ class EventDetailOut(BaseModel):
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     status: str
+    roster_locked_at: datetime | None = None
+    roster_locked_by_user_id: int | None = None
     created_at: datetime
     updated_at: datetime
     categories_count: int = 0

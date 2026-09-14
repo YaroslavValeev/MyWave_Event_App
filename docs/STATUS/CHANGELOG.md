@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.9 — 2026-09-15
+
+- P0 vertical slice: **roster lock** + публикация official result только **главным судьёй** (ADR-0008).
+- Роль `chief_judge`; API `POST .../roster/lock|unlock`; `403 chief_approval_required` если организатор публикует сам.
+- Целевые journeys перенесены в `docs/PRODUCT/journeys/`; сверка — `docs/STATUS/ROLE_JOURNEYS_RECONCILIATION.md`.
+- Казань на staging по-прежнему draft до утверждения chief judge (Not homologated, без auto-publish).
+
+## 0.5.8 — 2026-08-30
+
+- Import Center: staging xlsx → match/conflicts → commit в `AthleteProfile` + `EventRegistration` (`Participant`). Повтор того же файла идемпотентен.
+- MyWave Athlete ID на профиле спортсмена; `pending_claim` аккаунты для известных телефонов; OTP обязателен; подтверждение связи в профиле.
+- Документы: `access_class`; medical-restricted скрыт от participant.
+- ADR-0007: категории «до 15/до 19» vs U14/U18 — decision required, без молчаливого маппинга.
+- UI: `/admin/imports`, пункт «Импорт», подтверждение профилей на `/profile`.
+- `GET .../schedule-hint` строится из полей **этого** события; текст бюллетеня Казани (оз. Кабан, 11–16.08) не подставляется в чужие карточки.
+- ADR-0007 **accepted**: одно событие ЧР+ПР Казань; канон категорий IWWF U14 / U18 / O30 / O40 / Open (чемпионат). Junior/Grom → U14/U18. Возраст на 31.12.2026.
+- `POST /api/v1/events/{id}/ingest-pack` — пакет xlsx+PDF: состав, судьи, start list, документы.
+- `POST /api/v1/events/{id}/scan-protocol` — бумажные протоколы Казани + итоги поста ФВЛС 15.08.2026 (места финалов, Мастерс → O30) и пьедестал O40 ветераны вейкборд-катер. Черновики, без автопубликации.
+- UI `/admin/imports`: кнопка «Разложить сканы Казани». Фото протоколов и xlsx с телефонами **не** в git.
+- Казанские xlsx/pdf с PII **не** в git. Загрузка только на сервер через UI.
+
 ## 0.5.7 — 2026-08-27
 
 - Светлая тема: белый/мятный фон, тёмный текст, бирюзовые обводки и тени кнопок.

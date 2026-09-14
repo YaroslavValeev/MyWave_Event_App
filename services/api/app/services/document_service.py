@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from pathlib import Path
@@ -16,9 +17,32 @@ from app.services.audit_service import append_audit
 from app.services.competition_service import get_document
 from app.services.event_service import EventServiceError, assert_event_mutable, can_write_events, get_event
 
-ALLOWED_EXTENSIONS = frozenset({".pdf", ".xlsx", ".xls"})
+ALLOWED_EXTENSIONS = frozenset({".pdf", ".xlsx", ".xls", ".docx"})
 ALLOWED_KINDS = frozenset(
-    {"bulletin", "protocol", "schedule", "rules", "start_list", "other"}
+    {
+        "bulletin",
+        "protocol",
+        "schedule",
+        "rules",
+        "rulebook",
+        "start_list",
+        "questionnaire",
+        "media_brief",
+        "official_appointment",
+        "other",
+    }
+)
+ALLOWED_ACCESS = frozenset(
+    {
+        "public",
+        "participant",
+        "official",
+        "commentator",
+        "medical-restricted",
+        "consent-restricted",
+        "media-rights",
+        "admin-only",
+    }
 )
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
 
@@ -45,6 +69,7 @@ def upload_document(
     kind: str = "other",
     language: str | None = None,
     description: str | None = None,
+    access_class: str = "public",
     repo_root: Path,
     audit_enabled: bool = True,
 ) -> Document:
@@ -59,6 +84,13 @@ def upload_document(
             f"kind must be one of: {', '.join(sorted(ALLOWED_KINDS))}",
             400,
         )
+    access_norm = (access_class or "public").strip().lower()
+    if access_norm not in ALLOWED_ACCESS:
+        raise EventServiceError(
+            "invalid_access_class",
+            f"access_class must be one of: {', '.join(sorted(ALLOWED_ACCESS))}",
+            400,
+        )
 
     original = file.filename or "upload.bin"
     safe_name = _safe_filename(original)
@@ -66,7 +98,7 @@ def upload_document(
     if suffix not in ALLOWED_EXTENSIONS:
         raise EventServiceError(
             "invalid_file_type",
-            "Allowed types: .pdf, .xlsx, .xls",
+            "Allowed types: .pdf, .xlsx, .xls, .docx",
             400,
         )
 
@@ -98,6 +130,8 @@ def upload_document(
         file_name=safe_name,
         relative_path=f"{event.slug}/{stored_name}",
         description=(description or None),
+        access_class=access_norm,
+        content_sha256=hashlib.sha256(raw).hexdigest(),
     )
     db.add(doc)
     db.flush()

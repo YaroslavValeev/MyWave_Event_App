@@ -31,7 +31,7 @@
 |--------|--------|
 | upload документов | **done (0.5.0)** |
 | checklist в Event App | **done (0.5.0)** |
-| categories / officials / approvals / registration / roster | частично (read + seed; CRUD UI ограничен) |
+| categories / officials / approvals / registration / roster | частично + Import Center 0.5.8 + **roster lock 0.5.9** |
 
 ## Этап 2 — День старта (главный функциональный разрыв)
 
@@ -48,7 +48,7 @@
 - calculation — **done (0.5.3)**
 - draft result — **done**
 - verification — **done**
-- published result — **done**
+- published result — **done (0.5.9, только chief_judge)**
 - official protocol — **partial (0.5.4)** JSON/HTML
 - history / audit после публикации — **done**
 

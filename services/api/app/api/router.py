@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import audit, auth, competition, consent, events, health, notifications, rules
+from app.api.routes import audit, auth, competition, consent, events, health, imports, notifications, rules
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -14,6 +14,7 @@ v1_router.include_router(auth.router)
 v1_router.include_router(notifications.router)
 v1_router.include_router(consent.router)
 v1_router.include_router(events.router)
+v1_router.include_router(imports.router)
 v1_router.include_router(rules.router)
 v1_router.include_router(competition.router)
 v1_router.include_router(audit.router)

@@ -5,13 +5,17 @@ import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
+  confirmAthleteLink,
   fetchMe,
   fetchMyConsents,
   getStoredToken,
   grantMyConsent,
+  listAthleteLinks,
+  rejectAthleteLink,
   revokeMyConsent,
   saveSession,
   updateMyProfile,
+  type AthleteLinkOut,
   type ConsentItem,
   type UserOut,
 } from "@/lib/api";
@@ -29,6 +33,8 @@ export default function ProfilePage() {
   const [consents, setConsents] = useState<ConsentItem[]>([]);
   const [consentBusy, setConsentBusy] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const [links, setLinks] = useState<AthleteLinkOut[]>([]);
+  const [linkBusy, setLinkBusy] = useState<number | null>(null);
 
   useEffect(() => {
     const token = getStoredToken();
@@ -54,6 +60,11 @@ export default function ProfilePage() {
       .then((payload) => setConsents(payload.items))
       .catch(() => {
         /* профиль всё равно показываем */
+      });
+    void listAthleteLinks(token)
+      .then((payload) => setLinks(payload.items))
+      .catch(() => {
+        setLinks([]);
       });
   }, []);
 
@@ -94,6 +105,31 @@ export default function ProfilePage() {
       setError(err instanceof ApiError ? err.message : "Не удалось сохранить профиль.");
     } finally {
       setPending(false);
+    }
+  }
+
+  async function onLink(link: AthleteLinkOut, action: "confirm" | "reject") {
+    const token = getStoredToken();
+    if (!token) return;
+    setLinkBusy(link.id);
+    setError(null);
+    try {
+      const updated =
+        action === "confirm"
+          ? await confirmAthleteLink(token, link.id)
+          : await rejectAthleteLink(token, link.id);
+      setLinks((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      const me = await fetchMe(token);
+      setAthleteId(me.athlete_id || null);
+      setMessage(
+        action === "confirm"
+          ? "Профиль спортсмена подтверждён."
+          : "Предполагаемая связь отклонена. Организатор увидит спорный случай в аудите.",
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить связь.");
+    } finally {
+      setLinkBusy(null);
     }
   }
 
@@ -184,6 +220,49 @@ export default function ProfilePage() {
             {pending ? "Сохраняем…" : "Сохранить"}
           </button>
         </form>
+
+        {links.length ? (
+          <section className={styles.form} aria-labelledby="links-title">
+            <h2 id="links-title" className={styles.title}>
+              Связь со спортсменом
+            </h2>
+            <p className={styles.hint}>
+              Подтвердите свой профиль. Если на одном телефоне несколько спортсменов — выберите
+              нужных. Чужой профиль подтверждать нельзя.
+            </p>
+            {links.map((link) => (
+              <div key={link.id} className={styles.field}>
+                <strong>
+                  {link.display_name} · {link.athlete_id}
+                </strong>
+                <span className={styles.hint}>
+                  {link.relation === "self" ? "Свой профиль" : link.relation}. Статус: {link.status}
+                  {link.region ? ` · ${link.region}` : ""}
+                </span>
+                {link.status === "pending_claim" ? (
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className={styles.submit}
+                      disabled={linkBusy === link.id}
+                      onClick={() => void onLink(link, "confirm")}
+                    >
+                      Это я
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.submit}
+                      disabled={linkBusy === link.id}
+                      onClick={() => void onLink(link, "reject")}
+                    >
+                      Это не я
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </section>
+        ) : null}
 
         {consents.length ? (
           <section className={styles.form} aria-labelledby="consents-title">

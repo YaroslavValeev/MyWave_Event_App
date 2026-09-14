@@ -24,6 +24,7 @@ DEFAULT_CHECKLIST: tuple[tuple[str, str, int], ...] = (
     ("officials", "Судейская коллегия назначена", 30),
     ("registration", "Регистрация открыта / проверена", 40),
     ("roster", "Состав (roster) проверен", 50),
+    ("roster_lock", "Состав зафиксирован (roster lock)", 55),
     ("medical", "Медфлаги / справки просмотрены", 60),
     ("start_lists", "Стартовые протоколы / heats готовы", 70),
 )
@@ -99,6 +100,7 @@ def _auto_sync(db: Session, *, event_id: int, items: list[EventChecklistItem]) -
         "categories": cats > 0,
         "officials": offs > 0,
         "roster": roster > 0,
+        "roster_lock": bool(ev and ev.roster_locked_at),
         "registration": bool(ev and ev.status in ("registration_open", "live", "completed")),
         "start_lists": heats > 0 and entries > 0,
     }

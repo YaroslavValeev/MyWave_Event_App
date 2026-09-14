@@ -33,6 +33,23 @@ class MeResponse(BaseModel):
     status: str
     display_name: str | None = None
     athlete_id: str | None = None
+    pending_claim_count: int = 0
+
+
+class AthleteLinkOut(BaseModel):
+    id: int
+    athlete_id: str
+    display_name: str
+    latin_name: str | None = None
+    birth_year: int | None = None
+    region: str | None = None
+    relation: str
+    status: str
+
+
+class AthleteLinkListResponse(BaseModel):
+    items: list[AthleteLinkOut]
+    total: int
 
 
 class ProfileUpdateRequest(BaseModel):

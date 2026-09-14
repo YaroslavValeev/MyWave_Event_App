@@ -256,9 +256,17 @@ def test_fill_start_list_and_results_lifecycle(client, db_session):
         json={"status": "verified"},
     )
     assert verified.status_code == 200
-    published = client.patch(
+    blocked = client.patch(
         f"/api/v1/events/{event_id}/results/{result_id}/status",
         headers=org,
+        json={"status": "published"},
+    )
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "chief_approval_required"
+    chief = auth_header(client, "fill-chief@example.com", "chief_judge")
+    published = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=chief,
         json={"status": "published"},
     )
     assert published.status_code == 200

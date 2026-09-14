@@ -5,6 +5,15 @@ from __future__ import annotations
 from conftest import auth_header
 
 
+def test_roles_catalog_includes_chief_judge(client):
+    response = client.get("/api/v1/roles")
+    assert response.status_code == 200
+    body = response.json()
+    assert "chief_judge" in body["items"]
+    assert "organizer" in body["items"]
+    assert body["total"] == len(body["items"])
+
+
 def test_organizer_can_create_and_update_event(client):
     headers = auth_header(client, "org@example.com", "organizer")
     create = client.post(

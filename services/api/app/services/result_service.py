@@ -7,12 +7,13 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.domain.roles import RESULT_PUBLISH_ROLES, RESULT_VERIFY_ROLES, Role
 from app.models.heat import Heat, Run
 from app.models.participant import Participant
 from app.models.result import Result, ResultHistory
 from app.models.user import User
 from app.services.audit_service import append_audit
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, get_event
 
 RESULT_STATUSES = frozenset({"draft", "verified", "published", "void"})
 
@@ -45,7 +46,7 @@ def upsert_draft_result(
     notes: str | None = None,
     audit_enabled: bool = True,
 ) -> Result:
-    if not can_write_events(actor):
+    if Role(actor.role) not in RESULT_VERIFY_ROLES:
         raise EventServiceError("forbidden", "Insufficient role to manage results", 403)
     get_event(db, event_id=event_id, actor=actor, require_mutable=True)
 
@@ -151,8 +152,7 @@ def transition_result(
     status: str,
     audit_enabled: bool = True,
 ) -> Result:
-    if not can_write_events(actor):
-        raise EventServiceError("forbidden", "Insufficient role to manage results", 403)
+    role = Role(actor.role)
     get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     if status not in RESULT_STATUSES:
         raise EventServiceError("invalid_status", f"status must be one of {sorted(RESULT_STATUSES)}", 400)
@@ -160,6 +160,17 @@ def transition_result(
     row = db.get(Result, result_id)
     if row is None or row.event_id != event_id:
         raise EventServiceError("not_found", "Result not found", 404)
+
+    official_gate = status == "published" or (status == "void" and row.status == "published")
+    if official_gate:
+        if role not in RESULT_PUBLISH_ROLES:
+            raise EventServiceError(
+                "chief_approval_required",
+                "Официальный результат публикует главный судья (или platform_admin)",
+                403,
+            )
+    elif role not in RESULT_VERIFY_ROLES:
+        raise EventServiceError("forbidden", "Insufficient role to manage results", 403)
 
     allowed = {
         "draft": {"verified", "void"},
