@@ -106,6 +106,7 @@ class PhoneOtpRequest(BaseModel):
 class PhoneOtpResponse(BaseModel):
     ok: bool = True
     phone_masked: str
+    email_masked: str | None = None
     message: str
     expires_in_seconds: int
     # Only present in development/test — never rely on this in production clients.

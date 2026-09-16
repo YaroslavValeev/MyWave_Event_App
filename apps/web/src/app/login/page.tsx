@@ -42,7 +42,11 @@ function LoginForm() {
     setPending(true);
     try {
       const result = await requestPhoneOtp(phone.trim());
-      setHint(result.message);
+      setHint(
+        result.email_masked
+          ? `Код отправлен на ${result.email_masked}. Действует ${Math.round(result.expires_in_seconds / 60)} мин.`
+          : result.message,
+      );
       if (result.dev_otp) setDevOtp(result.dev_otp);
       setStep("code");
     } catch (err) {
@@ -65,7 +69,11 @@ function LoginForm() {
         router.replace(nextPath);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Неверный код. Если аккаунт ждёт подтверждения — дождитесь решения организатора.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Неверный код. Запросите новый — действует только последний код (до 10 минут).",
+      );
     } finally {
       setPending(false);
     }
@@ -82,7 +90,7 @@ function LoginForm() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Dev-login недоступен. Проверьте, что API запущен на :8000.",
+          : "Не удалось войти в режиме отладки. Попробуйте позже.",
       );
     } finally {
       setPending(false);
@@ -100,8 +108,8 @@ function LoginForm() {
           </p>
         ) : null}
         <p className={styles.hint}>
-          Введите номер телефона. Код отправим на email, привязанный к аккаунту (SMS подключим
-          позже). Нет аккаунта? <Link href="/register">Создать</Link>
+          Код подтверждения придёт на email, привязанный к аккаунту. SMS пока не подключено. Нет
+          аккаунта? <Link href="/register">Создать</Link>
         </p>
 
         {step === "phone" ? (

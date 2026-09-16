@@ -1,5 +1,7 @@
 # SECURITY (Stage 1)
 
+**Дата:** 2026-09-16
+
 - Secrets только в `.env` / secret manager.
 - `dev-login` запрещён вне development.
 - JWT HS256; в production `SECRET_KEY` обязан быть уникальным (≥32 символов), иначе API не стартует.
@@ -13,3 +15,4 @@
 - Athlete ID не содержит ФИО/телефон; OTP нельзя обойти для pending_claim; confirm чужого профиля → 404.
 - Media/photographer policies — после стабилизации results.
 - Releases archive may contain site-integration patch; do not treat as runtime security model of this app.
+- App downloads: target URLs only in env; manifest/status never include them; handoff rate-limited; no server-side fetch of target (no SSRF). Placeholders `{{...}}` are unavailable, not live links.

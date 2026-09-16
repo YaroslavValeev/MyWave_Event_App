@@ -1,3 +1,19 @@
+# Validation Report — 0.5.10 App download catalog
+
+Дата: 2026-09-16  
+Цикл: карточка выдачи MyWave Event App (ADR-0009)
+
+| Проверка | Результат |
+|----------|-----------|
+| pytest | **104 passed** (включая `test_app_downloads.py`) |
+| lint (`next lint`) | **passed**, без warning |
+| web production build | **passed**; маршрут `/projects/checklist-org` |
+| нативные APK/IPA | **не подключены** (плейсхолдеры env) |
+| browser e2e / axe | не запускались (нет browser MCP в этой сессии) |
+| Production deploy | **not performed** |
+
+---
+
 # Validation Report — 0.5.9 Roster lock / chief judge
 
 Дата: 2026-09-15  
@@ -15,7 +31,7 @@
 | web production build | не запускался в этом цикле |
 | security (негативные permission) | organizer/judge **403** `chief_approval_required` на publish; participant **403** на lock; guest не видит draft |
 | accessibility | unavailable (axe/e2e не запускались) |
-| smoke staging 0.5.9 | **не выполнен** — образ 0.5.9 ещё не задеплоен |
+| smoke staging 0.5.9 | **ok** 2026-09-15: health/web/roles; БД 2×draft, 40 heats, 110 draft results; backup `20260915T150340Z` |
 | Docker build | not run this cycle |
 | Production deploy | **not performed** |
 

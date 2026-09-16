@@ -209,7 +209,16 @@ type ErrorPayload = {
 };
 
 async function parseError(res: Response): Promise<ApiError> {
-  let message = `Ошибка API (${res.status})`;
+  let message =
+    res.status >= 500
+      ? "Сервис временно недоступен. Попробуйте позже."
+      : res.status === 401
+        ? "Нужно войти снова."
+        : res.status === 403
+          ? "Недостаточно прав для этого действия."
+          : res.status === 404
+            ? "Данные не найдены."
+            : "Не удалось выполнить запрос.";
   let code: string | undefined;
   try {
     const body = (await res.json()) as ErrorPayload;
@@ -366,6 +375,7 @@ export function registerAccount(payload: RegisterPayload): Promise<RegisterRespo
 export type OtpRequestResponse = {
   ok: boolean;
   phone_masked: string;
+  email_masked?: string | null;
   message: string;
   expires_in_seconds: number;
   dev_otp?: string | null;

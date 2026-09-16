@@ -143,13 +143,16 @@ def post_request_otp(
     body: PhoneOtpRequest, db: DbSession, settings: AppSettings
 ) -> PhoneOtpResponse:
     try:
-        masked, ttl, dev_otp = request_phone_otp(db, phone_raw=body.phone, settings=settings)
+        masked, ttl, dev_otp, email_masked = request_phone_otp(
+            db, phone_raw=body.phone, settings=settings
+        )
     except AuthError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
 
     return PhoneOtpResponse(
         phone_masked=masked,
-        message="Код отправлен на email аккаунта (и в mail_outbox). SMS будет позже.",
+        email_masked=email_masked,
+        message="Код подтверждения отправлен на email, привязанный к аккаунту. SMS пока не подключено.",
         expires_in_seconds=ttl,
         dev_otp=dev_otp,
     )

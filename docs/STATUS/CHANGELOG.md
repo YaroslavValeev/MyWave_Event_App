@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.10 — 2026-09-16
+
+- Каталог выдачи MyWave Event App: `/projects/checklist-org#mywave-event-app` и блок на вкладке «Подготовка» события.
+- API: `GET /api/v1/app-downloads/manifest|status`, `POST .../handoff` (URL только из env, fail-closed).
+- Аналитика: `POST /api/v1/analytics/events` для событий карточки выдачи.
+- Плейсхолдеры `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}` — нативных сборок нет.
+- Документация по установке bundled: `/downloads/install-and-run.html` (без фиктивного APK).
+- Документы: ADR-0009, `docs/OPERATIONS/APP_DOWNLOADS.md`, письмо сайту `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`.
+
+## 0.5.9+ UX/UI 1.0 foundation — 2026-09-15
+
+- Канон: `docs/PRODUCT/UX_UI_CANON.md` (Role Based + Live First + Russian-only UI); обновлены AGENTS, PRD, CANONICAL_DOCS_INDEX, правило frontend.
+- Quick Wins: Events → Идёт сейчас / Ближайшие / Мои / Архив; `pickNearestEvent`; mobile nav без «Выйти» (выход в профиле); actionable notifications + deep-link; «Следующий шаг» на event home; live heat/entry — один primary CTA + меню `•••`.
+- UI copy: без production-текстов про API/dev/mail_outbox; OTP явно на email; светлые controls вместо тёмных inline-styles; Field foundation.
+- Backend: user-facing OTP message без `mail_outbox`.
+
 ## 0.5.9 — 2026-09-15
 
 - P0 vertical slice: **roster lock** + публикация official result только **главным судьёй** (ADR-0008).

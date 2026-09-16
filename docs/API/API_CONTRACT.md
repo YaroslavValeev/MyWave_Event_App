@@ -131,6 +131,19 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
 | GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
 
+## App downloads (0.5.10)
+
+Публичный каталог выдачи. URL файлов только в env, не в ответе manifest/status.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/app-downloads/manifest` | no | метаданные приложения и 4 артефакта без target URL |
+| GET | `/api/v1/app-downloads/{id}/status` | no | повторная проверка `android` \| `ios` \| `source` \| `documentation` |
+| POST | `/api/v1/app-downloads/{id}/handoff` | no | validated `location` после подтверждения; 20 запросов/мин/IP |
+| POST | `/api/v1/analytics/events` | no | ingest allowlisted событий (202) |
+
+Состояния артефакта: `available` \| `unavailable` \| `error`. Пустой env или `{{...}}` → `unavailable`. Небезопасный URL → `error`. Handoff: `503 artifact_unavailable` / `artifact_misconfigured`, `429 too_many_requests`. Подключение файлов: `docs/OPERATIONS/APP_DOWNLOADS.md`.
+
 ## Athlete ID & archive (0.5.5)
 
 - `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); канон 0.5.8 — `AthleteProfile.athlete_id`, аккаунт синхронизируется после confirm.

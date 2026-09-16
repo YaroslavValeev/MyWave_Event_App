@@ -47,6 +47,8 @@ data/seed_analysis.json
 data/documents/
 data/mail_outbox/
 !data/mail_outbox/.gitkeep
+data/downloads/
+!data/downloads/.gitkeep
 **/mywave_event.db
 services/api/data/*.db
 

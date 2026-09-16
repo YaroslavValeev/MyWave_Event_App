@@ -19,7 +19,7 @@ from app.services.audit_service import append_audit
 from app.services.consent_service import ConsentError, grant_registration_consents
 from app.services.mail_service import send_email
 from app.services.notification_service import create_notification, notify_event_staff
-from app.services.phone_utils import mask_phone, normalize_phone
+from app.services.phone_utils import mask_email, mask_phone, normalize_phone
 
 AUTO_APPROVE_ROLES: frozenset[Role] = frozenset({Role.participant})
 MAX_OTP_ATTEMPTS = 5
@@ -254,7 +254,7 @@ def request_phone_otp(
     *,
     phone_raw: str,
     settings: Settings,
-) -> tuple[str, int, str | None]:
+) -> tuple[str, int, str | None, str | None]:
     phone = _require_normalized_phone(phone_raw)
     user = get_user_by_phone(db, phone)
     if user is None:
@@ -329,7 +329,12 @@ def request_phone_otp(
     db.commit()
 
     dev_otp = code if (settings.is_development or settings.app_env == "test") else None
-    return mask_phone(phone) or phone, settings.otp_ttl_minutes * 60, dev_otp
+    return (
+        mask_phone(phone) or phone,
+        settings.otp_ttl_minutes * 60,
+        dev_otp,
+        mask_email(user.email),
+    )
 
 
 def verify_phone_otp(

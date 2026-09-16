@@ -2,9 +2,11 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
+  clearSession,
   confirmAthleteLink,
   fetchMe,
   fetchMyConsents,
@@ -23,6 +25,7 @@ import { AuthNeeded } from "@/components/AuthNeeded";
 import styles from "../login/login.module.css";
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -35,6 +38,11 @@ export default function ProfilePage() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [links, setLinks] = useState<AthleteLinkOut[]>([]);
   const [linkBusy, setLinkBusy] = useState<number | null>(null);
+
+  function onLogout() {
+    clearSession();
+    router.push("/");
+  }
 
   useEffect(() => {
     const token = getStoredToken();
@@ -220,6 +228,12 @@ export default function ProfilePage() {
             {pending ? "Сохраняем…" : "Сохранить"}
           </button>
         </form>
+
+        <p style={{ marginTop: "1.25rem" }}>
+          <button type="button" className={styles.secondary} onClick={onLogout}>
+            Выйти из аккаунта
+          </button>
+        </p>
 
         {links.length ? (
           <section className={styles.form} aria-labelledby="links-title">

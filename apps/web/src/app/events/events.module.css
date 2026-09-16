@@ -7,6 +7,17 @@
   font-size: clamp(1.4rem, 5vw, 1.75rem);
 }
 
+.section {
+  margin: 1.5rem 0 0;
+}
+
+.sectionTitle {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .muted {
   color: var(--mist);
 }
@@ -173,6 +184,32 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.6rem;
+  align-items: center;
+}
+
+.moreMenu {
+  position: relative;
+}
+
+.moreMenu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.moreMenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.moreMenuPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .fieldRow {

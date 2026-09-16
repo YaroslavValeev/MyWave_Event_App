@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppDownloadCard } from "@/components/AppDownloadCard";
 import { AppHeader } from "@/components/AppHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -74,6 +75,10 @@ import {
   ENTRY_STATUS_LABELS,
   PROTOCOL_KIND_LABELS,
   labelOf,
+  nextEntryStatus,
+  nextEntryStatusLabel,
+  nextHeatStatus,
+  nextHeatStatusLabel,
 } from "@/lib/labels";
 import { canPublishOfficialResults, isBroadcastRole, isChiefJudgeRole, isJudgeRole, isStaffRole } from "@/lib/roles";
 import styles from "../events.module.css";
@@ -804,12 +809,15 @@ export default function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHeatId, eventId]);
 
+  const allowedTabsKey = allowedTabs.join("|");
+
   useEffect(() => {
     const raw = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-    if (raw && (allowedTabs as string[]).includes(raw)) {
+    const allowed = allowedTabsKey.split("|").filter(Boolean);
+    if (raw && allowed.includes(raw)) {
       setTab(raw as TabId);
     }
-  }, [eventId, allowedTabs.join("|")]);
+  }, [eventId, allowedTabsKey]);
 
   function selectTab(id: TabId) {
     setTab(id);
@@ -959,7 +967,7 @@ export default function EventDetailPage() {
 
             {isGuest && !sessionExpired ? (
               <div className={styles.nextAction}>
-                <strong>Хотите участвовать?</strong>
+                <strong>Следующий шаг</strong>
                 <p className={styles.muted}>Войдите, чтобы подать заявку и увидеть свой слот.</p>
                 <Link href={loginHref(`/events/${eventId}`)} className="btn btnPrimary btnSm">
                   Войти
@@ -967,7 +975,48 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") ? (
+            {!isGuest && canModerate && pendingApps.length > 0 ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: заявки</strong>
+                <p className={styles.muted}>
+                  {pendingApps.length} заявки ждут решения организатора.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("apps")}>
+                  Открыть заявки
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && canModerate && !rosterLocked && pendingApps.length === 0 && participants.length > 0 ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: зафиксировать состав</strong>
+                <p className={styles.muted}>
+                  После проверки участников зафиксируйте состав перед официальными результатами.
+                </p>
+                <button
+                  type="button"
+                  className="btn btnPrimary btnSm"
+                  disabled={rosterBusy}
+                  onClick={() => void onToggleRosterLock()}
+                >
+                  {rosterBusy ? "Сохранение…" : "Зафиксировать состав"}
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && canJudge && liveHeat ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: судейство</strong>
+                <p className={styles.muted}>
+                  Идёт заезд {liveHeat.code}. Оцените текущего спортсмена.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("scoring")}>
+                  К судейству
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") && !canModerate ? (
               <div className={styles.nextAction}>
                 <strong>Следующий шаг: заявка</strong>
                 <p className={styles.muted}>Выберите категорию и отправьте заявку организатору.</p>
@@ -977,12 +1026,21 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && myApp ? (
+            {!isGuest && myApp && !canModerate ? (
               <div className={styles.nextAction}>
-                <strong>Ваша заявка</strong>
-                <p className={styles.muted} style={{ margin: "0.35rem 0 0" }}>
-                  <StatusBadge status={myApp.status} kind="application" /> {myApp.full_name}
+                <strong>Следующий шаг</strong>
+                <p className={styles.muted} style={{ margin: "0.35rem 0 0.5rem" }}>
+                  Заявка: <StatusBadge status={myApp.status} kind="application" /> · {myApp.full_name}
                 </p>
+                {liveHeat && allowedTabs.includes("heats") ? (
+                  <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("heats")}>
+                    Открыть стартовый список
+                  </button>
+                ) : publishedResults.length > 0 && allowedTabs.includes("results") ? (
+                  <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("results")}>
+                    Открыть результаты
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
@@ -1025,6 +1083,26 @@ export default function EventDetailPage() {
                         </li>
                       ))}
                     </ul>
+                  </>
+                ) : null}
+
+                {rulesProfile ? (
+                  <>
+                    <h2 className={styles.itemTitle}>Правила события</h2>
+                    <dl className={styles.meta}>
+                      <div>
+                        <dt>Федерация</dt>
+                        <dd>{rulesProfile.governing_body}</dd>
+                      </div>
+                      <div>
+                        <dt>Санкция</dt>
+                        <dd>{rulesProfile.sanction_body}</dd>
+                      </div>
+                      <div>
+                        <dt>Режим оценки</dt>
+                        <dd>{rulesProfile.scoring_mode}</dd>
+                      </div>
+                    </dl>
                   </>
                 ) : null}
 
@@ -1239,6 +1317,9 @@ export default function EventDetailPage() {
                     </li>
                   ))}
                 </ul>
+                <div className={styles.section}>
+                  <AppDownloadCard context={`events/${eventId}/checklist`} />
+                </div>
               </>
             ) : null}
 
@@ -1259,8 +1340,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.7rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       />
                     </label>{" "}
@@ -1274,8 +1355,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.5rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       >
                         <option value="bulletin">Бюллетень</option>
@@ -1319,10 +1400,11 @@ export default function EventDetailPage() {
                             </button>
                             {canModerate ? (
                               <button
-                                type="button"
-                                className="btn btnDanger btnSm"
-                                style={{ marginLeft: "0.5rem" }}
-                              >
+              type="button"
+              className="btn btnDanger btnSm"
+              style={{ marginLeft: "0.5rem" }}
+              onClick={() => void onDeleteDoc(d)}
+            >
                                 Удалить
                               </button>
                             ) : null}
@@ -1393,8 +1475,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.7rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       />
                     </label>{" "}
@@ -1408,8 +1490,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.5rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       >
                         <option value="judge_sheet">Лист судьи</option>
@@ -1507,8 +1589,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.5rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       >
                         <option value="">— выберите —</option>
@@ -1538,8 +1620,8 @@ export default function EventDetailPage() {
                               padding: "0.35rem 0.5rem",
                               borderRadius: "8px",
                               border: "1px solid var(--line)",
-                              background: "rgba(0,0,0,0.25)",
-                              color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                             }}
                           />
                         </label>
@@ -1617,8 +1699,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.7rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <input
@@ -1630,8 +1712,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.7rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <button type="button" className="btn btnPrimary btnSm" onClick={() => void onCreateHeat()}>
@@ -1665,22 +1747,48 @@ export default function EventDetailPage() {
                         </div>
                         {canModerate ? (
                           <div className={styles.actions}>
-                            {["planned", "ready", "on_water", "completed"].map((st) => (
-                              <button
-                                key={st}
-                                type="button"
-                                className={`btn btnSm ${h.status === st ? "btnActive" : "btnSecondary"}`}
-                                onClick={() => void onHeatStatus(h, st)}
-                              >
-                                {st === "planned"
-                                  ? "План"
-                                  : st === "ready"
-                                    ? "Готов"
-                                    : st === "on_water"
-                                      ? "На воде"
-                                      : "Финиш"}
-                              </button>
-                            ))}
+                            {(() => {
+                              const next = nextHeatStatus(h.status);
+                              const nextLabel = nextHeatStatusLabel(h.status);
+                              return (
+                                <>
+                                  {next && nextLabel ? (
+                                    <button
+                                      type="button"
+                                      className="btn btnPrimary btnSm"
+                                      onClick={() => void onHeatStatus(h, next)}
+                                    >
+                                      {nextLabel}
+                                    </button>
+                                  ) : null}
+                                  <details className={styles.moreMenu}>
+                                    <summary className="btn btnSecondary btnSm" aria-label="Дополнительные статусы заезда">
+                                      •••
+                                    </summary>
+                                    <div className={styles.moreMenuPanel}>
+                                      {["planned", "ready", "on_water", "completed"]
+                                        .filter((st) => st !== next && st !== h.status)
+                                        .map((st) => (
+                                          <button
+                                            key={st}
+                                            type="button"
+                                            className="btn btnSecondary btnSm"
+                                            onClick={() => void onHeatStatus(h, st)}
+                                          >
+                                            {st === "planned"
+                                              ? "План"
+                                              : st === "ready"
+                                                ? "Готов"
+                                                : st === "on_water"
+                                                  ? "На воде"
+                                                  : "Финиш"}
+                                          </button>
+                                        ))}
+                                    </div>
+                                  </details>
+                                </>
+                              );
+                            })()}
                           </div>
                         ) : null}
                       </li>
@@ -1694,16 +1802,9 @@ export default function EventDetailPage() {
                     {canModerate ? (
                       <div className={styles.panel}>
                         <select
+                          className={styles.fieldControl}
                           value={addParticipantId}
                           onChange={(e) => setAddParticipantId(e.target.value)}
-                          style={{
-                            marginRight: "0.5rem",
-                            padding: "0.45rem 0.5rem",
-                            borderRadius: "8px",
-                            border: "1px solid var(--line)",
-                            background: "rgba(0,0,0,0.25)",
-                            color: "inherit",
-                          }}
                         >
                           <option value="">Участник…</option>
                           {participants.map((p) => (
@@ -1722,7 +1823,6 @@ export default function EventDetailPage() {
                         <button
                           type="button"
                           className="btn btnSecondary btnSm"
-                          style={{ marginLeft: "0.5rem" }}
                           onClick={() => void onFillStartList()}
                         >
                           Добавить всех из состава
@@ -1751,18 +1851,46 @@ export default function EventDetailPage() {
                               </div>
                               {canModerate ? (
                                 <div className={styles.actions}>
-                                  {["checked_in", "ready", "on_water", "completed", "dns", "dnf"].map(
-                                    (st) => (
-                                      <button
-                                        key={st}
-                                        type="button"
-                                        className={`btn btnSm ${e.status === st ? "btnActive" : st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
-                                        onClick={() => void onEntryStatus(e, st)}
-                                      >
-                                        {labelOf(ENTRY_STATUS_LABELS, st)}
-                                      </button>
-                                    ),
-                                  )}
+                                  {(() => {
+                                    const next = nextEntryStatus(e.status);
+                                    const nextLabel = nextEntryStatusLabel(e.status);
+                                    const extras = ["checked_in", "ready", "on_water", "completed", "dns", "dnf"].filter(
+                                      (st) => st !== next && st !== e.status,
+                                    );
+                                    return (
+                                      <>
+                                        {next && nextLabel ? (
+                                          <button
+                                            type="button"
+                                            className="btn btnPrimary btnSm"
+                                            onClick={() => void onEntryStatus(e, next)}
+                                          >
+                                            {nextLabel}
+                                          </button>
+                                        ) : null}
+                                        <details className={styles.moreMenu}>
+                                          <summary
+                                            className="btn btnSecondary btnSm"
+                                            aria-label="Дополнительные статусы участника"
+                                          >
+                                            •••
+                                          </summary>
+                                          <div className={styles.moreMenuPanel}>
+                                            {extras.map((st) => (
+                                              <button
+                                                key={st}
+                                                type="button"
+                                                className={`btn btnSm ${st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
+                                                onClick={() => void onEntryStatus(e, st)}
+                                              >
+                                                {labelOf(ENTRY_STATUS_LABELS, st)}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               ) : null}
                             </li>
@@ -1792,8 +1920,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     >
                       <option value="">Участник…</option>
@@ -1813,8 +1941,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <input
@@ -1827,8 +1955,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <button
@@ -1927,8 +2055,8 @@ export default function EventDetailPage() {
                       padding: "0.45rem 0.7rem",
                       borderRadius: "8px",
                       border: "1px solid var(--line)",
-                      background: "rgba(0,0,0,0.25)",
-                      color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                     }}
                   />
                 </label>
