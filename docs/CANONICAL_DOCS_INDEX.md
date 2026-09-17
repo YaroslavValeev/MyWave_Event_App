@@ -15,7 +15,7 @@
 | Data model | `docs/ARCHITECTURE/DATA_MODEL.md` | сущности | schema |
 | Offline | `docs/ARCHITECTURE/OFFLINE_SYNC.md` | offline (этап 3+) | sync |
 | Integrations | `docs/ARCHITECTURE/INTEGRATIONS.md` | адаптеры | Telegram/MAX и др. |
-| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное; 0.5.10 — ADR-0009 каталог выдачи |
+| ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное; 0.5.10 — ADR-0009/0010; 0.5.11 — ADR-0011 FieldMoment |
 | Target journeys | `docs/PRODUCT/journeys/` | целевые сценарии 14.09.2026 | сверка, не факт UI |
 | Journey reconciliation | `docs/STATUS/ROLE_JOURNEYS_RECONCILIATION.md` | implemented/partial/missing | каждый цикл ролей |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
@@ -34,6 +34,7 @@
 | Staging | `docs/OPERATIONS/STAGING.md` | staging env | deploy staging |
 | App downloads | `docs/OPERATIONS/APP_DOWNLOADS.md` | подключение APK/TestFlight/docs URL | смена артефактов выдачи |
 | Site handoff | `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` | письмо/план для сайта | совместная выдача |
+| QA до native | `docs/PRODUCT/QA_AND_UX_HARDENING_PLAN.md` | отладка PWA до Android/iOS | каждый цикл до сборок |
 | Testing | `docs/QUALITY/TESTING.md` | тесты | coverage |
 | A11y | `docs/QUALITY/ACCESSIBILITY.md` | доступность | UI |
 | Current state | `docs/STATUS/CURRENT_STATE.md` | факт | каждый цикл |

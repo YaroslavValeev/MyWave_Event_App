@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.11 — 2026-09-17 (код, staging ещё 0.5.10)
+
+- FieldMoment: фото/видео с камеры телефона (PWA `<input capture>`) для бэкстейджа, взгляда пилота, маршала на старте и других эмоциональных кадров.
+- API `GET/POST/PATCH /api/v1/events/{id}/field-moments` + file; роли media/commentator/support/organizer+/chief_judge; участник 403; гость 401.
+- Статусы `draft` → `approved` (для эфира) / `withheld`; approve только организатор+ и главный судья.
+- UI: вкладка «Моменты», кнопка «Снять момент» на пульте организатора. Не смешивается с ProtocolCapture.
+- ADR-0011. EXIF, альбом спортсмена, соцсети, live-превью getUserMedia — не этот срез.
+
 ## 0.5.10 — 2026-09-16
 
 - Каталог выдачи MyWave Event App: `/projects/checklist-org#mywave-event-app` и блок на вкладке «Подготовка» события.
@@ -7,7 +15,10 @@
 - Аналитика: `POST /api/v1/analytics/events` для событий карточки выдачи.
 - Плейсхолдеры `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}` — нативных сборок нет.
 - Документация по установке bundled: `/downloads/install-and-run.html` (без фиктивного APK).
-- Документы: ADR-0009, `docs/OPERATIONS/APP_DOWNLOADS.md`, письмо сайту `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`.
+- Документы: ADR-0009, ADR-0010 (JWT localStorage), `docs/OPERATIONS/APP_DOWNLOADS.md`, письмо сайту `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`.
+- План отладки PWA до native: `docs/PRODUCT/QA_AND_UX_HARDENING_PLAN.md`. Письмо сайту уточнено: documentation available, android/ios/source нет, staging на 2026-09-16 ещё 0.5.9.
+- Карточка события: «Мой старт» для участника, пульт организатора, судейство текущего спортсмена без длинного dropdown как primary.
+- Authz: участник 403 на roster lock и official publish (регресс-тест). Analytics ingest не сохраняет email/phone/token. Upload: empty/oversize/path traversal.
 
 ## 0.5.9+ UX/UI 1.0 foundation — 2026-09-15
 

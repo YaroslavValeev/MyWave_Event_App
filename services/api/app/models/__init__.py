@@ -10,6 +10,7 @@ from app.models.event import Event, EventStatus
 from app.models.event_rules import EventRulesProfile
 from app.models.importing import ImportBatch, ImportRow
 from app.models.protocol_capture import ProtocolCapture
+from app.models.field_moment import FieldMoment
 from app.models.judge_score import JudgeScore
 from app.models.heat import Heat, Run, StartListEntry
 from app.models.notification import Notification
@@ -47,5 +48,6 @@ __all__ = [
     "ResultHistory",
     "EventRulesProfile",
     "ProtocolCapture",
+    "FieldMoment",
     "JudgeScore",
 ]

@@ -1,87 +1,128 @@
 # Письмо разработчикам сайта Site_MyWave
 
 Дата: 2026-09-16  
+Версия фактов: Event App **0.5.10** в git (коммит `6ce503b`, ветка `cursor/p0-import-center-athlete-link`)  
 От: команда MyWave Event App  
 Кому: разработчики сайта (раздел «Проекты» → «Чек-лист организатора»)  
-Тема: совместная выдача готового решения MyWave Event App
+Тема: точный контракт выдачи MyWave Event App — без фиктивных APK
+
+Ниже текст **для копирования в почту**. Не сокращать статусы файлов: они специально разные.
 
 ---
 
+## Текст письма
+
 Коллеги,
 
-в Event App появился **канонический центр выдачи** приложения. Это не второй Download Center во Flask и не фиктивные APK. Source of truth — API этого репозитория. Сайт остаётся витриной и точкой входа для организаторов.
+нужна совместная точка входа для организаторов: **сайт** остаётся витриной отрасли, **MyWave Event App** — source of truth соревнования и выдачи приложения.
 
-## Что уже сделано в Event App
+Просьба не копировать архивный Flask Download Center (`releases/download-center-2026-08-02/` в репозитории Event App). Это архив 2026-08-02, не runtime.
 
-- Страница: `/projects/checklist-org#mywave-event-app`
-- Тот же блок на вкладке «Подготовка» карточки события
-- Публичный манифест без URL файлов
-- Handoff: ссылка выдаётся только после подтверждения пользователем
-- Состояния: загрузка / доступен / временно недоступен / ошибка / успешный старт
-- Аналитика: `mywave_event_app_card_viewed`, `platform_selected`, `download_clicked`, `download_succeeded`, `download_failed`
+### Что является фактом на 2026-09-16
 
-Сейчас нативных сборок **нет**. Пока в окружении стоят плейсхолдеры `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}`, `{{documentation_url}}`, карточка показывает «файл временно недоступен». Это ожидаемо и правильно.
+| Артефакт | Статус | Что делать на сайте |
+|----------|--------|---------------------|
+| Веб-приложение Event App (PWA) | **есть** | Вести пользователя сюда |
+| Документация установки | **есть** | Можно давать «Скачать документацию» через API Event App **после** деплоя 0.5.10 |
+| Android APK/AAB | **нет** | Не показывать живую кнопку скачивания. Подпись: «Сборка готовится» / «Файл временно недоступен» |
+| iOS / TestFlight | **нет** | То же |
+| ZIP исходников | **нет** | То же |
 
-## Как работать вместе
+Нативные сборки Android и iOS **запланированы**, но **после** отладки текущего PWA. Пока их нет в Git и нет URL. Литералы `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}` — это имена слотов в env Event App, **не href**.
 
-Есть два безопасных варианта. Выберите один, не дублируйте URL в коде сайта.
+Документация: если `MYWAVE_EVENT_APP_DOCUMENTATION_URL` пустой или равен `{{documentation_url}}`, Event App сам отдаёт bundled HTML `/downloads/install-and-run.html`. Это реальный файл, не заглушка.
 
-### Вариант A (рекомендуем на ближайший спринт)
+### Staging vs git (важно не перепутать)
 
-На странице `https://<сайт>/projects/checklist-org` вставьте блок «MyWave Event App»:
+- В git уже **0.5.10**: страница `/projects/checklist-org#mywave-event-app`, API `/api/v1/app-downloads/*`.
+- На staging VPS `62.113.42.227` по проверке **2026-09-15** крутился образ **0.5.9**. Каталог выдачи там **может ещё отсутствовать**, пока владелец не задеплоит 0.5.10.
+- Staging web: `http://62.113.42.227:3001`
+- Staging API: порт **8001** на том же хосте (compose staging).
+- Production Event App **не менять** этим письмом.
+- Гостевая витрина staging сейчас пустая: события в `draft`. Это нормально.
 
-1. Заголовок и якорный `id="mywave-event-app"`.
-2. Кнопка/карточка «Открыть готовое решение» → абсолютный URL Event App:
-   - staging: `http://62.113.42.227:3001/projects/checklist-org#mywave-event-app`
-   - production: публичный URL Event App, когда он появится.
-3. Не копируйте Flask-патч из архива `releases/download-center-2026-08-02/` как runtime сайта.
+Пока 0.5.10 не подтверждён на staging (`GET /api/v1/app-downloads/manifest` → 200), **не деплойте** на сайт вариант B (прямой вызов API). Используйте вариант A на URL, который владелец подтвердит после деплоя.
 
-Так сайт не хранит ссылки на APK и не расходится с фактическим статусом файлов.
+### Как встроить блок (вариант A — обязателен на этот спринт)
 
-### Вариант B (встроить карточку в вёрстку сайта)
+На странице сайта `/projects/checklist-org`:
 
-Сайт вызывает API Event App (нужно добавить origin сайта в `CORS_ORIGINS` Event App):
+1. Блок с заголовком **«MyWave Event App»** и якорем `id="mywave-event-app"` (чтобы работала ссылка `#mywave-event-app`).
+2. Короткий текст по-русски, без обещания APK:
+   «Цифровая платформа соревнований: заявка, старт, судейство и протокол. Сейчас открывается в браузере телефона. Сборки Android и iOS появятся в этой же карточке, когда файлы будут опубликованы.»
+3. Кнопка **«Открыть приложение»** (не «Скачать APK») ведёт на Event App:
+   - после деплоя 0.5.10 на staging: `http://62.113.42.227:3001/projects/checklist-org#mywave-event-app`
+   - production URL Event App — когда владелец его назначит; до этого production-кнопку не включать.
+4. Не ставить `href="{{android_download_url}}"`.
+5. Стиль — текущий MyWave сайта, русский UI, контраст, фокус, 320–860 px.
 
-| Метод | Путь | Назначение |
+Так сайт не хранит URL файлов и не расходится со статусом сборок.
+
+### Вариант B (после появления 0.5.10 на том API, который зовёт сайт)
+
+Только если origin сайта добавлен в `CORS_ORIGINS` Event App и manifest отвечает 200.
+
+| Метод | Путь | Что внутри |
 |-------|------|------------|
-| GET | `/api/v1/app-downloads/manifest` | метаданные без URL |
-| GET | `/api/v1/app-downloads/{android\|ios\|source\|documentation}/status` | повторная проверка |
-| POST | `/api/v1/app-downloads/{id}/handoff` | получить `location` после подтверждения |
-| POST | `/api/v1/analytics/events` | продуктовые события |
+| GET | `/api/v1/app-downloads/manifest` | метаданные **без** целевых URL |
+| GET | `/api/v1/app-downloads/{id}/status` | `id`: `android` \| `ios` \| `source` \| `documentation` |
+| POST | `/api/v1/app-downloads/{id}/handoff` | `location` **только после** подтверждения пользователем |
+| POST | `/api/v1/analytics/events` | события ниже |
 
-Ограничения:
+Ожидаемые `state` на сегодняшней конфигурации 0.5.10 без native URL:
 
-- Не печатать `location` в HTML до подтверждения.
-- Не проксировать handoff своим бэкендом к произвольным URL (SSRF).
-- Формат ошибки Event App: `{ "error": { "code": "...", "message": "..." } }`.
-- Handoff ограничен: 20 запросов с IP в минуту.
-- Manifest/status отдают `Cache-Control: no-store`.
+- `documentation` → `available`
+- `android`, `ios`, `source` → `unavailable`
 
-UI сайта должен сохранить визуальный стиль MyWave и русские подписи. Референс: `apps/web/src/components/AppDownloadCard.tsx`.
+Кнопка скачивания активна **только** при `state === "available"`. Для unavailable — текст «Файл временно недоступен», без битой ссылки.
 
-## Что сайт не делает
+Ошибка API:
 
-- Не кладёт APK/IPA в Git сайта.
-- Не показывает «скачать», если status ≠ `available`.
-- Не использует литералы `{{android_download_url}}` как href.
-- Не считает архивный Flask Download Center каноном.
+```json
+{ "error": { "code": "artifact_unavailable", "message": "…" } }
+```
 
-## План работ сайта (оценка)
+Handoff: не больше 20 запросов с IP в минуту; `Cache-Control: no-store`.  
+Не проксировать `location` своим бэкендом к произвольным URL (SSRF).  
+UI-референс: `apps/web/src/components/AppDownloadCard.tsx` в репозитории Event App.
 
-1. Согласовать вариант A или B и origin Event App для CORS.
-2. Добавить блок в `/projects/checklist-org` с якорем `#mywave-event-app`.
-3. Проверить клавиатуру, `aria` и мобильную вёрстку 320–860 px.
-4. Совместный smoke: недоступный файл, затем один реальный HTTPS (когда появится).
-5. Не деплоить выдачу, пока Event App API не отвечает 200 на `/api/v1/app-downloads/manifest`.
+Аналитика (имена точные):
 
-## Контакты по контракту
+- `mywave_event_app_card_viewed`
+- `mywave_event_app_platform_selected`
+- `mywave_event_app_download_clicked`
+- `mywave_event_app_download_succeeded`
+- `mywave_event_app_download_failed`
 
-Документы в репозитории Event App:
+`download_succeeded` = сервер отдал handoff, не «файл докачался в браузере».
 
-- `docs/OPERATIONS/APP_DOWNLOADS.md` — как подключать файлы
-- `docs/API/API_CONTRACT.md` — эндпоинты
-- `docs/API/ANALYTICS_EVENTS.md` — события
-- `docs/ARCHITECTURE/decisions/ADR-0009-app-download-catalog.md` — границы
+### Что сайт не делает
+
+- не кладёт APK/IPA в Git;
+- не копирует Flask-патч из архива;
+- не пишет, что приложение уже в Google Play / App Store;
+- не дублирует список URL сборок у себя «на всякий случай».
+
+Когда появятся реальные Android/TestFlight, **меняем только env Event App**. Сайт при варианте A не меняется; при варианте B кнопки сами станут `available`.
+
+### Чек-лист приёмки блока на сайте
+
+- [ ] Якорь `#mywave-event-app` есть
+- [ ] Кнопка открывает Event App, а не скачивает несуществующий APK
+- [ ] Нет href из плейсхолдеров `{{…}}`
+- [ ] Тексты по-русски, без «API/dev»
+- [ ] Клавиатура и `focus-visible` на кнопке
+- [ ] 320 px и desktop не ломают блок
+- [ ] После деплоя 0.5.10: documentation можно получить через Event App; android/ios не кликабельны
+
+Документы: `docs/OPERATIONS/APP_DOWNLOADS.md`, `docs/API/API_CONTRACT.md`, ADR-0009, план отладки `docs/PRODUCT/QA_AND_UX_HARDENING_PLAN.md`.
 
 С уважением,  
 команда MyWave Event App
+
+---
+
+## Для внутренней команды Event App
+
+Письмо отправляет **владелец** после того, как решит: слать сейчас с оговоркой «staging ещё 0.5.9» или после деплоя 0.5.10.  
+Рекомендация: сначала волна 0 плана отладки (деплой staging), затем это письмо без оговорки про 0.5.9.

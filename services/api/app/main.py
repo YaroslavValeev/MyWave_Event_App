@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app import __version__
 from app.api.errors import http_exception_handler, validation_exception_handler
 from app.api.router import api_router, v1_router
 from app.config import get_settings
@@ -30,7 +31,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="0.5.10",
+        version=__version__,
         lifespan=lifespan,
     )
     application.add_middleware(

@@ -194,3 +194,50 @@ def test_organizer_cannot_publish_without_chief_judge(client, db_session):
     blocked_lock = client.post(f"/api/v1/events/{event_id}/roster/lock", headers=org, json={})
     assert blocked_lock.status_code == 409
     assert blocked_lock.json()["error"]["code"] == "event_archived"
+
+
+def test_participant_cannot_lock_roster_or_publish(client, db_session):
+    from app.models.category import Category
+    from app.models.participant import Participant
+
+    org = auth_header(client, "p0-authz-org@example.com", "organizer")
+    created = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={"slug": "p0-authz-cup", "title": "P0 Authz Cup", "status": "published"},
+    )
+    assert created.status_code == 201, created.text
+    event_id = created.json()["id"]
+    cat = Category(event_id=event_id, code="OPEN", title="Open", discipline="wakesurf")
+    db_session.add(cat)
+    db_session.flush()
+    part = Participant(event_id=event_id, category_id=cat.id, full_name="Rider Authz", status="accepted")
+    db_session.add(part)
+    db_session.commit()
+
+    athlete = auth_header(client, "p0-authz-athlete@example.com", "participant")
+    lock = client.post(f"/api/v1/events/{event_id}/roster/lock", headers=athlete, json={})
+    assert lock.status_code == 403
+    unlock = client.post(f"/api/v1/events/{event_id}/roster/unlock", headers=athlete, json={})
+    assert unlock.status_code == 403
+
+    draft = client.post(
+        f"/api/v1/events/{event_id}/results",
+        headers=org,
+        json={"participant_id": part.id, "score": 50, "place": 1},
+    )
+    assert draft.status_code == 201, draft.text
+    result_id = draft.json()["id"]
+    verified = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=org,
+        json={"status": "verified"},
+    )
+    assert verified.status_code == 200
+    athlete_pub = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=athlete,
+        json={"status": "published"},
+    )
+    assert athlete_pub.status_code == 403
+

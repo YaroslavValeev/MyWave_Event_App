@@ -96,6 +96,33 @@
         "granted_at": { "type": "string", "format": "date-time" },
         "revoked_at": { "type": ["string", "null"], "format": "date-time" }
       }
+    },
+    "FieldMomentPov": {
+      "type": "string",
+      "enum": ["backstage", "boat_pilot", "start_marshal", "on_water", "crowd", "other"]
+    },
+    "FieldMomentStatus": {
+      "type": "string",
+      "enum": ["draft", "approved", "withheld"]
+    },
+    "FieldMoment": {
+      "type": "object",
+      "required": ["id", "event_id", "title", "pov", "media_kind", "status", "file_name", "created_at"],
+      "properties": {
+        "id": { "type": "integer" },
+        "event_id": { "type": "integer" },
+        "heat_id": { "type": ["integer", "null"] },
+        "title": { "type": "string" },
+        "pov": { "$ref": "#/definitions/FieldMomentPov" },
+        "media_kind": { "type": "string", "enum": ["photo", "video"] },
+        "status": { "$ref": "#/definitions/FieldMomentStatus" },
+        "file_name": { "type": "string" },
+        "mime_type": { "type": "string" },
+        "byte_size": { "type": "integer" },
+        "notes": { "type": ["string", "null"] },
+        "created_by_user_id": { "type": ["integer", "null"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
     }
   }
 }

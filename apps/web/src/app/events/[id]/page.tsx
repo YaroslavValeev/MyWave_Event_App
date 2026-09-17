@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppDownloadCard } from "@/components/AppDownloadCard";
 import { AppHeader } from "@/components/AppHeader";
+import { AthleteEventHome } from "@/components/AthleteEventHome";
+import { FieldMomentsPanel } from "@/components/FieldMomentsPanel";
+import { OrganizerControlRoom } from "@/components/OrganizerControlRoom";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   ApiError,
@@ -14,6 +17,7 @@ import {
   DocumentOut,
   EventDetail,
   EventRulesProfileOut,
+  FieldMomentOut,
   HeatOut,
   OfficialOut,
   OfficialProtocolReadiness,
@@ -44,6 +48,7 @@ import {
   listChecklist,
   listDocuments,
   listEventApplications,
+  listFieldMoments,
   listHeats,
   listJudgeScores,
   listOfficials,
@@ -69,10 +74,22 @@ import {
   uploadProtocolCapture,
   upsertResultDraft,
 } from "@/lib/api";
+import {
+  buildAthleteSnapshot,
+  buildAttentionItems,
+  findMyEntry,
+  findMyParticipant,
+  nextEntryAfter,
+  pickCurrentEntry,
+  pickLiveHeat,
+  pickNextHeat,
+  scoringEngineLabel,
+} from "@/lib/eventWorkspace";
 import { formatEventDate, formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
 import {
   DOCUMENT_KIND_LABELS,
   ENTRY_STATUS_LABELS,
+  HEAT_STATUS_LABELS,
   PROTOCOL_KIND_LABELS,
   labelOf,
   nextEntryStatus,
@@ -80,7 +97,15 @@ import {
   nextHeatStatus,
   nextHeatStatusLabel,
 } from "@/lib/labels";
-import { canPublishOfficialResults, isBroadcastRole, isChiefJudgeRole, isJudgeRole, isStaffRole } from "@/lib/roles";
+import {
+  canCaptureFieldMoments,
+  canModerateFieldMoments,
+  canPublishOfficialResults,
+  isBroadcastRole,
+  isChiefJudgeRole,
+  isJudgeRole,
+  isStaffRole,
+} from "@/lib/roles";
 import styles from "../events.module.css";
 
 type TabId =
@@ -90,6 +115,7 @@ type TabId =
   | "slots"
   | "docs"
   | "protocol"
+  | "moments"
   | "scoring"
   | "heats"
   | "results"
@@ -102,6 +128,7 @@ const ALL_TABS: TabId[] = [
   "slots",
   "docs",
   "protocol",
+  "moments",
   "scoring",
   "heats",
   "results",
@@ -112,16 +139,16 @@ function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
   if (isGuest) return ["overview", "results"];
   if (isStaffRole(role ?? "")) return ALL_TABS;
   if (isChiefJudgeRole(role)) {
-    return ["overview", "checklist", "scoring", "heats", "protocol", "results", "participants"];
+    return ["overview", "checklist", "scoring", "heats", "protocol", "moments", "results", "participants"];
   }
   if (role === "judge") {
     return ["overview", "scoring", "heats", "protocol", "results", "participants"];
   }
   if (isBroadcastRole(role)) {
-    return ["overview", "heats", "results", "participants", "docs"];
+    return ["overview", "heats", "results", "participants", "docs", "moments"];
   }
   if (role === "support") {
-    return ["overview", "participants", "docs", "results", "apps"];
+    return ["overview", "participants", "docs", "results", "apps", "moments"];
   }
   return ["overview", "apps", "participants", "slots", "docs", "results"];
 }
@@ -148,6 +175,7 @@ export default function EventDetailPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [rulesProfile, setRulesProfile] = useState<EventRulesProfileOut | null>(null);
   const [protocols, setProtocols] = useState<ProtocolCaptureOut[]>([]);
+  const [fieldMoments, setFieldMoments] = useState<FieldMomentOut[]>([]);
   const [protocolTitle, setProtocolTitle] = useState("");
   const [protocolKind, setProtocolKind] = useState("judge_sheet");
   const [protocolBusy, setProtocolBusy] = useState(false);
@@ -190,6 +218,8 @@ export default function EventDetailPage() {
   const rosterLocked = Boolean(detail?.roster_locked_at);
   const canUploadProtocol = !isArchived && (canModerate || isJudgeRole(role));
   const canJudge = canUploadProtocol;
+  const canCaptureMoments = canCaptureFieldMoments(role);
+  const canModerateMoments = !isArchived && canModerateFieldMoments(role);
   const allowedTabs = visibleTabs(user?.role, isGuest);
 
   useEffect(() => {
@@ -222,7 +252,7 @@ export default function EventDetailPage() {
           return;
         }
 
-        const [parts, docs, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores] =
+        const [parts, docs, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores, momentItems] =
           await Promise.all([
           listParticipants(token, eventId),
           listDocuments(token, eventId),
@@ -234,6 +264,7 @@ export default function EventDetailPage() {
           listProtocolCaptures(token, eventId).catch(() => []),
           getScoringEngine(token, eventId).catch(() => null),
           listJudgeScores(token, eventId).catch(() => []),
+          listFieldMoments(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setParticipants(parts);
@@ -245,12 +276,24 @@ export default function EventDetailPage() {
         setResults(resultItems);
         setRulesProfile(profile);
         setProtocols(protoItems);
+        setFieldMoments(momentItems);
         setScoringEngine(engine);
         setJudgeScores(scores);
         if (engine?.criteria?.length) {
           setCriteriaValues(Object.fromEntries(engine.criteria.map((c) => [c, ""])));
         }
-        if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
+        const preferredHeat =
+          heatItems.find((h) => h.status === "on_water") ??
+          heatItems.find((h) => h.status === "ready") ??
+          heatItems[0];
+        if (preferredHeat) {
+          setSelectedHeatId(preferredHeat.id);
+          try {
+            setStartList(await listStartList(token, eventId, preferredHeat.id));
+          } catch {
+            setStartList([]);
+          }
+        }
         const stored = getStoredUser();
         if (stored && isStaffRole(stored.role)) {
           try {
@@ -343,6 +386,92 @@ export default function EventDetailPage() {
     for (const c of categories) map.set(c.id, c);
     return map;
   }, [categories]);
+
+  const liveHeat = useMemo(() => pickLiveHeat(heats), [heats]);
+  const nextHeat = useMemo(() => pickNextHeat(heats, liveHeat), [heats, liveHeat]);
+  const currentEntry = useMemo(() => pickCurrentEntry(startList), [startList]);
+  const isAthleteView = role === "participant";
+  const myParticipant = useMemo(
+    () => findMyParticipant(participants, user?.id, myApp),
+    [participants, user?.id, myApp],
+  );
+  const myEntry = useMemo(() => findMyEntry(startList, myParticipant), [startList, myParticipant]);
+  const myHeat = useMemo(
+    () => (myEntry ? heats.find((h) => h.id === myEntry.heat_id) : liveHeat),
+    [heats, myEntry, liveHeat],
+  );
+  const athleteSnap = useMemo(() => {
+    if (!isAthleteView) return null;
+    const catId = myParticipant?.category_id ?? myApp?.category_id ?? null;
+    const cat = catId != null ? catById.get(catId) : undefined;
+    return buildAthleteSnapshot({
+      displayName: user?.display_name || "Участник",
+      athleteId: myParticipant?.athlete_id || user?.athlete_id,
+      myApp,
+      participant: myParticipant,
+      entry: myEntry,
+      heat: myHeat,
+      startList,
+      categoryTitle: cat?.title || cat?.code || "",
+      results,
+    });
+  }, [
+    isAthleteView,
+    myParticipant,
+    myApp,
+    myEntry,
+    myHeat,
+    startList,
+    catById,
+    results,
+    user?.athlete_id,
+    user?.display_name,
+  ]);
+  const attentionItems = useMemo(() => {
+    if (!canModerate) return [];
+    const currentHasScore = currentEntry
+      ? judgeScores.some((s) => s.participant_id === currentEntry.participant_id)
+      : true;
+    return buildAttentionItems({
+      pendingApps: pendingApps.length,
+      rosterLocked,
+      participantsCount: participants.length,
+      verifiedResults: results.filter((r) => r.status === "verified").length,
+      liveHeat,
+      currentEntry,
+      currentHasScore,
+      checklistOpen: Math.max(0, checklist.length - checklistDone),
+    });
+  }, [
+    canModerate,
+    pendingApps.length,
+    rosterLocked,
+    participants.length,
+    results,
+    liveHeat,
+    currentEntry,
+    judgeScores,
+    checklist.length,
+    checklistDone,
+  ]);
+  const currentAthlete = currentEntry
+    ? participants.find((p) => p.id === currentEntry.participant_id)
+    : undefined;
+  const nextEntry = useMemo(() => {
+    if (!currentEntry) return startList.find((e) => e.status === "scheduled" || e.status === "checked_in");
+    return nextEntryAfter(startList, currentEntry.participant_id);
+  }, [currentEntry, startList]);
+  const nextAthlete = nextEntry
+    ? participants.find((p) => p.id === nextEntry.participant_id)
+    : undefined;
+
+  useEffect(() => {
+    if (!canJudge) return;
+    const current = pickCurrentEntry(startList);
+    if (current && !scoreParticipantId) {
+      setScoreParticipantId(String(current.participant_id));
+    }
+  }, [canJudge, startList, scoreParticipantId]);
 
   async function downloadDoc(doc: DocumentOut) {
     const token = getStoredToken();
@@ -596,6 +725,13 @@ export default function EventDetailPage() {
         criteria,
       });
       setJudgeScores(await listJudgeScores(token, eventId));
+      const nextAthleteEntry = nextEntryAfter(startList, pid);
+      if (nextAthleteEntry) {
+        setScoreParticipantId(String(nextAthleteEntry.participant_id));
+      }
+      if (scoringEngine.criteria.length) {
+        setCriteriaValues(Object.fromEntries(scoringEngine.criteria.map((c) => [c, ""])));
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось сохранить оценку судьи");
     } finally {
@@ -623,7 +759,7 @@ export default function EventDetailPage() {
       setJudgeScores(await listJudgeScores(token, eventId));
       setResults(await listResults(token, eventId));
       setAppMessage(
-        `Панель: ${panel.panel_score} (${panel.judge_count} судей). Черновик result #${panel.result_id ?? "—"}.`,
+        `Панель судей: ${panel.panel_score} (${panel.judge_count} судей). Черновик результата ${panel.result_id ?? "пока без номера"}.`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось агрегировать оценки");
@@ -689,7 +825,7 @@ export default function EventDetailPage() {
       setHeatTitle("");
       await refreshChecklist(token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось создать heat");
+      setError(err instanceof ApiError ? err.message : "Не удалось создать заезд");
     }
   }
 
@@ -699,7 +835,7 @@ export default function EventDetailPage() {
     try {
       setStartList(await listStartList(token, eventId, heatId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось загрузить start list");
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить стартовый список");
     }
   }
 
@@ -742,7 +878,7 @@ export default function EventDetailPage() {
       await loadStartList(selectedHeatId);
       await refreshChecklist(token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось заполнить start list");
+      setError(err instanceof ApiError ? err.message : "Не удалось заполнить стартовый список");
     }
   }
 
@@ -765,7 +901,7 @@ export default function EventDetailPage() {
       setResultScore("");
       setResultPlace("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось сохранить draft result");
+      setError(err instanceof ApiError ? err.message : "Не удалось сохранить черновик результата");
     }
   }
 
@@ -826,16 +962,16 @@ export default function EventDetailPage() {
     }
   }
 
-  const liveHeat = heats.find((h) => h.status === "on_water") ?? heats.find((h) => h.status === "ready");
   const publishedResults = results.filter((r) => r.status === "published");
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: "overview", label: "Обзор" },
+    { id: "overview", label: isAthleteView ? "Мой старт" : canModerate ? "Пульт" : "Обзор" },
     { id: "checklist", label: `Подготовка (${checklistDone}/${checklist.length || 7})` },
     { id: "participants", label: `Состав (${participants.length})` },
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "protocol", label: `Протокол (${protocols.length})` },
+    { id: "moments", label: `Моменты (${fieldMoments.length})` },
     { id: "scoring", label: "Судейство" },
     { id: "heats", label: `Заезды (${heats.length})` },
     { id: "results", label: "Результаты" },
@@ -1016,7 +1152,7 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") && !canModerate ? (
+            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") && !canModerate && !isAthleteView ? (
               <div className={styles.nextAction}>
                 <strong>Следующий шаг: заявка</strong>
                 <p className={styles.muted}>Выберите категорию и отправьте заявку организатору.</p>
@@ -1026,7 +1162,7 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && myApp && !canModerate ? (
+            {!isGuest && myApp && !canModerate && !isAthleteView ? (
               <div className={styles.nextAction}>
                 <strong>Следующий шаг</strong>
                 <p className={styles.muted} style={{ margin: "0.35rem 0 0.5rem" }}>
@@ -1041,6 +1177,19 @@ export default function EventDetailPage() {
                     Открыть результаты
                   </button>
                 ) : null}
+              </div>
+            ) : null}
+
+            {canCaptureMoments && !canModerate && allowedTabs.includes("moments") ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: снять момент</strong>
+                <p className={styles.muted}>
+                  Бэкстейдж, взгляд пилота, маршал на старте — короткие кадры для эфира. Это не протокол
+                  судьи.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("moments")}>
+                  Открыть камеру
+                </button>
               </div>
             ) : null}
 
@@ -1065,6 +1214,29 @@ export default function EventDetailPage() {
 
             {tab === "overview" ? (
               <>
+                {isAthleteView && athleteSnap ? (
+                  <AthleteEventHome
+                    snapshot={athleteSnap}
+                    onOpenStartList={() => selectTab("heats")}
+                    onOpenResults={() => selectTab("results")}
+                    onApply={() => selectTab("apps")}
+                    canOpenStartList={allowedTabs.includes("heats")}
+                    canOpenResults={allowedTabs.includes("results")}
+                  />
+                ) : null}
+
+                {canModerate ? (
+                  <OrganizerControlRoom
+                    nowHeat={liveHeat}
+                    nowName={currentAthlete?.full_name}
+                    nowEntry={currentEntry}
+                    nextHeat={nextHeat}
+                    nextName={nextAthlete?.full_name}
+                    attention={attentionItems}
+                    onOpenTab={(id) => selectTab(id as TabId)}
+                  />
+                ) : null}
+
                 {detail.participants_count === 0 ? (
                   <p className={styles.muted}>
                     Состав этого события пуст. Импорт Excel привязывается к событию, выбранному в
@@ -1100,7 +1272,7 @@ export default function EventDetailPage() {
                       </div>
                       <div>
                         <dt>Режим оценки</dt>
-                        <dd>{rulesProfile.scoring_mode}</dd>
+                        <dd>{scoringEngineLabel(rulesProfile.scoring_mode)}</dd>
                       </div>
                     </dl>
                   </>
@@ -1420,6 +1592,18 @@ background: "var(--surface)",
               </>
             ) : null}
 
+            {tab === "moments" ? (
+              <FieldMomentsPanel
+                eventId={eventId}
+                heats={heats}
+                selectedHeatId={selectedHeatId}
+                canModerate={canModerateMoments}
+                archived={isArchived}
+                items={fieldMoments}
+                onChange={setFieldMoments}
+              />
+            ) : null}
+
             {tab === "protocol" ? (
               <>
                 <h2 className={styles.itemTitle}>Фото / PDF протокола</h2>
@@ -1570,42 +1754,71 @@ background: "var(--surface)",
 
             {tab === "scoring" ? (
               <>
-                <h2 className={styles.itemTitle}>Судейство в приложении</h2>
+                <h2 className={styles.itemTitle}>Сейчас оценивается</h2>
                 <p className={styles.muted}>
-                  Движок: <strong>{scoringEngine?.engine || "—"}</strong>
+                  Движок: <strong>{scoringEngineLabel(scoringEngine?.engine)}</strong>
                   {scoringEngine?.engine === "MANUAL_PLACE"
                     ? " — для этого события введите место на вкладке «Результаты» или приложите фото протокола."
                     : " — каждый судья вводит критерии; организатор считает итог и отправляет в результаты."}
                 </p>
                 {scoringEngine && scoringEngine.engine !== "MANUAL_PLACE" && canJudge ? (
                   <div className={styles.panel}>
-                    <label className={styles.muted}>
-                      Участник{" "}
-                      <select
-                        value={scoreParticipantId}
-                        onChange={(e) => setScoreParticipantId(e.target.value)}
-                        style={{
-                          marginLeft: "0.35rem",
-                          padding: "0.45rem 0.5rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-background: "var(--surface)",
-                            color: "var(--ink)",
-                        }}
-                      >
-                        <option value="">— выберите —</option>
-                        {participants.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.full_name}
-                          </option>
-                        ))}
-                      </select>
+                    {currentAthlete && currentEntry ? (
+                      <div className={styles.currentAthlete} role="status">
+                        <div className={styles.itemHead}>
+                          <strong>
+                            {currentEntry.bib_number ? `№${currentEntry.bib_number} · ` : ""}
+                            {currentAthlete.full_name}
+                          </strong>
+                          <span className={styles.phaseChip}>
+                            {labelOf(ENTRY_STATUS_LABELS, currentEntry.status)}
+                          </span>
+                        </div>
+                        <p className={styles.muted} style={{ margin: "0.35rem 0 0" }}>
+                          {liveHeat ? `Заезд ${liveHeat.code}` : "Заезд не выбран"}
+                          {currentAthlete.athlete_id ? ` · ${currentAthlete.athlete_id}` : ""}
+                        </p>
+                        {String(scoreParticipantId) !== String(currentAthlete.id) ? (
+                          <button
+                            type="button"
+                            className="btn btnPrimary btnSm"
+                            style={{ marginTop: "0.6rem" }}
+                            onClick={() => setScoreParticipantId(String(currentAthlete.id))}
+                          >
+                            Оценивать этого спортсмена
+                          </button>
+                        ) : (
+                          <p className={styles.muted} style={{ marginTop: "0.5rem" }}>
+                            Оценка идёт текущему спортсмену на воде.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className={styles.muted}>Нет спортсмена со статусом «на воде» или «готов» — выберите вручную.</p>
+                    )}
+                    <label className={styles.muted} htmlFor="judge-target">
+                      Другой участник (если цель не на воде)
                     </label>
+                    <select
+                      id="judge-target"
+                      className={styles.fieldControl}
+                      value={scoreParticipantId}
+                      onChange={(e) => setScoreParticipantId(e.target.value)}
+                      aria-label="Участник для оценки"
+                    >
+                      <option value="">— выберите —</option>
+                      {participants.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name}
+                        </option>
+                      ))}
+                    </select>
                     <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
                       {scoringEngine.criteria.map((key) => (
-                        <label key={key} className={styles.muted}>
+                        <label key={key} className={styles.muted} htmlFor={`criterion-${key}`}>
                           {scoringEngine.criteria_labels_ru[key] || key}{" "}
                           <input
+                            id={`criterion-${key}`}
                             type="number"
                             min={0}
                             max={100}
@@ -1614,15 +1827,8 @@ background: "var(--surface)",
                             onChange={(e) =>
                               setCriteriaValues((prev) => ({ ...prev, [key]: e.target.value }))
                             }
-                            style={{
-                              marginLeft: "0.35rem",
-                              width: "6rem",
-                              padding: "0.35rem 0.5rem",
-                              borderRadius: "8px",
-                              border: "1px solid var(--line)",
-background: "var(--surface)",
-                            color: "var(--ink)",
-                            }}
+                            className={styles.fieldControl}
+                            style={{ width: "6rem", display: "inline-block" }}
                           />
                         </label>
                       ))}
@@ -1634,7 +1840,7 @@ background: "var(--surface)",
                         disabled={scoreBusy}
                         onClick={() => void onSubmitJudgeScore()}
                       >
-                        Сохранить лист судьи
+                        Сохранить оценку
                       </button>
                       {canModerate ? (
                         <button
@@ -1776,12 +1982,12 @@ background: "var(--surface)",
                                             onClick={() => void onHeatStatus(h, st)}
                                           >
                                             {st === "planned"
-                                              ? "План"
+                                              ? labelOf(HEAT_STATUS_LABELS, "planned")
                                               : st === "ready"
-                                                ? "Готов"
+                                                ? labelOf(HEAT_STATUS_LABELS, "ready")
                                                 : st === "on_water"
-                                                  ? "На воде"
-                                                  : "Финиш"}
+                                                  ? labelOf(HEAT_STATUS_LABELS, "on_water")
+                                                  : labelOf(HEAT_STATUS_LABELS, "completed")}
                                           </button>
                                         ))}
                                     </div>

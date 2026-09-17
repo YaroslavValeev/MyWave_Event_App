@@ -81,6 +81,20 @@ export function isBroadcastRole(value: string | undefined | null): boolean {
   return value === "commentator" || value === "media";
 }
 
+export function canCaptureFieldMoments(value: string | undefined | null): boolean {
+  return (
+    isStaffRole(value ?? "") ||
+    isBroadcastRole(value) ||
+    value === "support" ||
+    value === "chief_judge"
+  );
+}
+
+/** Организатор+ и главный судья могут отдать кадр в эфир или скрыть. */
+export function canModerateFieldMoments(value: string | undefined | null): boolean {
+  return isStaffRole(value ?? "") || value === "chief_judge";
+}
+
 /** Self-serve staff request — без platform_admin / event_admin. */
 export const REQUESTABLE_STAFF_ROLES = [
   "judge",

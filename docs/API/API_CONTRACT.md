@@ -116,6 +116,20 @@
 
 Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `other`. Файлы: JPG/PNG/WebP/PDF ≤15 МБ.
 
+## Field moments (0.5.11, ADR-0011)
+
+Полевые кадры для эфира (бэкстейдж / пилот / маршал), **не** official protocol. Гость и участник — 401/403. Файлы не на витрине.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/field-moments` | Bearer media/commentator/support/organizer+/chief_judge | список (`?heat_id=`) |
+| POST | `/api/v1/events/{id}/field-moments` | Bearer те же роли | multipart: `file`, `title?`, `pov?`, `heat_id?`, `notes?` |
+| PATCH | `/api/v1/events/{id}/field-moments/{id}` | Bearer | `title`/`pov`/`notes`; **status** draft\|approved\|withheld — только organizer+/chief_judge |
+| GET | `/api/v1/events/{id}/field-moments/{id}/file` | Bearer те же роли, что GET списка | файл |
+
+`pov`: `backstage` \| `boat_pilot` \| `start_marshal` \| `on_water` \| `crowd` \| `other`.  
+Фото JPG/PNG/WebP/HEIC ≤15 МБ; видео MP4/WebM/MOV ≤40 МБ. Путь `data/field-media/{slug}/`.
+
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | GET | `/api/v1/events/{id}/scoring/engine` | Bearer | meta движка по EventRulesProfile |

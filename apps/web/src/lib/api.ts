@@ -675,6 +675,82 @@ export function protocolCaptureFileUrl(eventId: number | string, captureId: numb
   return `${getApiBaseUrl()}/api/v1/events/${eventId}/protocol-captures/${captureId}/file`;
 }
 
+export type FieldMomentOut = {
+  id: number;
+  event_id: number;
+  heat_id: number | null;
+  title: string;
+  pov: string;
+  media_kind: "photo" | "video" | string;
+  status: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  notes: string | null;
+  created_by_user_id: number | null;
+  created_at: string;
+};
+
+export async function listFieldMoments(token: string, eventId: number | string) {
+  const payload = await apiFetch<{ items: FieldMomentOut[]; total: number }>(
+    `/api/v1/events/${eventId}/field-moments`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function uploadFieldMoment(
+  token: string,
+  eventId: number | string,
+  file: File,
+  meta: { title?: string; pov?: string; heat_id?: number; notes?: string },
+): Promise<FieldMomentOut> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", meta.title ?? "");
+  form.append("pov", meta.pov ?? "other");
+  if (meta.heat_id != null) form.append("heat_id", String(meta.heat_id));
+  if (meta.notes) form.append("notes", meta.notes);
+
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/events/${eventId}/field-moments`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = body?.error ?? body?.detail;
+    throw new ApiError(
+      typeof err === "string" ? err : err?.message ?? response.statusText,
+      response.status,
+      err?.code,
+    );
+  }
+  return body as FieldMomentOut;
+}
+
+export function updateFieldMoment(
+  token: string,
+  eventId: number | string,
+  momentId: number,
+  payload: { status?: string; notes?: string; title?: string; pov?: string },
+) {
+  return apiFetch<FieldMomentOut>(
+    `/api/v1/events/${eventId}/field-moments/${momentId}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function fieldMomentFileUrl(eventId: number | string, momentId: number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/field-moments/${momentId}/file`;
+}
+
 export type OfficialProtocolReadiness = {
   official_ready: boolean;
   warnings: string[];

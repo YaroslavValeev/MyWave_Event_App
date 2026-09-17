@@ -33,4 +33,4 @@
 - `/health` test.
 - Хотя бы один authz test (athlete не publish event).
 - Consent: отказ регистрации без документов; маскировка roster.
-- Документированный способ запуска: `pytest` из `services/api` (**104 passed** на 2026-09-16, цикл 0.5.10: каталог выдачи + bundled docs + roster lock).
+- Документированный способ запуска: `pytest` из `services/api` (**110 passed** на 2026-09-17, цикл 0.5.11: FieldMoment + каталог выдачи + roster lock).

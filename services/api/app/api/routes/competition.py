@@ -49,6 +49,7 @@ from app.schemas.competition import (
     TrainingSlotOut,
 )
 from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
+from app.schemas.field_moment import FieldMomentListResponse, FieldMomentOut, FieldMomentUpdate
 from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
 from app.schemas.official_protocol import OfficialProtocolBundle
 from app.schemas.scoring import (
@@ -101,6 +102,12 @@ from app.services.protocol_service import (
     list_protocol_captures,
     update_protocol_capture,
     upload_protocol_capture,
+)
+from app.services.field_moment_service import (
+    get_field_moment,
+    list_field_moments,
+    update_field_moment,
+    upload_field_moment,
 )
 from app.services.rules_profile_service import get_rules_profile, profile_to_out, upsert_rules_profile
 from app.services.official_protocol_service import (
@@ -831,6 +838,96 @@ def protocol_capture_file(
     if not path.is_file():
         raise_api_error(404, "file_missing", "Protocol file is not available on server")
     return FileResponse(path, filename=capture.file_name, media_type=capture.mime_type)
+
+
+@router.get("/{event_id}/field-moments", response_model=FieldMomentListResponse)
+def field_moments(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    heat_id: int | None = Query(default=None),
+) -> FieldMomentListResponse:
+    try:
+        items = list_field_moments(db, event_id=event_id, actor=user, heat_id=heat_id)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    out = [FieldMomentOut.model_validate(i) for i in items]
+    return FieldMomentListResponse(items=out, total=len(out))
+
+
+@router.post("/{event_id}/field-moments", response_model=FieldMomentOut, status_code=201)
+async def post_field_moment(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    pov: str = Form("other"),
+    heat_id: int | None = Form(None),
+    notes: str | None = Form(None),
+) -> FieldMomentOut:
+    try:
+        moment = upload_field_moment(
+            db,
+            event_id=event_id,
+            actor=user,
+            file=file,
+            title=title,
+            pov=pov,
+            heat_id=heat_id,
+            notes=notes,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return FieldMomentOut.model_validate(moment)
+
+
+@router.patch("/{event_id}/field-moments/{moment_id}", response_model=FieldMomentOut)
+def patch_field_moment(
+    event_id: int,
+    moment_id: int,
+    body: FieldMomentUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> FieldMomentOut:
+    try:
+        moment = update_field_moment(
+            db,
+            event_id=event_id,
+            moment_id=moment_id,
+            actor=user,
+            data=body,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return FieldMomentOut.model_validate(moment)
+
+
+@router.get("/{event_id}/field-moments/{moment_id}/file")
+def field_moment_file(
+    event_id: int,
+    moment_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> FileResponse:
+    try:
+        moment = get_field_moment(db, event_id=event_id, moment_id=moment_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+
+    base = settings.repo_root / "data" / "field-media"
+    path = (base / moment.relative_path).resolve()
+    if not str(path).startswith(str(base.resolve())):
+        raise_api_error(400, "invalid_path", "Некорректный путь файла")
+    if not path.is_file():
+        raise_api_error(404, "file_missing", "Файл момента недоступен на сервере")
+    return FileResponse(path, filename=moment.file_name, media_type=moment.mime_type)
 
 
 @router.get("/{event_id}/scoring/engine", response_model=ScoringEngineMetaOut)

@@ -54,7 +54,7 @@ participant, organizer, judge, chief_judge, commentator, media, support, federat
 - Capacitor/offline production.
 - Telegram/MAX как ядро UX.
 - Live judge/commentator full mode.
-- Медиа-хранилище full workflow.
+- Медиа-хранилище full workflow (EXIF, альбом спортсмена). **Срез 1:** FieldMoment — камера PWA для команды события (ADR-0011).
 - Consent full workflow (экспорт/удаление субъекта) — **минимальный grant/revoke Stage 1 есть** (ADR-0004).
 
 ## Acceptance (foundation)

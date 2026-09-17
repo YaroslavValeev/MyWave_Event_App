@@ -73,6 +73,54 @@ def test_document_upload_and_download(client, tmp_path, monkeypatch):
     assert client.get(f"/api/v1/events/{event_id}/documents", headers=org).json()["total"] == 0
 
 
+def test_document_rejects_empty_oversize_and_path_traversal(client, tmp_path, monkeypatch):
+    org = auth_header(client, "doc-sec@example.com", "organizer")
+    event_id = _create_published_event(client, org, "doc-sec-event")
+
+    from app.config import Settings, get_settings
+    import app.services.document_service as document_service
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(Settings, "repo_root", property(lambda self: tmp_path))
+    monkeypatch.setattr(document_service, "MAX_UPLOAD_BYTES", 64)
+    get_settings.cache_clear()
+    (tmp_path / "data" / "documents").mkdir(parents=True, exist_ok=True)
+
+    empty = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("empty.pdf", BytesIO(b""), "application/pdf")},
+        data={"title": "Пустой", "kind": "other"},
+    )
+    assert empty.status_code == 400
+    assert empty.json()["error"]["code"] == "empty_file"
+
+    huge = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("big.pdf", BytesIO(b"%PDF" + b"x" * 80), "application/pdf")},
+        data={"title": "Большой", "kind": "other"},
+    )
+    assert huge.status_code == 400
+    assert huge.json()["error"]["code"] == "file_too_large"
+
+    traversal = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("../../etc/passwd.pdf", BytesIO(b"%PDF-1.4 ok"), "application/pdf")},
+        data={"title": "Traversal", "kind": "other"},
+    )
+    assert traversal.status_code == 201, traversal.text
+    stored = traversal.json()["file_name"]
+    assert ".." not in stored
+    assert stored.endswith("passwd.pdf")
+    downloaded = client.get(
+        f"/api/v1/events/{event_id}/documents/{traversal.json()['id']}/file",
+        headers=org,
+    )
+    assert downloaded.status_code == 200
+
+
 def test_document_rejects_exe(client, tmp_path, monkeypatch):
     org = auth_header(client, "doc-bad@example.com", "organizer")
     event_id = _create_published_event(client, org, "doc-bad-event")

@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
-Дата: 2026-09-16  
-Версия продукта: **0.5.10** + **Champ App UX/UI 1.0 foundation** (ветка `cursor/p0-import-center-athlete-link`)  
+Дата: 2026-09-17  
+Версия продукта: **0.5.10** на staging + **0.5.11 FieldMoment в коде** (не задеплоено) + **Champ App UX/UI 1.0 foundation** (ветка `cursor/p0-import-center-athlete-link`, SHA `6ce503b`)  
 Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — в работе по PR-плану. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 
 Сверка с journeys: [ROLE_JOURNEYS_RECONCILIATION.md](./ROLE_JOURNEYS_RECONCILIATION.md).  
@@ -12,10 +12,12 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 
 - Host: Timeweb VPS `62.113.42.227` (`mywave-bot-server`), каталог `/var/www/mywave-event-app` — отдельно от ботов.
 - Стек: `docker compose -f docker-compose.staging.yml`, `APP_ENV=staging`.
-- Web: http://62.113.42.227:3001 — HTTP 200 (2026-09-15T14:50Z).
-- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}`.
-- `GET /api/v1/roles` включает `chief_judge` (10 ролей) — образ **0.5.9** поднят.
-- Гость: `GET /api/v1/events` → `total: 0` — оба события в **`draft`**, витрина их скрывает. Внутри БД (2026-09-15T15:03Z): event 1 Казань + event 2 «Всероссийские…», **40 heats / 110 draft results**, roster не lock. Backup: `/var/backups/mywave-event-app/mywave_event_staging.20260915T150340Z.db` (580K).
+- Выкат **0.5.10** (`a449cb1` → `6ce503b`), 2026-09-17T10:08Z. Контейнеры Healthy/Started. Production не трогали.
+- Backup перед выкатом: `/var/backups/mywave-event-app/mywave_event_staging.20260917T100554Z.db` (580K). Предыдущий: `...20260915T150340Z.db`.
+- Web: http://62.113.42.227:3001/projects/checklist-org — HTTP 200 (на сервере `web 200`).
+- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-09-17T10:08:49Z).
+- Manifest: версия **0.5.10**, `available_count: 1` — documentation `available`; android / ios / source `unavailable` (URL сборок **не** прописаны — так и должно быть).
+- Гость: события Казани по-прежнему `draft` на витрине. Казань не публиковать.
 - SMTP нет — OTP в mail_outbox.
 - Это **не** production. Production не менялся.
 
@@ -28,6 +30,7 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - Roster lock: фиксирует состав; check-in и судейство остаются.
 - Rules catalog + EventRulesProfile (FVLS/IWWF).
 - ProtocolCapture (фото/PDF); publish протокола — chief_judge.
+- **FieldMoment (код 0.5.11, не на staging 0.5.10):** камера PWA для media/commentator/support/organizer+/chief_judge; не протокол, не витрина.
 - Structured scoring, official protocol export, Athlete ID, archive lock.
 - **UX 0.5.6–0.5.7:** публичная витрина, светлая тема, закрытые ролевые пути.
 - **0.5.8:** AthleteProfile + Import Center + pending_claim. ADR-0007 **accepted**.
@@ -35,12 +38,14 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - **0.5.9:** ADR-0008 roster lock + chief_judge; journeys в `docs/PRODUCT/journeys/`.
 - **Champ App UX/UI 1.0 (foundation):** `UX_UI_CANON.md`; Russian-only UI в AGENTS/PRD; Events (Идёт сейчас / Ближайшие / Мои / Архив); nearest event; mobile bottom nav без «Выйти»; notifications deep-link; live heat primary CTA + `•••`; «Следующий шаг» на карточке события; Field foundation; user-facing ошибки без «API/dev».
 - **0.5.10:** карточка выдачи MyWave Event App в «Проекты → Чек-лист организатора» и на вкладке подготовки события. API `app-downloads` + analytics ingest. Android/iOS/source **не подключены**. Документация установки bundled. ADR-0009.
+- **Ролевые экраны (код, не поле):** Athlete «Мой старт», Organizer Control Room на обзоре, Judge «Сейчас оценивается» с автовыбором спортсмена на воде. ADR-0010: JWT в localStorage принят явно (TD-02).
 
 ## Частично / нет
 
-- Полные role modes: Athlete Event Home, Organizer Control Room, Judge current-athlete, Broadcast — по PR 3–6 плана UX 1.0
+- Полные role modes: Athlete Event Home / Organizer Control Room / Judge current — **первый срез на карточке события** (обзор + судейство); вкладки кабинета ещё есть. Broadcast — нет.
 - Казань: нет баллов части финалов и части квалиф.; O40 только пьедестал WB boat men
-- Commentator / photographer / EXIF / ParserNews / volunteer / boat captain / broadcast
+- Commentator / photographer: FieldMoment-срез (камера) в коде; нет EXIF, Athlete ID match, личного альбома, публикации наружу
+- ParserNews / volunteer / boat captain / полный broadcast rundown
 - PDF protocol export
 - SMTP — owner
 - Telegram/MAX/native — не Stage 1 этого репо
@@ -51,16 +56,21 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 
 ## Следующий P0
 
-1. PR-план UX 1.0: Athlete Event Home → Organizer Control Room → Live Heat polish → Judge Mode.
-2. По желанию владельца: статус **карточки** Казани `draft` → `published` или `live` (витрина). Результаты не публиковать.
-3. Roster lock на Казани, когда состав проверен. Official publish — только `chief_judge`.
-4. SMTP на staging.
-5. Медиа/эфир/волонтёры — после стабилизации scoring/publish.
+Порядок: [QA_AND_UX_HARDENING_PLAN.md](../PRODUCT/QA_AND_UX_HARDENING_PLAN.md). Native Android/iOS **после** волн 0–4.
+
+1. ~~Деплой **0.5.10** на staging~~ — сделано 2026-09-17, SHA `6ce503b`, manifest OK.
+2. Полевой прогон трёх ролей на текущем PWA (баги, 403 publish, roster lock, live heat).
+3. UX по канону: Athlete Event Home → Organizer Control Room → Judge Mode + вкладка «Моменты» (срез в коде, на staging из `6ce503b` — без FieldMoment и последних ролевых экранов).
+4. Письмо сайту — точный текст в `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` (вариант A; staging уже 0.5.10, Android/iOS по-прежнему недоступны).
+5. SMTP на staging — владелец.
+6. Карточка Казани `draft` → витрина только явным решением; результаты не публиковать.
+7. Native-сборки и реальные `MYWAVE_EVENT_APP_*_URL` — только после чеклиста волн 0–4. **Не** подставлять example.org / xxxxxxxx.
 
 ## Проверки
 
-- pytest: **104 passed** (каталог выдачи 0.5.10)
+- pytest: **110 passed** (FieldMoment камера + каталог выдачи + authz участника + upload + analytics PII)
 - tsc: **passed**
 - lint (next lint): **passed**, без warning
-- production build web: **passed** (маршрут `/projects/checklist-org` в выдаче)
-- smoke staging 0.5.9: health + roles + web 200; БД: 2 draft events, 40 heats, 110 draft results; backup 20260915T150340Z
+- production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
+- smoke staging **0.5.10** (2026-09-17T10:08Z): health `db_ok`; manifest documentation available, android/ios/source unavailable; `/projects/checklist-org` 200; backup `20260917T100554Z`. FieldMoment на staging **ещё нет**.
+- npm audit (prod): 4 CVE в дереве `next` (в т.ч. RCE Image Optimization на Windows) — **не** закрыто слепым `audit fix`; TD-19

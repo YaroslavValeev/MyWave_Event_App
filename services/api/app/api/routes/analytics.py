@@ -63,13 +63,30 @@ _SAFE_PROPERTY_KEYS = frozenset(
     }
 )
 
+_BLOCKED_PROPERTY_KEYS = frozenset(
+    {
+        "email",
+        "phone",
+        "phone_e164",
+        "full_name",
+        "name",
+        "token",
+        "access_token",
+        "password",
+        "otp",
+        "code",
+        "address",
+        "athlete_id",
+    }
+)
+
 
 def _sanitize_properties(raw: dict[str, Any] | None) -> dict[str, Any]:
     if not raw:
         return {}
     cleaned: dict[str, Any] = {}
     for key, value in raw.items():
-        if key not in _SAFE_PROPERTY_KEYS:
+        if key in _BLOCKED_PROPERTY_KEYS or key not in _SAFE_PROPERTY_KEYS:
             continue
         if isinstance(value, (str, int, float, bool)) or value is None:
             if isinstance(value, str) and len(value) > 80:

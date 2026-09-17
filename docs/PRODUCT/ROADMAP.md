@@ -66,9 +66,11 @@
 - EXIF/timecode ↔ интервал выступления
 - спортсмен видит свои медиа без ручного поиска
 
+**Срез 1 (0.5.11, ADR-0011):** FieldMoment — камера PWA для команды события (бэкстейдж / пилот / маршал). Не заменяет этот этап.
+
 ## Этап 6 — Archive
 
-После `completed` → read-only архив: roster, heats, protocols, results, media, Athlete IDs, документы. — **done (0.5.5)** (media ещё нет)
+После `completed` → read-only архив: roster, heats, protocols, results, media, Athlete IDs, документы. — **done (0.5.5)** для roster/results; FieldMoment (0.5.11) — внутренние кадры команды, не персональный медиа-альбом.
 
 ## Этап 7 — ParserNews / Content Engine
 

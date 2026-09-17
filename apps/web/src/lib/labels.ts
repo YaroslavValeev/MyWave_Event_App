@@ -68,6 +68,21 @@ export const DOWNLOAD_STATE_LABELS: Record<string, string> = {
   success: "Скачивание запущено",
 };
 
+export const FIELD_POV_LABELS: Record<string, string> = {
+  backstage: "Бэкстейдж",
+  boat_pilot: "Глазами пилота",
+  start_marshal: "Маршал на старте",
+  on_water: "На воде",
+  crowd: "Зрители и эмоции",
+  other: "Другой момент",
+};
+
+export const FIELD_MOMENT_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик команды",
+  approved: "Для эфира",
+  withheld: "Скрыт",
+};
+
 export function labelOf(map: Record<string, string>, value: string | null | undefined): string {
   if (!value) return "—";
   return map[value] ?? value;

@@ -78,6 +78,29 @@ SoT подготовки — в Event App, не на сайте.
 
 Document upload пишет в существующую таблицу `documents` + файлы `data/documents/{slug}/`.
 
+### FieldMoment (0.5.11, ADR-0011)
+
+Эмоциональные/операционные кадры площадки. **Не** `ProtocolCapture`. Гость и участник файлы не получают.
+
+| Поле | Тип | Обяз. | Описание |
+|------|-----|-------|----------|
+| id | int | ✓ | PK |
+| event_id | int | ✓ | → Event |
+| heat_id | int | | → Heat, опционально |
+| title | string | ✓ | если пусто при upload — русское имя `pov` |
+| pov | string | ✓ | `backstage` \| `boat_pilot` \| `start_marshal` \| `on_water` \| `crowd` \| `other` |
+| media_kind | string | ✓ | `photo` \| `video` |
+| status | string | ✓ | `draft` \| `approved` \| `withheld` |
+| file_name | string | ✓ | исходное имя (санитизировано) |
+| relative_path | string | ✓ | `{slug}/{uuid}_{name}` под `data/field-media/` |
+| mime_type | string | ✓ | |
+| byte_size | int | ✓ | |
+| notes | text | | |
+| created_by_user_id | int | | → User |
+| created_at | datetime | ✓ | |
+
+Съёмка: `media`, `commentator`, `support`, organizer+, `chief_judge`. Смену статуса — organizer+ / `chief_judge`.
+
 
 - Один SoT на инсталляцию приложения.
 - UUID (строка) для публичных идентификаторов.

@@ -179,6 +179,36 @@ def test_analytics_accepts_download_events(client):
     assert response.json()["event"] == "mywave_event_app_card_viewed"
 
 
+def test_analytics_strips_pii_from_stored_payload(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.audit import AuditEvent
+
+    response = client.post(
+        "/api/v1/analytics/events",
+        json={
+            "event": "mywave_event_app_card_viewed",
+            "context": "projects/checklist-org",
+            "channel": "web",
+            "properties": {
+                "app_id": "mywave-event-app",
+                "email": "secret@example.com",
+                "phone": "+79001234567",
+                "token": "super-secret",
+            },
+        },
+    )
+    assert response.status_code == 202
+    row = db_session.execute(
+        select(AuditEvent).where(AuditEvent.action == "analytics.mywave_event_app_card_viewed")
+    ).scalar_one()
+    blob = row.payload_json or ""
+    assert "secret@example.com" not in blob
+    assert "+79001234567" not in blob
+    assert "super-secret" not in blob
+    assert "mywave-event-app" in blob
+
+
 def test_analytics_rejects_unknown_event(client):
     response = client.post("/api/v1/analytics/events", json={"event": "not_a_real_event"})
     assert response.status_code == 400

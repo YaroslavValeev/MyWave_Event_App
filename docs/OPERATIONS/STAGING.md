@@ -80,6 +80,60 @@ curl -fsS http://127.0.0.1:8001/api/v1/roles
 
 Казань не публиковать автоматически. Нужен пользователь с ролью `chief_judge` для official publish. Rollback: предыдущий SHA + restore backup DB.
 
+### Обновление staging до 0.5.10 (каталог выдачи + UX foundation)
+
+Ветка `cursor/p0-import-center-athlete-link` (или tag после merge). **Production не трогать.** Сначала backup SQLite.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+# volume SQLite — имя: docker volume ls | grep mwe
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/app-downloads/manifest
+curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001/projects/checklist-org
+```
+
+Ожидание manifest: `documentation.state = available`; `android` / `ios` / `source` = `unavailable`. Казань не публиковать. Письмо сайту (`docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`) отправлять **после** этого smoke.
+
+Факт на 2026-09-17: remote staging выкачен до **0.5.10** (`6ce503b`).
+
+### Обновление staging до 0.5.11 (FieldMoment камера + ролевые экраны)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. Сначала backup SQLite в docker volume.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/app-downloads/manifest
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/projects/checklist-org
+```
+
+Ожидание health: `"app"` содержит Staging, `db_ok: true`. OpenAPI/version API = **0.5.11**. Manifest: documentation available, android/ios/source unavailable. Таблица `field_moments` создаётся `create_all` при старте API.
+
+Smoke UI (после входа организатором/медиа): карточка события → вкладка **Моменты**; участник вкладку не видит.
+
+Rollback: предыдущий SHA `6ce503b` + restore backup DB. Файлы `data/field-media` в контейнере окажутся под `/data/field-media` (repo_root в Docker = `/`).
+
 ## Что staging не делает
 
 - Не заменяет production.
