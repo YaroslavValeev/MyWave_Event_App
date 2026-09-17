@@ -49,6 +49,7 @@ from app.schemas.competition import (
     TrainingSlotOut,
 )
 from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
+from app.schemas.field_moment import FieldMomentListResponse, FieldMomentOut, FieldMomentUpdate
 from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
 from app.schemas.official_protocol import OfficialProtocolBundle
 from app.schemas.scoring import (
@@ -70,6 +71,7 @@ from app.services.application_service import (
 )
 from app.services.checklist_service import ensure_checklist, set_checklist_item
 from app.services.competition_service import (
+    build_schedule_hint,
     event_counts,
     get_document,
     list_categories,
@@ -101,6 +103,12 @@ from app.services.protocol_service import (
     update_protocol_capture,
     upload_protocol_capture,
 )
+from app.services.field_moment_service import (
+    get_field_moment,
+    list_field_moments,
+    update_field_moment,
+    upload_field_moment,
+)
 from app.services.rules_profile_service import get_rules_profile, profile_to_out, upsert_rules_profile
 from app.services.official_protocol_service import (
     build_official_protocol_bundle,
@@ -117,6 +125,7 @@ from app.services.scoring_service import (
 from app.domain.scoring_engines import engine_meta
 from app.services.event_service import EventServiceError, get_event, is_event_archived
 from app.models.protocol_capture import ProtocolCapture
+from app.models.athlete import AthleteProfile
 from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/events", tags=["competition"])
@@ -188,14 +197,21 @@ def participants(
         raise_api_error(exc.status_code, exc.code, exc.message)
     masked: list[ParticipantOut] = []
     user_ids = {item.user_id for item in items if item.user_id}
+    profile_ids = {item.athlete_profile_id for item in items if item.athlete_profile_id}
     athlete_map: dict[int, str | None] = {}
+    profile_map: dict[int, str | None] = {}
     if user_ids:
         for row in db.scalars(select(UserModel).where(UserModel.id.in_(user_ids))).all():
             athlete_map[row.id] = row.athlete_id
+    if profile_ids:
+        for row in db.scalars(select(AthleteProfile).where(AthleteProfile.id.in_(profile_ids))).all():
+            profile_map[row.id] = row.athlete_id
     for item in items:
         out = ParticipantOut.model_validate(item)
         out.full_name = public_participant_name(db, item, user)
-        if item.user_id:
+        if item.athlete_profile_id and item.athlete_profile_id in profile_map:
+            out.athlete_id = profile_map.get(item.athlete_profile_id)
+        elif item.user_id:
             out.athlete_id = athlete_map.get(item.user_id)
         masked.append(out)
     return ParticipantListResponse(items=masked, total=len(masked))
@@ -331,6 +347,7 @@ async def post_document(
     kind: str = Form("other"),
     language: str | None = Form(None),
     description: str | None = Form(None),
+    access_class: str = Form("public"),
 ) -> DocumentOut:
     try:
         doc = upload_document(
@@ -342,6 +359,7 @@ async def post_document(
             kind=kind,
             language=language,
             description=description,
+            access_class=access_class,
             repo_root=settings.repo_root,
             audit_enabled=settings.enable_audit_log,
         )
@@ -822,6 +840,96 @@ def protocol_capture_file(
     return FileResponse(path, filename=capture.file_name, media_type=capture.mime_type)
 
 
+@router.get("/{event_id}/field-moments", response_model=FieldMomentListResponse)
+def field_moments(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    heat_id: int | None = Query(default=None),
+) -> FieldMomentListResponse:
+    try:
+        items = list_field_moments(db, event_id=event_id, actor=user, heat_id=heat_id)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    out = [FieldMomentOut.model_validate(i) for i in items]
+    return FieldMomentListResponse(items=out, total=len(out))
+
+
+@router.post("/{event_id}/field-moments", response_model=FieldMomentOut, status_code=201)
+async def post_field_moment(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    pov: str = Form("other"),
+    heat_id: int | None = Form(None),
+    notes: str | None = Form(None),
+) -> FieldMomentOut:
+    try:
+        moment = upload_field_moment(
+            db,
+            event_id=event_id,
+            actor=user,
+            file=file,
+            title=title,
+            pov=pov,
+            heat_id=heat_id,
+            notes=notes,
+            repo_root=settings.repo_root,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return FieldMomentOut.model_validate(moment)
+
+
+@router.patch("/{event_id}/field-moments/{moment_id}", response_model=FieldMomentOut)
+def patch_field_moment(
+    event_id: int,
+    moment_id: int,
+    body: FieldMomentUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> FieldMomentOut:
+    try:
+        moment = update_field_moment(
+            db,
+            event_id=event_id,
+            moment_id=moment_id,
+            actor=user,
+            data=body,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return FieldMomentOut.model_validate(moment)
+
+
+@router.get("/{event_id}/field-moments/{moment_id}/file")
+def field_moment_file(
+    event_id: int,
+    moment_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> FileResponse:
+    try:
+        moment = get_field_moment(db, event_id=event_id, moment_id=moment_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+
+    base = settings.repo_root / "data" / "field-media"
+    path = (base / moment.relative_path).resolve()
+    if not str(path).startswith(str(base.resolve())):
+        raise_api_error(400, "invalid_path", "Некорректный путь файла")
+    if not path.is_file():
+        raise_api_error(404, "file_missing", "Файл момента недоступен на сервере")
+    return FileResponse(path, filename=moment.file_name, media_type=moment.mime_type)
+
+
 @router.get("/{event_id}/scoring/engine", response_model=ScoringEngineMetaOut)
 def scoring_engine_meta(event_id: int, db: DbSession, user: CurrentUser) -> ScoringEngineMetaOut:
     try:
@@ -991,16 +1099,5 @@ def schedule_hint(event_id: int, db: DbSession, user: OptionalUser) -> ScheduleH
         event = get_event(db, event_id=event_id, actor=user)
     except EventServiceError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
-    _ = event
-    return ScheduleHint(
-        summary=(
-            "Официальные тренировки 11–12.08.2026: Вейкборд — оз. Кабан; "
-            "Вейксерф — ул. Торфяная, 83. Актуальные слоты загружены из Excel."
-        ),
-        notes=[
-            "11.08 — запасной тренировочный день",
-            "12.08 — основные тренировочные слоты",
-            "13.08 — квалификация · 14.08 полуфиналы · 15.08 финалы · 16.08 резерв",
-            "Вкладка «ЧП России» в Excel — реестр заявок (не расписание); телефоны импортируются в User для phone-login",
-        ],
-    )
+    summary, notes = build_schedule_hint(db, event)
+    return ScheduleHint(summary=summary, notes=notes)

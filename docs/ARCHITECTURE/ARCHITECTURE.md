@@ -36,4 +36,6 @@ SQLite (local) / PostgreSQL (prod DATABASE_URL)
 
 JWT Bearer. Dev-login только в development/test.  
 Регистрация: phone + email + обязательные согласия `terms_of_use` / `privacy_policy`.  
+Импортированные телефоны получают `User.status=pending_claim`: OTP обязателен, затем подтверждение связи `AccountAthleteLink`.  
+Канонический **MyWave Athlete ID** живёт в `AthleteProfile` (не телефон и не ФИО).  
 Критичные статусы дублируются в in-app `Notification`, пока SMTP не настроен.

@@ -4,6 +4,7 @@ export const ROLES = [
   "participant",
   "organizer",
   "judge",
+  "chief_judge",
   "commentator",
   "media",
   "support",
@@ -18,6 +19,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   participant: "Участник",
   organizer: "Организатор",
   judge: "Судья",
+  chief_judge: "Главный судья",
   commentator: "Комментатор",
   media: "Медиа",
   support: "Поддержка",
@@ -64,16 +66,39 @@ export function isStaffRole(value: string): boolean {
 }
 
 export function isJudgeRole(value: string | undefined | null): boolean {
-  return value === "judge" || isStaffRole(value ?? "");
+  return value === "judge" || value === "chief_judge" || isStaffRole(value ?? "");
+}
+
+export function isChiefJudgeRole(value: string | undefined | null): boolean {
+  return value === "chief_judge";
+}
+
+export function canPublishOfficialResults(value: string | undefined | null): boolean {
+  return value === "chief_judge" || value === "platform_admin";
 }
 
 export function isBroadcastRole(value: string | undefined | null): boolean {
   return value === "commentator" || value === "media";
 }
 
+export function canCaptureFieldMoments(value: string | undefined | null): boolean {
+  return (
+    isStaffRole(value ?? "") ||
+    isBroadcastRole(value) ||
+    value === "support" ||
+    value === "chief_judge"
+  );
+}
+
+/** Организатор+ и главный судья могут отдать кадр в эфир или скрыть. */
+export function canModerateFieldMoments(value: string | undefined | null): boolean {
+  return isStaffRole(value ?? "") || value === "chief_judge";
+}
+
 /** Self-serve staff request — без platform_admin / event_admin. */
 export const REQUESTABLE_STAFF_ROLES = [
   "judge",
+  "chief_judge",
   "organizer",
   "commentator",
   "media",

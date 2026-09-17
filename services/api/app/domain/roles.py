@@ -9,6 +9,7 @@ class Role(str, Enum):
     participant = "participant"
     organizer = "organizer"
     judge = "judge"
+    chief_judge = "chief_judge"
     commentator = "commentator"
     media = "media"
     support = "support"
@@ -34,6 +35,7 @@ EVENT_ADMIN_READ_ROLES: frozenset[Role] = frozenset(
         Role.federation_manager,
         Role.event_admin,
         Role.platform_admin,
+        Role.chief_judge,
     }
 )
 
@@ -43,6 +45,12 @@ AUDIT_READ_ROLES: frozenset[Role] = frozenset(
         Role.platform_admin,
     }
 )
+
+# Organizer/scorer verifies drafts; chief judge (or platform_admin) publishes.
+RESULT_VERIFY_ROLES: frozenset[Role] = EVENT_WRITE_ROLES | frozenset({Role.chief_judge})
+RESULT_PUBLISH_ROLES: frozenset[Role] = frozenset({Role.chief_judge, Role.platform_admin})
+ROSTER_LOCK_ROLES: frozenset[Role] = EVENT_WRITE_ROLES
+JUDGE_SCORE_ROLES: frozenset[Role] = EVENT_WRITE_ROLES | frozenset({Role.judge, Role.chief_judge})
 
 
 def parse_role(value: str | Role) -> Role:

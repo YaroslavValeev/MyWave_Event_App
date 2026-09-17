@@ -1,7 +1,7 @@
 # PRD — MyWave Event App
 
-Статус: канонический (Этап 1 + consent)  
-Дата: 2026-08-24  
+Статус: канонический (Этап 1 + consent + Champ App UX/UI 1.0)  
+Дата: 2026-09-15  
 Владелец: MyWave
 
 ## Проблема
@@ -11,11 +11,25 @@
 ## Продукт
 
 **MyWave Event App** — standalone цифровая платформа соревнований.  
-Альтернативное документационное имя: `FVLS × MyWave Competition Hub` (не переименовывать код без решения владельца).
+Альтернативное документационное имя: `FVLS × MyWave Competition Hub` (не переименовывать код без решения владельца).  
+Рабочее имя продуктовой итерации UI: **Champ App** (UX/UI 1.0 — Role Based + Live First).
+
+## UX / Product principles
+
+- интерфейс **Russian-only**;
+- **Role Based** — разные presentation experiences при общей модели данных;
+- **Live First** — текущий заезд, текущий спортсмен, «требует внимания»;
+- **task-first**, а не module-first;
+- **mobile-first**;
+- API/DB остаются Source of Truth;
+- live-operation safety важнее визуальных эффектов;
+- не переписывать рабочий backend ради redesign без необходимости.
+
+Канон деталей: [UX_UI_CANON.md](./UX_UI_CANON.md).
 
 ## Пользователи
 
-participant, organizer, judge, commentator, media, support, federation_manager, event_admin, platform_admin.
+participant, organizer, judge, chief_judge, commentator, media, support, federation_manager, event_admin, platform_admin.
 
 ## Цели Этапа 1
 
@@ -40,7 +54,7 @@ participant, organizer, judge, commentator, media, support, federation_manager, 
 - Capacitor/offline production.
 - Telegram/MAX как ядро UX.
 - Live judge/commentator full mode.
-- Медиа-хранилище full workflow.
+- Медиа-хранилище full workflow (EXIF, альбом спортсмена). **Срез 1:** FieldMoment — камера PWA для команды события (ADR-0011).
 - Consent full workflow (экспорт/удаление субъекта) — **минимальный grant/revoke Stage 1 есть** (ADR-0004).
 
 ## Acceptance (foundation)

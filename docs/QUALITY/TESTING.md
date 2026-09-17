@@ -1,6 +1,6 @@
 # Testing Strategy
 
-**Дата:** 2026-08-04  
+**Дата:** 2026-09-16  
 
 ## 1. Пирамида
 
@@ -25,12 +25,12 @@
 
 ## 4. Что не тестируем как «готовое мобильное»
 
-- APK/IPA — отсутствуют.
-- Download Center patch — живёт в архиве; не gate основного app CI.
+- APK/IPA — отсутствуют, пока env не содержит реальный HTTPS.
+- Архивный Flask Download Center не gate основного app CI. Runtime выдачи покрыт `tests/test_app_downloads.py`.
 
 ## 5. Критерий готовности Stage 1 testing
 
 - `/health` test.
 - Хотя бы один authz test (athlete не publish event).
 - Consent: отказ регистрации без документов; маскировка roster.
-- Документированный способ запуска: `pytest` из `services/api` (**36 passed** на 2026-08-24).
+- Документированный способ запуска: `pytest` из `services/api` (**110 passed** на 2026-09-17, цикл 0.5.11: FieldMoment + каталог выдачи + roster lock).

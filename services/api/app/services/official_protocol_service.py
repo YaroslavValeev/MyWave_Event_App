@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import __version__
+from app.domain.roles import RESULT_VERIFY_ROLES, Role
 from app.models.judge_score import JudgeScore
 from app.models.protocol_capture import ProtocolCapture
 from app.models.result import Result
@@ -18,7 +19,7 @@ from app.models.user import User
 from app.schemas.official_protocol import OfficialProtocolBundle, OfficialProtocolReadiness
 from app.services.audit_service import append_audit
 from app.services.competition_service import list_categories, list_officials, list_participants
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, get_event
 from app.services.heat_service import list_heats, list_start_list
 from app.services.rules_profile_service import get_rules_profile, profile_to_out
 from app.services.scoring_service import resolve_engine_for_event, score_out
@@ -63,7 +64,7 @@ def build_official_protocol_bundle(
     event_id: int,
     actor: User,
 ) -> OfficialProtocolBundle:
-    if not can_write_events(actor):
+    if Role(actor.role) not in RESULT_VERIFY_ROLES:
         raise EventServiceError(
             "forbidden",
             "Insufficient role to export official protocol",

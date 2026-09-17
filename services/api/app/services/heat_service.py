@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -348,6 +348,12 @@ def update_start_list_status(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+def clear_start_list(db: Session, *, heat_id: int) -> None:
+    db.execute(delete(Run).where(Run.heat_id == heat_id))
+    db.execute(delete(StartListEntry).where(StartListEntry.heat_id == heat_id))
+    db.flush()
 
 
 def list_runs_for_heat(db: Session, *, event_id: int, heat_id: int, actor: User) -> list[Run]:

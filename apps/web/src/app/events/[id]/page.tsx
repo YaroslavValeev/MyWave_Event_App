@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppDownloadCard } from "@/components/AppDownloadCard";
 import { AppHeader } from "@/components/AppHeader";
+import { AthleteEventHome } from "@/components/AthleteEventHome";
+import { FieldMomentsPanel } from "@/components/FieldMomentsPanel";
+import { OrganizerControlRoom } from "@/components/OrganizerControlRoom";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   ApiError,
@@ -13,8 +17,10 @@ import {
   DocumentOut,
   EventDetail,
   EventRulesProfileOut,
+  FieldMomentOut,
   HeatOut,
   OfficialOut,
+  OfficialProtocolReadiness,
   ParticipantOut,
   ProtocolCaptureOut,
   ResultOut,
@@ -23,6 +29,7 @@ import {
   StartListEntryOut,
   TrainingSlotOut,
   addStartListEntry,
+  aggregateJudgeScores,
   createHeat,
   decideEventApplication,
   deleteDocument,
@@ -31,6 +38,7 @@ import {
   getEventDetail,
   getEventRulesProfile,
   getMyApplication,
+  getOfficialProtocol,
   getScheduleHint,
   getScoringEngine,
   getStoredToken,
@@ -40,23 +48,24 @@ import {
   listChecklist,
   listDocuments,
   listEventApplications,
+  listFieldMoments,
   listHeats,
+  listJudgeScores,
   listOfficials,
   listParticipants,
   listProtocolCaptures,
   listResults,
   listStartList,
   listTrainingSlots,
-  listJudgeScores,
-  aggregateJudgeScores,
-  submitJudgeScore,
+  lockEventRoster,
   officialProtocolDownloadUrl,
   officialProtocolHtmlUrl,
-  getOfficialProtocol,
-  OfficialProtocolReadiness,
   protocolCaptureFileUrl,
   submitApplication,
+  submitJudgeScore,
+  unlockEventRoster,
   updateChecklistItem,
+  updateEventStatus,
   updateHeatStatus,
   updateProtocolCapture,
   updateResultStatus,
@@ -64,16 +73,39 @@ import {
   uploadDocument,
   uploadProtocolCapture,
   upsertResultDraft,
-  updateEventStatus,
 } from "@/lib/api";
-import { formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
+import {
+  buildAthleteSnapshot,
+  buildAttentionItems,
+  findMyEntry,
+  findMyParticipant,
+  nextEntryAfter,
+  pickCurrentEntry,
+  pickLiveHeat,
+  pickNextHeat,
+  scoringEngineLabel,
+} from "@/lib/eventWorkspace";
+import { formatEventDate, formatEventPeriod, loginHref, rememberLastEvent } from "@/lib/format";
 import {
   DOCUMENT_KIND_LABELS,
   ENTRY_STATUS_LABELS,
+  HEAT_STATUS_LABELS,
   PROTOCOL_KIND_LABELS,
   labelOf,
+  nextEntryStatus,
+  nextEntryStatusLabel,
+  nextHeatStatus,
+  nextHeatStatusLabel,
 } from "@/lib/labels";
-import { isBroadcastRole, isJudgeRole, isStaffRole } from "@/lib/roles";
+import {
+  canCaptureFieldMoments,
+  canModerateFieldMoments,
+  canPublishOfficialResults,
+  isBroadcastRole,
+  isChiefJudgeRole,
+  isJudgeRole,
+  isStaffRole,
+} from "@/lib/roles";
 import styles from "../events.module.css";
 
 type TabId =
@@ -83,6 +115,7 @@ type TabId =
   | "slots"
   | "docs"
   | "protocol"
+  | "moments"
   | "scoring"
   | "heats"
   | "results"
@@ -95,6 +128,7 @@ const ALL_TABS: TabId[] = [
   "slots",
   "docs",
   "protocol",
+  "moments",
   "scoring",
   "heats",
   "results",
@@ -104,14 +138,17 @@ const ALL_TABS: TabId[] = [
 function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
   if (isGuest) return ["overview", "results"];
   if (isStaffRole(role ?? "")) return ALL_TABS;
+  if (isChiefJudgeRole(role)) {
+    return ["overview", "checklist", "scoring", "heats", "protocol", "moments", "results", "participants"];
+  }
   if (role === "judge") {
     return ["overview", "scoring", "heats", "protocol", "results", "participants"];
   }
   if (isBroadcastRole(role)) {
-    return ["overview", "heats", "results", "participants", "docs"];
+    return ["overview", "heats", "results", "participants", "docs", "moments"];
   }
   if (role === "support") {
-    return ["overview", "participants", "docs", "results", "apps"];
+    return ["overview", "participants", "docs", "results", "apps", "moments"];
   }
   return ["overview", "apps", "participants", "slots", "docs", "results"];
 }
@@ -138,6 +175,7 @@ export default function EventDetailPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [rulesProfile, setRulesProfile] = useState<EventRulesProfileOut | null>(null);
   const [protocols, setProtocols] = useState<ProtocolCaptureOut[]>([]);
+  const [fieldMoments, setFieldMoments] = useState<FieldMomentOut[]>([]);
   const [protocolTitle, setProtocolTitle] = useState("");
   const [protocolKind, setProtocolKind] = useState("judge_sheet");
   const [protocolBusy, setProtocolBusy] = useState(false);
@@ -167,14 +205,21 @@ export default function EventDetailPage() {
   const [club, setClub] = useState("");
   const [appMessage, setAppMessage] = useState<string | null>(null);
   const [appBusy, setAppBusy] = useState(false);
+  const [rosterBusy, setRosterBusy] = useState(false);
   const [tab, setTab] = useState<TabId>("overview");
   const user = getStoredUser();
   const isGuest = !user;
   const isArchived = Boolean(detail?.archived);
-  const canOrganize = isStaffRole(user?.role ?? "");
+  const role = user?.role ?? "";
+  const canOrganize = isStaffRole(role);
   const canModerate = canOrganize && !isArchived;
-  const canUploadProtocol = !isArchived && (canModerate || user?.role === "judge");
+  const canVerifyOfficial = !isArchived && (canOrganize || isChiefJudgeRole(role));
+  const canPublishOfficial = !isArchived && canPublishOfficialResults(role);
+  const rosterLocked = Boolean(detail?.roster_locked_at);
+  const canUploadProtocol = !isArchived && (canModerate || isJudgeRole(role));
   const canJudge = canUploadProtocol;
+  const canCaptureMoments = canCaptureFieldMoments(role);
+  const canModerateMoments = !isArchived && canModerateFieldMoments(role);
   const allowedTabs = visibleTabs(user?.role, isGuest);
 
   useEffect(() => {
@@ -207,7 +252,7 @@ export default function EventDetailPage() {
           return;
         }
 
-        const [parts, docs, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores] =
+        const [parts, docs, mine, checks, heatItems, resultItems, profile, protoItems, engine, scores, momentItems] =
           await Promise.all([
           listParticipants(token, eventId),
           listDocuments(token, eventId),
@@ -219,6 +264,7 @@ export default function EventDetailPage() {
           listProtocolCaptures(token, eventId).catch(() => []),
           getScoringEngine(token, eventId).catch(() => null),
           listJudgeScores(token, eventId).catch(() => []),
+          listFieldMoments(token, eventId).catch(() => []),
         ]);
         if (cancelled) return;
         setParticipants(parts);
@@ -230,12 +276,24 @@ export default function EventDetailPage() {
         setResults(resultItems);
         setRulesProfile(profile);
         setProtocols(protoItems);
+        setFieldMoments(momentItems);
         setScoringEngine(engine);
         setJudgeScores(scores);
         if (engine?.criteria?.length) {
           setCriteriaValues(Object.fromEntries(engine.criteria.map((c) => [c, ""])));
         }
-        if (heatItems.length > 0) setSelectedHeatId(heatItems[0].id);
+        const preferredHeat =
+          heatItems.find((h) => h.status === "on_water") ??
+          heatItems.find((h) => h.status === "ready") ??
+          heatItems[0];
+        if (preferredHeat) {
+          setSelectedHeatId(preferredHeat.id);
+          try {
+            setStartList(await listStartList(token, eventId, preferredHeat.id));
+          } catch {
+            setStartList([]);
+          }
+        }
         const stored = getStoredUser();
         if (stored && isStaffRole(stored.role)) {
           try {
@@ -329,6 +387,92 @@ export default function EventDetailPage() {
     return map;
   }, [categories]);
 
+  const liveHeat = useMemo(() => pickLiveHeat(heats), [heats]);
+  const nextHeat = useMemo(() => pickNextHeat(heats, liveHeat), [heats, liveHeat]);
+  const currentEntry = useMemo(() => pickCurrentEntry(startList), [startList]);
+  const isAthleteView = role === "participant";
+  const myParticipant = useMemo(
+    () => findMyParticipant(participants, user?.id, myApp),
+    [participants, user?.id, myApp],
+  );
+  const myEntry = useMemo(() => findMyEntry(startList, myParticipant), [startList, myParticipant]);
+  const myHeat = useMemo(
+    () => (myEntry ? heats.find((h) => h.id === myEntry.heat_id) : liveHeat),
+    [heats, myEntry, liveHeat],
+  );
+  const athleteSnap = useMemo(() => {
+    if (!isAthleteView) return null;
+    const catId = myParticipant?.category_id ?? myApp?.category_id ?? null;
+    const cat = catId != null ? catById.get(catId) : undefined;
+    return buildAthleteSnapshot({
+      displayName: user?.display_name || "Участник",
+      athleteId: myParticipant?.athlete_id || user?.athlete_id,
+      myApp,
+      participant: myParticipant,
+      entry: myEntry,
+      heat: myHeat,
+      startList,
+      categoryTitle: cat?.title || cat?.code || "",
+      results,
+    });
+  }, [
+    isAthleteView,
+    myParticipant,
+    myApp,
+    myEntry,
+    myHeat,
+    startList,
+    catById,
+    results,
+    user?.athlete_id,
+    user?.display_name,
+  ]);
+  const attentionItems = useMemo(() => {
+    if (!canModerate) return [];
+    const currentHasScore = currentEntry
+      ? judgeScores.some((s) => s.participant_id === currentEntry.participant_id)
+      : true;
+    return buildAttentionItems({
+      pendingApps: pendingApps.length,
+      rosterLocked,
+      participantsCount: participants.length,
+      verifiedResults: results.filter((r) => r.status === "verified").length,
+      liveHeat,
+      currentEntry,
+      currentHasScore,
+      checklistOpen: Math.max(0, checklist.length - checklistDone),
+    });
+  }, [
+    canModerate,
+    pendingApps.length,
+    rosterLocked,
+    participants.length,
+    results,
+    liveHeat,
+    currentEntry,
+    judgeScores,
+    checklist.length,
+    checklistDone,
+  ]);
+  const currentAthlete = currentEntry
+    ? participants.find((p) => p.id === currentEntry.participant_id)
+    : undefined;
+  const nextEntry = useMemo(() => {
+    if (!currentEntry) return startList.find((e) => e.status === "scheduled" || e.status === "checked_in");
+    return nextEntryAfter(startList, currentEntry.participant_id);
+  }, [currentEntry, startList]);
+  const nextAthlete = nextEntry
+    ? participants.find((p) => p.id === nextEntry.participant_id)
+    : undefined;
+
+  useEffect(() => {
+    if (!canJudge) return;
+    const current = pickCurrentEntry(startList);
+    if (current && !scoreParticipantId) {
+      setScoreParticipantId(String(current.participant_id));
+    }
+  }, [canJudge, startList, scoreParticipantId]);
+
   async function downloadDoc(doc: DocumentOut) {
     const token = getStoredToken();
     if (!token) return;
@@ -386,6 +530,36 @@ export default function EventDetailPage() {
       setError(err instanceof ApiError ? err.message : "Ошибка решения по заявке");
     } finally {
       setAppBusy(false);
+    }
+  }
+
+  async function onToggleRosterLock() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    const nextLock = !rosterLocked;
+    const prompt = nextLock
+      ? "Зафиксировать состав? Новые заявки и импорт состава будут закрыты. Check-in и судейство останутся доступны."
+      : "Снять фиксацию состава? Организатор снова сможет принимать заявки и импортировать участников.";
+    if (!window.confirm(prompt)) return;
+    setRosterBusy(true);
+    setError(null);
+    try {
+      if (nextLock) {
+        await lockEventRoster(token, eventId);
+      } else {
+        await unlockEventRoster(token, eventId);
+      }
+      const [d, checks] = await Promise.all([
+        getEventDetail(token, eventId),
+        listChecklist(token, eventId),
+      ]);
+      setDetail(d);
+      setChecklist(checks.items);
+      setChecklistDone(checks.done_count);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось изменить фиксацию состава");
+    } finally {
+      setRosterBusy(false);
     }
   }
 
@@ -447,7 +621,9 @@ export default function EventDetailPage() {
 
   async function onVerifyProtocol(item: ProtocolCaptureOut, status: "verified" | "published" | "rejected") {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token) return;
+    if (status === "published" && !canPublishOfficial) return;
+    if (status !== "published" && !canVerifyOfficial) return;
     try {
       await updateProtocolCapture(token, eventId, item.id, { status });
       setProtocols(await listProtocolCaptures(token, eventId));
@@ -549,6 +725,13 @@ export default function EventDetailPage() {
         criteria,
       });
       setJudgeScores(await listJudgeScores(token, eventId));
+      const nextAthleteEntry = nextEntryAfter(startList, pid);
+      if (nextAthleteEntry) {
+        setScoreParticipantId(String(nextAthleteEntry.participant_id));
+      }
+      if (scoringEngine.criteria.length) {
+        setCriteriaValues(Object.fromEntries(scoringEngine.criteria.map((c) => [c, ""])));
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось сохранить оценку судьи");
     } finally {
@@ -576,7 +759,7 @@ export default function EventDetailPage() {
       setJudgeScores(await listJudgeScores(token, eventId));
       setResults(await listResults(token, eventId));
       setAppMessage(
-        `Панель: ${panel.panel_score} (${panel.judge_count} судей). Черновик result #${panel.result_id ?? "—"}.`,
+        `Панель судей: ${panel.panel_score} (${panel.judge_count} судей). Черновик результата ${panel.result_id ?? "пока без номера"}.`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось агрегировать оценки");
@@ -642,7 +825,7 @@ export default function EventDetailPage() {
       setHeatTitle("");
       await refreshChecklist(token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось создать heat");
+      setError(err instanceof ApiError ? err.message : "Не удалось создать заезд");
     }
   }
 
@@ -652,7 +835,7 @@ export default function EventDetailPage() {
     try {
       setStartList(await listStartList(token, eventId, heatId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось загрузить start list");
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить стартовый список");
     }
   }
 
@@ -695,13 +878,13 @@ export default function EventDetailPage() {
       await loadStartList(selectedHeatId);
       await refreshChecklist(token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось заполнить start list");
+      setError(err instanceof ApiError ? err.message : "Не удалось заполнить стартовый список");
     }
   }
 
   async function onSaveResultDraft() {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !canVerifyOfficial) return;
     const pid = Number(resultParticipantId);
     if (!pid) {
       setError("Выберите участника для результата");
@@ -718,13 +901,13 @@ export default function EventDetailPage() {
       setResultScore("");
       setResultPlace("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось сохранить draft result");
+      setError(err instanceof ApiError ? err.message : "Не удалось сохранить черновик результата");
     }
   }
 
   async function onResultStatus(row: ResultOut, status: "verified" | "published" | "void" | "draft") {
     const token = getStoredToken();
-    if (!token || !canModerate) return;
+    if (!token || !(canVerifyOfficial || canPublishOfficial)) return;
     try {
       await updateResultStatus(token, eventId, row.id, status);
       setResults(await listResults(token, eventId));
@@ -762,12 +945,15 @@ export default function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHeatId, eventId]);
 
+  const allowedTabsKey = allowedTabs.join("|");
+
   useEffect(() => {
     const raw = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-    if (raw && (allowedTabs as string[]).includes(raw)) {
+    const allowed = allowedTabsKey.split("|").filter(Boolean);
+    if (raw && allowed.includes(raw)) {
       setTab(raw as TabId);
     }
-  }, [eventId, allowedTabs.join("|")]);
+  }, [eventId, allowedTabsKey]);
 
   function selectTab(id: TabId) {
     setTab(id);
@@ -776,16 +962,16 @@ export default function EventDetailPage() {
     }
   }
 
-  const liveHeat = heats.find((h) => h.status === "on_water") ?? heats.find((h) => h.status === "ready");
   const publishedResults = results.filter((r) => r.status === "published");
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: "overview", label: "Обзор" },
+    { id: "overview", label: isAthleteView ? "Мой старт" : canModerate ? "Пульт" : "Обзор" },
     { id: "checklist", label: `Подготовка (${checklistDone}/${checklist.length || 7})` },
     { id: "participants", label: `Состав (${participants.length})` },
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "protocol", label: `Протокол (${protocols.length})` },
+    { id: "moments", label: `Моменты (${fieldMoments.length})` },
     { id: "scoring", label: "Судейство" },
     { id: "heats", label: `Заезды (${heats.length})` },
     { id: "results", label: "Результаты" },
@@ -869,9 +1055,34 @@ export default function EventDetailPage() {
                 <dt>Состав</dt>
                 <dd>
                   {detail.participants_count} участников · {detail.categories_count} категорий
+                  {rosterLocked ? " · зафиксирован" : ""}
                 </dd>
               </div>
             </dl>
+            {canModerate ? (
+              <div className={styles.panel} role="status">
+                <strong>{rosterLocked ? "Состав зафиксирован" : "Состав ещё открыт"}</strong>
+                <p className={styles.muted}>
+                  {rosterLocked
+                    ? "Новые заявки и импорт закрыты. Check-in, заезды и судейство доступны. Официальный результат публикует главный судья."
+                    : "После проверки заявок зафиксируйте состав — это обязательный шаг перед официальными результатами."}
+                </p>
+                <button
+                  type="button"
+                  className={rosterLocked ? "btn btnSecondary btnSm" : "btn btnPrimary btnSm"}
+                  disabled={rosterBusy}
+                  onClick={() => void onToggleRosterLock()}
+                >
+                  {rosterBusy
+                    ? "Сохранение…"
+                    : rosterLocked
+                      ? "Снять фиксацию"
+                      : "Зафиксировать состав"}
+                </button>
+              </div>
+            ) : rosterLocked ? (
+              <p className={styles.muted}>Состав события зафиксирован — новые заявки не принимаются.</p>
+            ) : null}
 
             {liveHeat ? (
               <div className={styles.liveBar} role="status">
@@ -892,7 +1103,7 @@ export default function EventDetailPage() {
 
             {isGuest && !sessionExpired ? (
               <div className={styles.nextAction}>
-                <strong>Хотите участвовать?</strong>
+                <strong>Следующий шаг</strong>
                 <p className={styles.muted}>Войдите, чтобы подать заявку и увидеть свой слот.</p>
                 <Link href={loginHref(`/events/${eventId}`)} className="btn btnPrimary btnSm">
                   Войти
@@ -900,7 +1111,48 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") ? (
+            {!isGuest && canModerate && pendingApps.length > 0 ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: заявки</strong>
+                <p className={styles.muted}>
+                  {pendingApps.length} заявки ждут решения организатора.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("apps")}>
+                  Открыть заявки
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && canModerate && !rosterLocked && pendingApps.length === 0 && participants.length > 0 ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: зафиксировать состав</strong>
+                <p className={styles.muted}>
+                  После проверки участников зафиксируйте состав перед официальными результатами.
+                </p>
+                <button
+                  type="button"
+                  className="btn btnPrimary btnSm"
+                  disabled={rosterBusy}
+                  onClick={() => void onToggleRosterLock()}
+                >
+                  {rosterBusy ? "Сохранение…" : "Зафиксировать состав"}
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && canJudge && liveHeat ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: судейство</strong>
+                <p className={styles.muted}>
+                  Идёт заезд {liveHeat.code}. Оцените текущего спортсмена.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("scoring")}>
+                  К судейству
+                </button>
+              </div>
+            ) : null}
+
+            {!isGuest && !myApp && detail.status === "registration_open" && allowedTabs.includes("apps") && !canModerate && !isAthleteView ? (
               <div className={styles.nextAction}>
                 <strong>Следующий шаг: заявка</strong>
                 <p className={styles.muted}>Выберите категорию и отправьте заявку организатору.</p>
@@ -910,12 +1162,34 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            {!isGuest && myApp ? (
+            {!isGuest && myApp && !canModerate && !isAthleteView ? (
               <div className={styles.nextAction}>
-                <strong>Ваша заявка</strong>
-                <p className={styles.muted} style={{ margin: "0.35rem 0 0" }}>
-                  <StatusBadge status={myApp.status} kind="application" /> {myApp.full_name}
+                <strong>Следующий шаг</strong>
+                <p className={styles.muted} style={{ margin: "0.35rem 0 0.5rem" }}>
+                  Заявка: <StatusBadge status={myApp.status} kind="application" /> · {myApp.full_name}
                 </p>
+                {liveHeat && allowedTabs.includes("heats") ? (
+                  <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("heats")}>
+                    Открыть стартовый список
+                  </button>
+                ) : publishedResults.length > 0 && allowedTabs.includes("results") ? (
+                  <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("results")}>
+                    Открыть результаты
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {canCaptureMoments && !canModerate && allowedTabs.includes("moments") ? (
+              <div className={styles.nextAction}>
+                <strong>Следующий шаг: снять момент</strong>
+                <p className={styles.muted}>
+                  Бэкстейдж, взгляд пилота, маршал на старте — короткие кадры для эфира. Это не протокол
+                  судьи.
+                </p>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("moments")}>
+                  Открыть камеру
+                </button>
               </div>
             ) : null}
 
@@ -940,6 +1214,36 @@ export default function EventDetailPage() {
 
             {tab === "overview" ? (
               <>
+                {isAthleteView && athleteSnap ? (
+                  <AthleteEventHome
+                    snapshot={athleteSnap}
+                    onOpenStartList={() => selectTab("heats")}
+                    onOpenResults={() => selectTab("results")}
+                    onApply={() => selectTab("apps")}
+                    canOpenStartList={allowedTabs.includes("heats")}
+                    canOpenResults={allowedTabs.includes("results")}
+                  />
+                ) : null}
+
+                {canModerate ? (
+                  <OrganizerControlRoom
+                    nowHeat={liveHeat}
+                    nowName={currentAthlete?.full_name}
+                    nowEntry={currentEntry}
+                    nextHeat={nextHeat}
+                    nextName={nextAthlete?.full_name}
+                    attention={attentionItems}
+                    onOpenTab={(id) => selectTab(id as TabId)}
+                  />
+                ) : null}
+
+                {detail.participants_count === 0 ? (
+                  <p className={styles.muted}>
+                    Состав этого события пуст. Импорт Excel привязывается к событию, выбранному в
+                    разделе «Импорт», а не ко всем карточкам сразу.
+                  </p>
+                ) : null}
+
                 {hint ? (
                   <>
                     <h2 className={styles.itemTitle}>Расписание (кратко)</h2>
@@ -951,6 +1255,26 @@ export default function EventDetailPage() {
                         </li>
                       ))}
                     </ul>
+                  </>
+                ) : null}
+
+                {rulesProfile ? (
+                  <>
+                    <h2 className={styles.itemTitle}>Правила события</h2>
+                    <dl className={styles.meta}>
+                      <div>
+                        <dt>Федерация</dt>
+                        <dd>{rulesProfile.governing_body}</dd>
+                      </div>
+                      <div>
+                        <dt>Санкция</dt>
+                        <dd>{rulesProfile.sanction_body}</dd>
+                      </div>
+                      <div>
+                        <dt>Режим оценки</dt>
+                        <dd>{scoringEngineLabel(rulesProfile.scoring_mode)}</dd>
+                      </div>
+                    </dl>
                   </>
                 ) : null}
 
@@ -999,7 +1323,7 @@ export default function EventDetailPage() {
                       {[myApp.region, myApp.club].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                ) : detail.status === "registration_open" ? (
+                ) : detail.status === "registration_open" && !rosterLocked ? (
                   <div className={styles.panel}>
                     <p className={styles.muted}>
                       Подать заявку на участие (ФИО берётся из профиля аккаунта).
@@ -1064,7 +1388,7 @@ export default function EventDetailPage() {
                                 <button
                                   type="button"
                                   className="btn btnPrimary btnSm"
-                                  disabled={appBusy}
+                                  disabled={appBusy || rosterLocked}
                                   onClick={() => void onDecideApp(a.id, "accepted")}
                                 >
                                   Принять
@@ -1140,8 +1464,9 @@ export default function EventDetailPage() {
                   Подготовка события ({checklistDone}/{checklist.length})
                 </h2>
                 <p className={styles.muted}>
-                  Чеклист живёт в Event App (сайт — только витрина). Часть пунктов отмечается
-                  автоматически по данным события.
+                  Операционный чеклист этого события. Справочник площадки из 11 разделов — в{" "}
+                  <Link href="/projects/checklist-org#guide">Проекты → Чек-лист организатора</Link>.
+                  Часть пунктов отмечается автоматически по данным события.
                 </p>
                 <ul className={styles.list}>
                   {checklist.map((item) => (
@@ -1165,6 +1490,9 @@ export default function EventDetailPage() {
                     </li>
                   ))}
                 </ul>
+                <div className={styles.section}>
+                  <AppDownloadCard context={`events/${eventId}/checklist`} />
+                </div>
               </>
             ) : null}
 
@@ -1185,8 +1513,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.7rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       />
                     </label>{" "}
@@ -1200,15 +1528,16 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.5rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       >
                         <option value="bulletin">Бюллетень</option>
                         <option value="protocol">Протокол</option>
+                        <option value="start_list">Стартовый список</option>
+                        <option value="official_appointment">Назначение судей</option>
                         <option value="schedule">Расписание</option>
                         <option value="rules">Правила</option>
-                        <option value="start_list">Стартовый список</option>
                         <option value="other">Другое</option>
                       </select>
                     </label>{" "}
@@ -1244,10 +1573,11 @@ export default function EventDetailPage() {
                             </button>
                             {canModerate ? (
                               <button
-                                type="button"
-                                className="btn btnDanger btnSm"
-                                style={{ marginLeft: "0.5rem" }}
-                              >
+              type="button"
+              className="btn btnDanger btnSm"
+              style={{ marginLeft: "0.5rem" }}
+              onClick={() => void onDeleteDoc(d)}
+            >
                                 Удалить
                               </button>
                             ) : null}
@@ -1261,6 +1591,18 @@ export default function EventDetailPage() {
                   )}
                 </ul>
               </>
+            ) : null}
+
+            {tab === "moments" ? (
+              <FieldMomentsPanel
+                eventId={eventId}
+                heats={heats}
+                selectedHeatId={selectedHeatId}
+                canModerate={canModerateMoments}
+                archived={isArchived}
+                items={fieldMoments}
+                onChange={setFieldMoments}
+              />
             ) : null}
 
             {tab === "protocol" ? (
@@ -1318,8 +1660,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.7rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       />
                     </label>{" "}
@@ -1333,8 +1675,8 @@ export default function EventDetailPage() {
                           padding: "0.45rem 0.5rem",
                           borderRadius: "8px",
                           border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                         }}
                       >
                         <option value="judge_sheet">Лист судьи</option>
@@ -1377,7 +1719,7 @@ export default function EventDetailPage() {
                             >
                               Открыть
                             </button>
-                            {canModerate && p.status === "draft" ? (
+                            {canVerifyOfficial && p.status === "draft" ? (
                               <button
                                 type="button"
                                 className="btn btnPrimary btnSm"
@@ -1387,14 +1729,14 @@ export default function EventDetailPage() {
                                 Проверить
                               </button>
                             ) : null}
-                            {canModerate && p.status === "verified" ? (
+                            {canPublishOfficial && p.status === "verified" ? (
                               <button
                                 type="button"
                                 className="btn btnPrimary btnSm"
                                 style={{ marginLeft: "0.5rem" }}
                                 onClick={() => void onVerifyProtocol(p, "published")}
                               >
-                                Опубликовать
+                                Утвердить (главный судья)
                               </button>
                             ) : null}
                           </span>
@@ -1413,42 +1755,71 @@ export default function EventDetailPage() {
 
             {tab === "scoring" ? (
               <>
-                <h2 className={styles.itemTitle}>Судейство в приложении</h2>
+                <h2 className={styles.itemTitle}>Сейчас оценивается</h2>
                 <p className={styles.muted}>
-                  Движок: <strong>{scoringEngine?.engine || "—"}</strong>
+                  Движок: <strong>{scoringEngineLabel(scoringEngine?.engine)}</strong>
                   {scoringEngine?.engine === "MANUAL_PLACE"
                     ? " — для этого события введите место на вкладке «Результаты» или приложите фото протокола."
                     : " — каждый судья вводит критерии; организатор считает итог и отправляет в результаты."}
                 </p>
                 {scoringEngine && scoringEngine.engine !== "MANUAL_PLACE" && canJudge ? (
                   <div className={styles.panel}>
-                    <label className={styles.muted}>
-                      Участник{" "}
-                      <select
-                        value={scoreParticipantId}
-                        onChange={(e) => setScoreParticipantId(e.target.value)}
-                        style={{
-                          marginLeft: "0.35rem",
-                          padding: "0.45rem 0.5rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
-                      >
-                        <option value="">— выберите —</option>
-                        {participants.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.full_name}
-                          </option>
-                        ))}
-                      </select>
+                    {currentAthlete && currentEntry ? (
+                      <div className={styles.currentAthlete} role="status">
+                        <div className={styles.itemHead}>
+                          <strong>
+                            {currentEntry.bib_number ? `№${currentEntry.bib_number} · ` : ""}
+                            {currentAthlete.full_name}
+                          </strong>
+                          <span className={styles.phaseChip}>
+                            {labelOf(ENTRY_STATUS_LABELS, currentEntry.status)}
+                          </span>
+                        </div>
+                        <p className={styles.muted} style={{ margin: "0.35rem 0 0" }}>
+                          {liveHeat ? `Заезд ${liveHeat.code}` : "Заезд не выбран"}
+                          {currentAthlete.athlete_id ? ` · ${currentAthlete.athlete_id}` : ""}
+                        </p>
+                        {String(scoreParticipantId) !== String(currentAthlete.id) ? (
+                          <button
+                            type="button"
+                            className="btn btnPrimary btnSm"
+                            style={{ marginTop: "0.6rem" }}
+                            onClick={() => setScoreParticipantId(String(currentAthlete.id))}
+                          >
+                            Оценивать этого спортсмена
+                          </button>
+                        ) : (
+                          <p className={styles.muted} style={{ marginTop: "0.5rem" }}>
+                            Оценка идёт текущему спортсмену на воде.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className={styles.muted}>Нет спортсмена со статусом «на воде» или «готов» — выберите вручную.</p>
+                    )}
+                    <label className={styles.muted} htmlFor="judge-target">
+                      Другой участник (если цель не на воде)
                     </label>
+                    <select
+                      id="judge-target"
+                      className={styles.fieldControl}
+                      value={scoreParticipantId}
+                      onChange={(e) => setScoreParticipantId(e.target.value)}
+                      aria-label="Участник для оценки"
+                    >
+                      <option value="">— выберите —</option>
+                      {participants.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name}
+                        </option>
+                      ))}
+                    </select>
                     <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
                       {scoringEngine.criteria.map((key) => (
-                        <label key={key} className={styles.muted}>
+                        <label key={key} className={styles.muted} htmlFor={`criterion-${key}`}>
                           {scoringEngine.criteria_labels_ru[key] || key}{" "}
                           <input
+                            id={`criterion-${key}`}
                             type="number"
                             min={0}
                             max={100}
@@ -1457,15 +1828,8 @@ export default function EventDetailPage() {
                             onChange={(e) =>
                               setCriteriaValues((prev) => ({ ...prev, [key]: e.target.value }))
                             }
-                            style={{
-                              marginLeft: "0.35rem",
-                              width: "6rem",
-                              padding: "0.35rem 0.5rem",
-                              borderRadius: "8px",
-                              border: "1px solid var(--line)",
-                              background: "rgba(0,0,0,0.25)",
-                              color: "inherit",
-                            }}
+                            className={styles.fieldControl}
+                            style={{ width: "6rem", display: "inline-block" }}
                           />
                         </label>
                       ))}
@@ -1477,7 +1841,7 @@ export default function EventDetailPage() {
                         disabled={scoreBusy}
                         onClick={() => void onSubmitJudgeScore()}
                       >
-                        Сохранить лист судьи
+                        Сохранить оценку
                       </button>
                       {canModerate ? (
                         <button
@@ -1542,8 +1906,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.7rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <input
@@ -1555,8 +1919,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.7rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <button type="button" className="btn btnPrimary btnSm" onClick={() => void onCreateHeat()}>
@@ -1586,25 +1950,52 @@ export default function EventDetailPage() {
                         </div>
                         <div className={styles.muted}>
                           <StatusBadge status={h.status} kind="heat" />
+                          {h.scheduled_at ? ` · ${formatEventDate(h.scheduled_at)}` : ""}
                         </div>
                         {canModerate ? (
                           <div className={styles.actions}>
-                            {["planned", "ready", "on_water", "completed"].map((st) => (
-                              <button
-                                key={st}
-                                type="button"
-                                className={`btn btnSm ${h.status === st ? "btnActive" : "btnSecondary"}`}
-                                onClick={() => void onHeatStatus(h, st)}
-                              >
-                                {st === "planned"
-                                  ? "План"
-                                  : st === "ready"
-                                    ? "Готов"
-                                    : st === "on_water"
-                                      ? "На воде"
-                                      : "Финиш"}
-                              </button>
-                            ))}
+                            {(() => {
+                              const next = nextHeatStatus(h.status);
+                              const nextLabel = nextHeatStatusLabel(h.status);
+                              return (
+                                <>
+                                  {next && nextLabel ? (
+                                    <button
+                                      type="button"
+                                      className="btn btnPrimary btnSm"
+                                      onClick={() => void onHeatStatus(h, next)}
+                                    >
+                                      {nextLabel}
+                                    </button>
+                                  ) : null}
+                                  <details className={styles.moreMenu}>
+                                    <summary className="btn btnSecondary btnSm" aria-label="Дополнительные статусы заезда">
+                                      •••
+                                    </summary>
+                                    <div className={styles.moreMenuPanel}>
+                                      {["planned", "ready", "on_water", "completed"]
+                                        .filter((st) => st !== next && st !== h.status)
+                                        .map((st) => (
+                                          <button
+                                            key={st}
+                                            type="button"
+                                            className="btn btnSecondary btnSm"
+                                            onClick={() => void onHeatStatus(h, st)}
+                                          >
+                                            {st === "planned"
+                                              ? labelOf(HEAT_STATUS_LABELS, "planned")
+                                              : st === "ready"
+                                                ? labelOf(HEAT_STATUS_LABELS, "ready")
+                                                : st === "on_water"
+                                                  ? labelOf(HEAT_STATUS_LABELS, "on_water")
+                                                  : labelOf(HEAT_STATUS_LABELS, "completed")}
+                                          </button>
+                                        ))}
+                                    </div>
+                                  </details>
+                                </>
+                              );
+                            })()}
                           </div>
                         ) : null}
                       </li>
@@ -1618,16 +2009,9 @@ export default function EventDetailPage() {
                     {canModerate ? (
                       <div className={styles.panel}>
                         <select
+                          className={styles.fieldControl}
                           value={addParticipantId}
                           onChange={(e) => setAddParticipantId(e.target.value)}
-                          style={{
-                            marginRight: "0.5rem",
-                            padding: "0.45rem 0.5rem",
-                            borderRadius: "8px",
-                            border: "1px solid var(--line)",
-                            background: "rgba(0,0,0,0.25)",
-                            color: "inherit",
-                          }}
                         >
                           <option value="">Участник…</option>
                           {participants.map((p) => (
@@ -1646,7 +2030,6 @@ export default function EventDetailPage() {
                         <button
                           type="button"
                           className="btn btnSecondary btnSm"
-                          style={{ marginLeft: "0.5rem" }}
                           onClick={() => void onFillStartList()}
                         >
                           Добавить всех из состава
@@ -1675,18 +2058,46 @@ export default function EventDetailPage() {
                               </div>
                               {canModerate ? (
                                 <div className={styles.actions}>
-                                  {["checked_in", "ready", "on_water", "completed", "dns", "dnf"].map(
-                                    (st) => (
-                                      <button
-                                        key={st}
-                                        type="button"
-                                        className={`btn btnSm ${e.status === st ? "btnActive" : st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
-                                        onClick={() => void onEntryStatus(e, st)}
-                                      >
-                                        {labelOf(ENTRY_STATUS_LABELS, st)}
-                                      </button>
-                                    ),
-                                  )}
+                                  {(() => {
+                                    const next = nextEntryStatus(e.status);
+                                    const nextLabel = nextEntryStatusLabel(e.status);
+                                    const extras = ["checked_in", "ready", "on_water", "completed", "dns", "dnf"].filter(
+                                      (st) => st !== next && st !== e.status,
+                                    );
+                                    return (
+                                      <>
+                                        {next && nextLabel ? (
+                                          <button
+                                            type="button"
+                                            className="btn btnPrimary btnSm"
+                                            onClick={() => void onEntryStatus(e, next)}
+                                          >
+                                            {nextLabel}
+                                          </button>
+                                        ) : null}
+                                        <details className={styles.moreMenu}>
+                                          <summary
+                                            className="btn btnSecondary btnSm"
+                                            aria-label="Дополнительные статусы участника"
+                                          >
+                                            •••
+                                          </summary>
+                                          <div className={styles.moreMenuPanel}>
+                                            {extras.map((st) => (
+                                              <button
+                                                key={st}
+                                                type="button"
+                                                className={`btn btnSm ${st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
+                                                onClick={() => void onEntryStatus(e, st)}
+                                              >
+                                                {labelOf(ENTRY_STATUS_LABELS, st)}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               ) : null}
                             </li>
@@ -1703,9 +2114,10 @@ export default function EventDetailPage() {
               <>
                 <h2 className={styles.itemTitle}>Результаты</h2>
                 <p className={styles.muted}>
-                  Путь: черновик → проверен → опубликован. Аннулирование видно только организатору.
+                  Путь: черновик → проверка организатора → утверждение главного судьи → публикация.
+                  Организатор не публикует официальный результат сам.
                 </p>
-                {canModerate ? (
+                {canVerifyOfficial ? (
                   <div className={styles.panel}>
                     <select
                       value={resultParticipantId}
@@ -1715,8 +2127,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     >
                       <option value="">Участник…</option>
@@ -1736,8 +2148,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <input
@@ -1750,8 +2162,8 @@ export default function EventDetailPage() {
                         padding: "0.45rem 0.5rem",
                         borderRadius: "8px",
                         border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                       }}
                     />
                     <button
@@ -1764,14 +2176,14 @@ export default function EventDetailPage() {
                   </div>
                 ) : null}
                 <ul className={styles.list}>
-                  {(canModerate ? results : publishedResults).length === 0 ? (
+                  {(canVerifyOfficial ? results : publishedResults).length === 0 ? (
                     <li className={styles.item}>
                       <span className={styles.muted}>
-                        {canModerate ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
+                        {canVerifyOfficial ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
                       </span>
                     </li>
                   ) : (
-                    (canModerate ? results : publishedResults)
+                    (canVerifyOfficial ? results : publishedResults)
                       .slice()
                       .sort((a, b) => (a.place ?? 999) - (b.place ?? 999))
                       .map((r) => {
@@ -1786,7 +2198,7 @@ export default function EventDetailPage() {
                             </strong>
                             <StatusBadge status={r.status} kind="result" />
                           </div>
-                          {canModerate ? (
+                          {canVerifyOfficial ? (
                             <div className={styles.actions}>
                               {r.status === "draft" ? (
                                 <button
@@ -1797,16 +2209,19 @@ export default function EventDetailPage() {
                                   Проверить
                                 </button>
                               ) : null}
-                              {r.status === "verified" ? (
+                              {canPublishOfficial && r.status === "verified" ? (
                                 <button
                                   type="button"
                                   className="btn btnPrimary btnSm"
                                   onClick={() => void onResultStatus(r, "published")}
                                 >
-                                  Опубликовать
+                                  Утвердить и опубликовать
                                 </button>
                               ) : null}
-                              {r.status !== "void" ? (
+                              {!canPublishOfficial && r.status === "verified" ? (
+                                <span className={styles.muted}>Ждёт главного судью</span>
+                              ) : null}
+                              {r.status !== "void" && (r.status !== "published" || canPublishOfficial) ? (
                                 <button
                                   type="button"
                                   className="btn btnDanger btnSm"
@@ -1847,8 +2262,8 @@ export default function EventDetailPage() {
                       padding: "0.45rem 0.7rem",
                       borderRadius: "8px",
                       border: "1px solid var(--line)",
-                      background: "rgba(0,0,0,0.25)",
-                      color: "inherit",
+background: "var(--surface)",
+                            color: "var(--ink)",
                     }}
                   />
                 </label>

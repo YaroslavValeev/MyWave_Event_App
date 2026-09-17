@@ -25,7 +25,7 @@ export default function HealthPage() {
         const message =
           err instanceof ApiError
             ? err.message
-            : "API недоступен. Проверьте, что backend запущен.";
+            : "Не удалось проверить статус системы. Попробуйте позже.";
         setState({ kind: "error", message });
       }
     }
@@ -38,11 +38,11 @@ export default function HealthPage() {
 
   return (
     <>
-      <AppHeader subtitle="Проверка API" />
+      <AppHeader subtitle="Проверка системы" />
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Статус системы</h1>
         <p className={styles.base}>
-          Базовый URL: <code>{getApiBaseUrl()}</code>
+          Служебная страница для команды. Адрес сервиса: <code>{getApiBaseUrl()}</code>
         </p>
 
         {state.kind === "loading" ? (

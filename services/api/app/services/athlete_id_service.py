@@ -7,6 +7,7 @@ import secrets
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.athlete import AccountAthleteLink, AthleteContact, AthleteProfile
 from app.models.user import User
 
 # Crockford-like alphabet without ambiguous 0/O/1/I
@@ -20,20 +21,57 @@ def generate_athlete_id() -> str:
     return f"{ATHLETE_ID_PREFIX}{body}"
 
 
-def ensure_athlete_id(db: Session, user: User) -> str:
-    """Assign athlete_id if missing; flush but do not commit."""
-    if user.athlete_id:
-        return user.athlete_id
-
-    for _ in range(12):
+def allocate_athlete_id(db: Session) -> str:
+    for _ in range(16):
         candidate = generate_athlete_id()
-        exists = db.scalar(select(User.id).where(User.athlete_id == candidate).limit(1))
-        if exists is None:
-            user.athlete_id = candidate
-            db.add(user)
-            db.flush()
+        on_user = db.scalar(select(User.id).where(User.athlete_id == candidate).limit(1))
+        on_profile = db.scalar(
+            select(AthleteProfile.id).where(AthleteProfile.athlete_id == candidate).limit(1)
+        )
+        if on_user is None and on_profile is None:
             return candidate
     raise RuntimeError("Failed to allocate unique athlete_id")
+
+
+def ensure_athlete_id(db: Session, user: User) -> str:
+    """Assign athlete_id if missing; create organic self-profile when user has no links."""
+    if not user.athlete_id:
+        user.athlete_id = allocate_athlete_id(db)
+        db.add(user)
+        db.flush()
+
+    has_link = db.scalar(
+        select(AccountAthleteLink.id).where(AccountAthleteLink.user_id == user.id).limit(1)
+    )
+    if has_link is None:
+        profile = db.scalar(
+            select(AthleteProfile).where(AthleteProfile.athlete_id == user.athlete_id)
+        )
+        if profile is None:
+            profile = AthleteProfile(
+                athlete_id=user.athlete_id,
+                display_name=user.display_name or user.email,
+            )
+            db.add(profile)
+            db.flush()
+            if user.phone:
+                db.add(
+                    AthleteContact(
+                        athlete_profile_id=profile.id,
+                        phone_e164=user.phone,
+                        kind="self",
+                    )
+                )
+            db.add(
+                AccountAthleteLink(
+                    user_id=user.id,
+                    athlete_profile_id=profile.id,
+                    relation="self",
+                    status="confirmed",
+                )
+            )
+            db.flush()
+    return user.athlete_id
 
 
 def backfill_missing_athlete_ids(db: Session) -> int:
@@ -44,3 +82,21 @@ def backfill_missing_athlete_ids(db: Session) -> int:
     if users:
         db.commit()
     return len(users)
+
+
+def canonical_athlete_id(db: Session, user: User) -> str | None:
+    """Prefer confirmed self-profile ID; otherwise the account-level ID."""
+    link = db.scalar(
+        select(AccountAthleteLink)
+        .where(
+            AccountAthleteLink.user_id == user.id,
+            AccountAthleteLink.relation == "self",
+            AccountAthleteLink.status == "confirmed",
+        )
+        .limit(1)
+    )
+    if link:
+        profile = db.get(AthleteProfile, link.athlete_profile_id)
+        if profile:
+            return profile.athlete_id
+    return user.athlete_id
