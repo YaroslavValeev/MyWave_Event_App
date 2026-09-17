@@ -1,8 +1,8 @@
 # CURRENT_STATE
 
-Дата: 2026-09-17  
-Версия продукта: **0.5.10** на staging + **0.5.11 FieldMoment в коде** (не задеплоено) + **Champ App UX/UI 1.0 foundation** (ветка `cursor/p0-import-center-athlete-link`, SHA `6ce503b`)  
-Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — в работе по PR-плану. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
+Дата: 2026-09-18  
+Версия продукта: **0.5.10** на staging + **0.5.11** в git (`46a23b4`) + **0.5.12 чек-лист 11 разделов в коде**  
+Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — первый срез в 0.5.11. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 
 Сверка с journeys: [ROLE_JOURNEYS_RECONCILIATION.md](./ROLE_JOURNEYS_RECONCILIATION.md).  
 UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).  
@@ -38,7 +38,8 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - **0.5.9:** ADR-0008 roster lock + chief_judge; journeys в `docs/PRODUCT/journeys/`.
 - **Champ App UX/UI 1.0 (foundation):** `UX_UI_CANON.md`; Russian-only UI в AGENTS/PRD; Events (Идёт сейчас / Ближайшие / Мои / Архив); nearest event; mobile bottom nav без «Выйти»; notifications deep-link; live heat primary CTA + `•••`; «Следующий шаг» на карточке события; Field foundation; user-facing ошибки без «API/dev».
 - **0.5.10:** карточка выдачи MyWave Event App в «Проекты → Чек-лист организатора» и на вкладке подготовки события. API `app-downloads` + analytics ingest. Android/iOS/source **не подключены**. Документация установки bundled. ADR-0009.
-- **Ролевые экраны (код, не поле):** Athlete «Мой старт», Organizer Control Room на обзоре, Judge «Сейчас оценивается» с автовыбором спортсмена на воде. ADR-0010: JWT в localStorage принят явно (TD-02).
+- **0.5.11 (git `46a23b4`, 2026-09-17):** FieldMoment камера PWA; Athlete «Мой старт»; Organizer Control Room; Judge current athlete. На staging **ещё нет**, пока владелец не выкатит.
+- **0.5.12 (код):** `/projects/checklist-org` — 11 разделов условий площадки (интерактив, localStorage). Не заменяет операционный чеклист события.
 
 ## Частично / нет
 
@@ -58,10 +59,10 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 
 Порядок: [QA_AND_UX_HARDENING_PLAN.md](../PRODUCT/QA_AND_UX_HARDENING_PLAN.md). Native Android/iOS **после** волн 0–4.
 
-1. ~~Деплой **0.5.10** на staging~~ — сделано 2026-09-17, SHA `6ce503b`, manifest OK.
-2. Полевой прогон трёх ролей на текущем PWA (баги, 403 publish, roster lock, live heat).
-3. UX по канону: Athlete Event Home → Organizer Control Room → Judge Mode + вкладка «Моменты» (срез в коде, на staging из `6ce503b` — без FieldMoment и последних ролевых экранов).
-4. Письмо сайту — точный текст в `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` (вариант A; staging уже 0.5.10, Android/iOS по-прежнему недоступны).
+1. Выкат **0.5.11** (`46a23b4`) на staging — команды в [STAGING.md](../OPERATIONS/STAGING.md). Production не трогать. Казань не публиковать.
+2. Полевой прогон трёх ролей на PWA после выката (баги, 403 publish, roster lock, live heat, вкладка «Моменты»).
+3. UX: Athlete Event Home / Control Room / Judge current / Моменты — в git 0.5.11; справочник 11 разделов — 0.5.12.
+4. Письмо сайту — точный текст в `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` (вариант A; Android/iOS недоступны).
 5. SMTP на staging — владелец.
 6. Карточка Казани `draft` → витрина только явным решением; результаты не публиковать.
 7. Native-сборки и реальные `MYWAVE_EVENT_APP_*_URL` — только после чеклиста волн 0–4. **Не** подставлять example.org / xxxxxxxx.
@@ -69,7 +70,8 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 ## Проверки
 
 - pytest: **110 passed** (FieldMoment камера + каталог выдачи + authz участника + upload + analytics PII)
-- tsc: **passed**
+- tsc: **passed** (включая справочник 11 разделов)
+- lint (next lint): **passed**, без warning
 - lint (next lint): **passed**, без warning
 - production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
 - smoke staging **0.5.10** (2026-09-17T10:08Z): health `db_ok`; manifest documentation available, android/ios/source unavailable; `/projects/checklist-org` 200; backup `20260917T100554Z`. FieldMoment на staging **ещё нет**.

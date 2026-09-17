@@ -1464,8 +1464,9 @@ export default function EventDetailPage() {
                   Подготовка события ({checklistDone}/{checklist.length})
                 </h2>
                 <p className={styles.muted}>
-                  Чеклист живёт в Event App (сайт — только витрина). Часть пунктов отмечается
-                  автоматически по данным события.
+                  Операционный чеклист этого события. Справочник площадки из 11 разделов — в{" "}
+                  <Link href="/projects/checklist-org#guide">Проекты → Чек-лист организатора</Link>.
+                  Часть пунктов отмечается автоматически по данным события.
                 </p>
                 <ul className={styles.list}>
                   {checklist.map((item) => (

@@ -75,7 +75,7 @@ MyWave_Event_App/
 | `/admin/approvals` | Организатор / admin | Очередь ролей (**Доступы**) |
 | `/admin/imports` | Организатор / admin | Import Center: xlsx → конфликты → commit |
 | `/notifications` | Вошедший | Журнал статусов заявок/ролей |
-| `/projects/checklist-org` | Все | Чек-лист организатора: карточка выдачи MyWave Event App |
+| `/projects/checklist-org` | Все | Чек-лист организатора: выдача приложения + **11 разделов площадки** |
 | `/health` | Диагностика | Статус API (не в главном меню) |
 
 API-справка: http://127.0.0.1:8000/docs  

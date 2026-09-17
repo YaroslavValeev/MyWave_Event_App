@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Чек-лист организатора",
-  description: "Готовое решение MyWave Event App: описание, статус и скачивание сборок.",
+  description: "11 разделов подготовки площадки и выдача MyWave Event App.",
 };
 
 export default function OrganizerChecklistLayout({ children }: { children: ReactNode }) {

@@ -16,7 +16,7 @@
 |------------|------------------|--------------|
 | Регистрация / роли / roster | да | да |
 | Документы события | да | да |
-| Checklist подготовки | да | да |
+| Checklist подготовки | да | да (событие) + **11 разделов площадки** на `/projects/checklist-org` |
 | Heats / start lists / check-in | да | foundation |
 | Results draft → published | да | foundation (ручной score/place) |
 | Фото/PDF протокола | да (режим) | ProtocolCapture |

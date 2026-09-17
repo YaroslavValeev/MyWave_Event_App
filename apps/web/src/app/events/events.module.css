@@ -341,3 +341,69 @@
   outline: 2px solid var(--teal-mid);
   outline-offset: 2px;
 }
+
+.guideTrack {
+  margin-top: 0.6rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--teal-mid) 16%, white);
+  overflow: hidden;
+}
+
+.guideFill {
+  display: block;
+  height: 100%;
+  background: var(--teal-mid);
+}
+
+.guideNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.guideNavLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.guideNavLink:hover,
+.guideNavLink:focus-visible {
+  border-color: var(--teal-mid);
+  outline: 2px solid var(--teal-mid);
+  outline-offset: 2px;
+}
+
+.guideItem {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  min-height: var(--touch);
+  cursor: pointer;
+}
+
+.guideItem input {
+  margin-top: 0.35rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.guideItem span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.workspaceCard + .workspaceCard {
+  margin-top: 0.75rem;
+}

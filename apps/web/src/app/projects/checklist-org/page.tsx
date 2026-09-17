@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { AppDownloadCard } from "@/components/AppDownloadCard";
 import { AppHeader } from "@/components/AppHeader";
+import { OrganizerGuideChecklist } from "@/components/OrganizerGuideChecklist";
 import styles from "../../events/events.module.css";
 
 export default function OrganizerChecklistPage() {
   useEffect(() => {
-    if (window.location.hash !== "#mywave-event-app") return;
-    document.getElementById("mywave-event-app")?.scrollIntoView({ block: "start" });
+    const hash = window.location.hash;
+    if (!hash) return;
+    document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" });
   }, []);
 
   return (
@@ -25,10 +27,11 @@ export default function OrganizerChecklistPage() {
         </nav>
         <h1 className={styles.title}>Чек-лист организатора</h1>
         <p className={styles.muted}>
-          Подготовка конкретного соревнования живёт в карточке события. Ниже — готовое решение
-          MyWave Event App: описание, статус и безопасная выдача файлов.
+          Здесь живут два слоя: готовое приложение для старта и справочник площадки из 11 разделов.
+          Подготовка конкретного соревнования (состав, документы, старты) — в карточке события.
         </p>
         <AppDownloadCard context="projects/checklist-org" />
+        <OrganizerGuideChecklist />
       </main>
     </>
   );
