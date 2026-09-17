@@ -72,7 +72,6 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - pytest: **110 passed** (FieldMoment камера + каталог выдачи + authz участника + upload + analytics PII)
 - tsc: **passed** (включая справочник 11 разделов)
 - lint (next lint): **passed**, без warning
-- lint (next lint): **passed**, без warning
 - production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
 - smoke staging **0.5.10** (2026-09-17T10:08Z): health `db_ok`; manifest documentation available, android/ios/source unavailable; `/projects/checklist-org` 200; backup `20260917T100554Z`. FieldMoment на staging **ещё нет**.
 - npm audit (prod): 4 CVE в дереве `next` (в т.ч. RCE Image Optimization на Windows) — **не** закрыто слепым `audit fix`; TD-19
