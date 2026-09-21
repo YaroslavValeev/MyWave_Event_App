@@ -118,6 +118,16 @@ class PhoneOtpVerifyRequest(BaseModel):
     code: str = Field(min_length=4, max_length=8)
 
 
+class PhoneLoginRequest(BaseModel):
+    phone: str = Field(min_length=10, max_length=32)
+
+
+class LoginOptionsResponse(BaseModel):
+    otp_required: bool
+    password_required: bool = False
+    message: str
+
+
 class RoleDecisionResponse(BaseModel):
     ok: bool
     user_id: int

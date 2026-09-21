@@ -32,7 +32,7 @@ MyWave_Event_App/
 | **БД** | SQLite | `services/api/data/mywave_event.db` | Единый store |
 | **Python venv** | отдельный (кириллица в пути) | `C:\tmp\mw_event_api_venv` | Запуск API/seed/тестов |
 
-**Это не** Site_MyWave / Telegram-плагин. Telegram здесь нет как ядра. SMS OTP — позже; сейчас OTP идёт на **email аккаунта** (+ копия в `mail_outbox`).
+**Это не** Site_MyWave / Telegram-плагин. Telegram здесь нет как ядра. SMS OTP — позже. Пока SMTP не настроен, вход по **известному телефону без кода** (роль из аккаунта). После SMTP или в production — код на **email аккаунта** (+ копия в `mail_outbox`).
 
 ### Роли
 
@@ -67,7 +67,7 @@ MyWave_Event_App/
 |-----|----------|------------|
 | `/` | Все | Старт: ближайшее событие + вход |
 | `/register` | Новый пользователь | Участник сразу. Staff-роль — по запросу, после approve |
-| `/login` | Существующий | Телефон → OTP. Dev-кнопки только `/login?dev=1` в development |
+| `/login` | Существующий | Телефон → Войти (пока нет SMTP). После SMTP — телефон → код на email. Dev-кнопки только `/login?dev=1` в development |
 | `/profile` | Вошедший | ФИО, телефон, номер участника, согласия |
 | `/events` | Все | Публичный список. «Создать» — только организатор+ |
 | `/events/1` | Все (обзор/результаты); полный контур — после входа | Карточка: вкладки по роли. Судья: судейство / заезды / протокол. Медиа/комментатор/поддержка: **Моменты** (камера). Участник: заявка / состав / слоты |
@@ -102,15 +102,15 @@ npm run dev:web
 
 ### B. Владелец / админ
 
-1. Войти телефоном **`+79160117179`** на `/login`  
-   - OTP: смотреть `data\mail_outbox\` или при `APP_ENV=development` поле `dev_otp` в ответе API.  
+1. Войти телефоном **`+79160117179`** на `/login` (пока нет SMTP — без кода; роль уже в аккаунте).  
+   - Когда появится SMTP: код смотреть в `data\mail_outbox\` или при `APP_ENV=development` поле `dev_otp` в ответе API.  
 2. Либо локальный обход (только development):
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/dev-login -H "Content-Type: application/json" -d "{\"email\":\"y.valeev@gmail.com\",\"role\":\"platform_admin\"}"
 ```
 
-Токен положить в браузер вручную неудобно — проще phone OTP или UI после регистрации.
+Токен положить в браузер вручную неудобно — проще вход по телефону или UI после регистрации.
 
 Организатор-демо: `organizer@example.com` через **dev-login** → роль `organizer`.
 
@@ -126,11 +126,11 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/dev-login -H "Content-Type: a
 ### C. Спортсмен (участник)
 
 1. `/register` — роль «Участник» → сразу в системе  
-   *или* если телефон уже в seed: `/login` по своему номеру из Form Excel  
+   *или* если телефон уже в seed: `/login` по своему номеру из Form Excel (пока без SMTP — без кода)  
 2. `/events` → Казань → вкладка **Заявки** → подать заявку  
 3. Ждёт accept организатора (после accept попадает в публичный roster)
 
-Seed-аккаунты: email вида `p7916…@participants.mywave.local` — для OTP без SMTP письмо не уйдёт на реальную почту спортсмена; код берите из **outbox** / `dev_otp`.
+Seed-аккаунты: email вида `p7916…@participants.mywave.local` — без SMTP вход по телефону; после SMTP письмо не уйдёт на реальную почту спортсмена, код берите из **outbox** / `dev_otp`.
 
 ### D. Обновить состав из новой выгрузки Form
 
@@ -151,7 +151,7 @@ npm run reseed
 npm run test:api
 ```
 
-Ожидаемо: **110 passed** (FieldMoment 0.5.11 + каталог выдачи).
+Ожидаемо: **115 passed** (вход по телефону без OTP + FieldMoment + каталог выдачи).
 
 ---
 
@@ -161,7 +161,7 @@ npm run test:api
 2. **Staging / прод deploy** → [SERVER_COMMANDS.md](./SERVER_COMMANDS.md)  
 3. По желанию: подставить реальные email спортсменам вместо `*.mywave.local`
 
-Без SMTP всё уже работает локально через `data/mail_outbox/`.
+Без SMTP вход уже работает по известному телефону; письма approve по-прежнему в `data/mail_outbox/`.
 
 ---
 

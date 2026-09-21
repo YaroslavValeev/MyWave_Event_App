@@ -15,9 +15,11 @@ from app.schemas.auth import (
     AthleteLinkListResponse,
     AthleteLinkOut,
     DevLoginRequest,
+    LoginOptionsResponse,
     MeResponse,
     PendingApprovalItem,
     PendingApprovalListResponse,
+    PhoneLoginRequest,
     PhoneOtpRequest,
     PhoneOtpResponse,
     PhoneOtpVerifyRequest,
@@ -33,6 +35,7 @@ from app.services.auth_service import (
     decide_role_approval,
     decide_role_approval_by_id,
     dev_login,
+    login_by_known_phone,
     list_pending_approvals,
     peek_role_approval,
     register_user,
@@ -138,6 +141,21 @@ def post_register(body: RegisterRequest, db: DbSession, settings: AppSettings) -
     )
 
 
+@router.get("/auth/login-options", response_model=LoginOptionsResponse)
+def get_login_options(settings: AppSettings) -> LoginOptionsResponse:
+    if settings.otp_challenge_required:
+        return LoginOptionsResponse(
+            otp_required=True,
+            password_required=False,
+            message="Код подтверждения придёт на email, привязанный к аккаунту. SMS пока не подключено.",
+        )
+    return LoginOptionsResponse(
+        otp_required=False,
+        password_required=False,
+        message="Пока почтовая доставка не настроена, вход по номеру, который уже есть в системе. Роль берётся из аккаунта.",
+    )
+
+
 @router.post("/auth/phone/request-otp", response_model=PhoneOtpResponse)
 def post_request_otp(
     body: PhoneOtpRequest, db: DbSession, settings: AppSettings
@@ -166,6 +184,17 @@ def post_verify_otp(
         user, token = verify_phone_otp(
             db, phone_raw=body.phone, code=body.code, settings=settings
         )
+    except AuthError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return _token_response(user, token)
+
+
+@router.post("/auth/phone/login", response_model=TokenResponse)
+def post_phone_login(
+    body: PhoneLoginRequest, db: DbSession, settings: AppSettings
+) -> TokenResponse:
+    try:
+        user, token = login_by_known_phone(db, phone_raw=body.phone, settings=settings)
     except AuthError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
     return _token_response(user, token)

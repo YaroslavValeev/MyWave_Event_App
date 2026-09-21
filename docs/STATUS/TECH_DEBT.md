@@ -24,5 +24,6 @@
 | TD-18 | Event status machine journeys шире, чем runtime enum | не ломать витрину 0.5.6 | отдельный ADR, не смешивать с roster_lock flag |
 | TD-19 | npm audit: next/postcss/sharp/nanoid CVE (в т.ч. Windows Image Optimization RCE) | staging на Linux; слепой `audit fix` ломает lockfile | отдельный PR bump Next 15.x после волны 0, не в UX-PR |
 | TD-20 | Камера PWA на HTTP staging: системный `<input capture>`, не live getUserMedia | getUserMedia часто требует HTTPS | HTTPS на staging / native shell |
+| TD-21 | Вход по телефону без OTP, пока нет SMTP | иначе полевой вход ломается на mail_outbox | закрыть в тот же день, когда SMTP заработает; production OTP не отключать |
 
 Не маскировать долг под «готово в prod».

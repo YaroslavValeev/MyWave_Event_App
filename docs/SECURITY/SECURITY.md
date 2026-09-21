@@ -6,7 +6,7 @@
 - `dev-login` запрещён вне development.
 - JWT HS256; в production `SECRET_KEY` обязан быть уникальным (≥32 символов), иначе API не стартует.
 - Email approve: GET без побочных эффектов; мутация только POST confirm (ADR-0005).
-- OTP: не больше 5 запросов на номер за 10 минут.
+- OTP: не больше 5 запросов на номер за 10 минут. `POST /auth/phone/login` без кода разрешён **только** если SMTP не настроен и `APP_ENV` не `production`. Роль не принимается с клиента — только из записи пользователя. Production и SMTP → 403 `otp_required`.
 - Pending role list не возвращает capability-token.
 - RBAC enforced on API, not only UI. `published` result — `chief_judge` / `platform_admin`.
 - Audit: login, event create/update, document upload/delete, checklist, heats/start-list.

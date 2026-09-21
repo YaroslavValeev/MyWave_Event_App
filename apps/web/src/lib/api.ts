@@ -381,6 +381,24 @@ export type OtpRequestResponse = {
   dev_otp?: string | null;
 };
 
+export type LoginOptions = {
+  otp_required: boolean;
+  password_required: boolean;
+  message: string;
+};
+
+export function getLoginOptions(): Promise<LoginOptions> {
+  return apiFetch<LoginOptions>("/api/v1/auth/login-options");
+}
+
+export async function loginByKnownPhone(phone: string): Promise<TokenResponse> {
+  const raw = await apiFetch<ApiTokenPayload>("/api/v1/auth/phone/login", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+  return toTokenResponse(raw);
+}
+
 export function requestPhoneOtp(phone: string): Promise<OtpRequestResponse> {
   return apiFetch<OtpRequestResponse>("/api/v1/auth/phone/request-otp", {
     method: "POST",

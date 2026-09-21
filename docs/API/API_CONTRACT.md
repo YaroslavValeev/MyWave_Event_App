@@ -15,6 +15,8 @@
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | POST | `/api/v1/auth/register` | no | регистрация (participant active; иначе pending) |
+| GET | `/api/v1/auth/login-options` | no | `otp_required` / `password_required` (пароля нет) |
+| POST | `/api/v1/auth/phone/login` | no | JWT по известному телефону, **только если OTP не обязателен**; роль из аккаунта |
 | POST | `/api/v1/auth/phone/request-otp` | no | OTP на email + mail_outbox |
 | POST | `/api/v1/auth/phone/verify-otp` | no | JWT при status=active |
 | GET | `/api/v1/auth/approvals/pending` | Bearer organizer+ | очередь ролей (**без** token) |

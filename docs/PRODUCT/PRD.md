@@ -44,7 +44,7 @@ participant, organizer, judge, chief_judge, commentator, media, support, federat
 - FastAPI backend.
 - Next.js PWA shell (hero, login, register+consent, events, profile, health).
 - SQLite локально / PostgreSQL-ready URL.
-- Phone OTP + role approval; dev-login только в development/test.
+- Phone login: без SMTP и не в production — вход по известному телефону (роль из аккаунта, без пароля и без кода); иначе OTP на email + role approval; dev-login только в development/test.
 - RBAC foundation на событиях.
 - Self-serve заявки и минимальные согласия.
 

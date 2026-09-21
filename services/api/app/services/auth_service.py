@@ -337,13 +337,7 @@ def request_phone_otp(
     )
 
 
-def verify_phone_otp(
-    db: Session,
-    *,
-    phone_raw: str,
-    code: str,
-    settings: Settings,
-) -> tuple[User, str]:
+def _user_for_phone_login(db: Session, phone_raw: str) -> tuple[str, User]:
     phone = _require_normalized_phone(phone_raw)
     user = get_user_by_phone(db, phone)
     if user is None:
@@ -356,6 +350,64 @@ def verify_phone_otp(
             "Аккаунт ожидает утверждения роли организатором.",
             status_code=403,
         )
+    return phone, user
+
+
+def _complete_phone_login(
+    db: Session,
+    *,
+    user: User,
+    phone: str,
+    settings: Settings,
+    audit_action: str,
+) -> tuple[User, str]:
+    token = create_access_token(user=user, settings=settings)
+    append_audit(
+        db,
+        action=audit_action,
+        actor_user_id=user.id,
+        actor_email=user.email,
+        entity_type="user",
+        entity_id=str(user.id),
+        payload={"phone_masked": mask_phone(phone), "role": user.role},
+        enabled=settings.enable_audit_log,
+    )
+    db.commit()
+    db.refresh(user)
+    return user, token
+
+
+def login_by_known_phone(
+    db: Session,
+    *,
+    phone_raw: str,
+    settings: Settings,
+) -> tuple[User, str]:
+    """Issue JWT for an existing phone when SMTP is off (not production). Role is unchanged."""
+    if settings.otp_challenge_required:
+        raise AuthError(
+            "otp_required",
+            "Нужен код из email. Введите код или запросите новый.",
+            status_code=403,
+        )
+    phone, user = _user_for_phone_login(db, phone_raw)
+    return _complete_phone_login(
+        db,
+        user=user,
+        phone=phone,
+        settings=settings,
+        audit_action="auth.phone_login_no_otp",
+    )
+
+
+def verify_phone_otp(
+    db: Session,
+    *,
+    phone_raw: str,
+    code: str,
+    settings: Settings,
+) -> tuple[User, str]:
+    phone, user = _user_for_phone_login(db, phone_raw)
 
     otp = db.scalar(
         select(PhoneOtp)
@@ -385,20 +437,13 @@ def verify_phone_otp(
     otp.expires_at = now
     db.add(otp)
 
-    token = create_access_token(user=user, settings=settings)
-    append_audit(
+    return _complete_phone_login(
         db,
-        action="auth.phone_login",
-        actor_user_id=user.id,
-        actor_email=user.email,
-        entity_type="user",
-        entity_id=str(user.id),
-        payload={"phone_masked": mask_phone(phone), "role": user.role},
-        enabled=settings.enable_audit_log,
+        user=user,
+        phone=phone,
+        settings=settings,
+        audit_action="auth.phone_login",
     )
-    db.commit()
-    db.refresh(user)
-    return user, token
 
 
 def _create_role_approval(db: Session, *, user: User, settings: Settings) -> RoleApproval:

@@ -101,7 +101,7 @@ curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001/projects/checkl
 
 Ожидание manifest: `documentation.state = available`; `android` / `ios` / `source` = `unavailable`. Казань не публиковать. Письмо сайту (`docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`) отправлять **после** этого smoke.
 
-Факт на 2026-09-17: remote staging выкачен до **0.5.10** (`6ce503b`).
+Факт на 2026-09-19: remote staging выкачен до **0.5.11+** (`ba2df6b`). Хостовый backup перед выкатом не записался — сделать копию с живого volume.
 
 ### Обновление staging до 0.5.11 (FieldMoment камера + ролевые экраны)
 
@@ -133,6 +133,37 @@ curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/projects/ch
 Smoke UI (после входа организатором/медиа): карточка события → вкладка **Моменты**; участник вкладку не видит.
 
 Rollback: предыдущий SHA `6ce503b` + restore backup DB. Файлы `data/field-media` в контейнере окажутся под `/data/field-media` (repo_root в Docker = `/`).
+
+### Обновление staging до 0.5.13 (вход по телефону без OTP)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. SMTP на сервере не включать этим выкатом. Сначала backup SQLite (**в той же SSH-сессии**, иначе `$STAMP` пустой и `docker cp` падает).
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+echo "STAMP=$STAMP"
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/openapi.json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
+curl -fsS http://127.0.0.1:8001/api/v1/auth/login-options
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/login
+```
+
+Ожидание: health `env=staging`, `db_ok: true`; OpenAPI **0.5.13**; `login-options.otp_required=false` (пока SMTP не задан); `/login` без поля кода. Казань не публиковать.
+
+Rollback: SHA `ba2df6b` + restore backup DB.
 
 ## Что staging не делает
 

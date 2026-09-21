@@ -17,6 +17,9 @@ os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["ENABLE_AUDIT_LOG"] = "1"
 os.environ["CORS_ORIGINS"] = "http://testclient"
+# Phone login without OTP is allowed only when SMTP is off; isolate tests from local .env.
+os.environ["SMTP_HOST"] = ""
+os.environ["SMTP_FROM"] = ""
 
 from app.config import get_settings
 from app.db import get_db
