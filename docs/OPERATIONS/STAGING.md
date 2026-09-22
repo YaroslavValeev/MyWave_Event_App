@@ -165,6 +165,37 @@ curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/login
 
 Rollback: SHA `ba2df6b` + restore backup DB.
 
+### Обновление staging до 0.5.14 (start-list remove + nav + RU UI)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. SMTP не включать. Backup SQLite **в той же SSH-сессии**.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+echo "STAMP=$STAMP"
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/openapi.json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
+curl -fsS http://127.0.0.1:8001/api/v1/auth/login-options
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/login
+```
+
+Ожидание: `git rev-parse` → короткий SHA коммита с версией **0.5.14**; health `db_ok: true`; OpenAPI **0.5.14**; `otp_required=false`; web login `200`. С телефона: нижняя навигация Главная/События/Проекты/Лента/Ещё.
+
+Rollback: SHA `7795deb` + restore backup DB.
+
 ## Что staging не делает
 
 - Не заменяет production.
