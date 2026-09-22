@@ -88,6 +88,7 @@ from app.services.heat_service import (
     list_heats,
     list_runs_for_heat,
     list_start_list,
+    remove_start_list_entry,
     update_heat_status,
     update_start_list_status,
 )
@@ -587,6 +588,32 @@ def fill_start_list(
         items=[StartListEntryOut.model_validate(i) for i in created],
         total=len(created),
     )
+
+
+@router.delete(
+    "/{event_id}/heats/{heat_id}/start-list/{entry_id}",
+    status_code=204,
+)
+def delete_start_list_entry(
+    event_id: int,
+    heat_id: int,
+    entry_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> Response:
+    try:
+        remove_start_list_entry(
+            db,
+            event_id=event_id,
+            heat_id=heat_id,
+            entry_id=entry_id,
+            actor=user,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return Response(status_code=204)
 
 
 @router.patch(

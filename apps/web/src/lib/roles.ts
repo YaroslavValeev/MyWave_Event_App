@@ -24,8 +24,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   media: "Медиа",
   support: "Поддержка",
   federation_manager: "Менеджер федерации",
-  event_admin: "Админ события",
-  platform_admin: "Админ платформы",
+  event_admin: "Администратор события",
+  platform_admin: "Администратор платформы",
 };
 
 export const EVENT_STATUSES = [
@@ -88,6 +88,11 @@ export function canCaptureFieldMoments(value: string | undefined | null): boolea
     value === "support" ||
     value === "chief_judge"
   );
+}
+
+/** Организатор+, главный судья — убрать участника из стартового списка заезда. */
+export function canRemoveStartListEntry(value: string | undefined | null): boolean {
+  return isStaffRole(value ?? "") || value === "chief_judge";
 }
 
 /** Организатор+ и главный судья могут отдать кадр в эфир или скрыть. */

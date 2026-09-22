@@ -142,7 +142,10 @@ export default function NotificationsPage() {
         ) : null}
 
         {items.length === 0 && !error && !needsAuth ? (
-          <p className={styles.hint}>Здесь появятся решение по заявке и изменения роли.</p>
+          <p className={styles.hint}>
+            Лента пока пуста. Когда изменят заявку или роль, сообщение появится здесь.{" "}
+            <Link href="/events">К событиям</Link>
+          </p>
         ) : null}
         {items.length > 0 && !needsAuth ? (
           <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.85rem" }}>

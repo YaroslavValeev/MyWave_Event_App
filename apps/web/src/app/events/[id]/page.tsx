@@ -70,6 +70,7 @@ import {
   updateProtocolCapture,
   updateResultStatus,
   updateStartListStatus,
+  removeStartListEntry,
   uploadDocument,
   uploadProtocolCapture,
   upsertResultDraft,
@@ -101,6 +102,7 @@ import {
   canCaptureFieldMoments,
   canModerateFieldMoments,
   canPublishOfficialResults,
+  canRemoveStartListEntry,
   isBroadcastRole,
   isChiefJudgeRole,
   isJudgeRole,
@@ -213,6 +215,7 @@ export default function EventDetailPage() {
   const role = user?.role ?? "";
   const canOrganize = isStaffRole(role);
   const canModerate = canOrganize && !isArchived;
+  const canRemoveFromStartList = !isArchived && canRemoveStartListEntry(role);
   const canVerifyOfficial = !isArchived && (canOrganize || isChiefJudgeRole(role));
   const canPublishOfficial = !isArchived && canPublishOfficialResults(role);
   const rosterLocked = Boolean(detail?.roster_locked_at);
@@ -538,7 +541,7 @@ export default function EventDetailPage() {
     if (!token || !canModerate) return;
     const nextLock = !rosterLocked;
     const prompt = nextLock
-      ? "Зафиксировать состав? Новые заявки и импорт состава будут закрыты. Check-in и судейство останутся доступны."
+      ? "Зафиксировать состав? Новые заявки и импорт состава будут закрыты. Регистрация на месте и судейство останутся доступны."
       : "Снять фиксацию состава? Организатор снова сможет принимать заявки и импортировать участников.";
     if (!window.confirm(prompt)) return;
     setRosterBusy(true);
@@ -808,7 +811,7 @@ export default function EventDetailPage() {
     const token = getStoredToken();
     if (!token || !canModerate) return;
     if (!heatCode.trim() || !heatTitle.trim()) {
-      setError("Укажите код и название heat");
+      setError("Укажите код и название заезда");
       return;
     }
     try {
@@ -861,7 +864,7 @@ export default function EventDetailPage() {
       setAddParticipantId("");
       await refreshChecklist(token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось добавить в start list");
+      setError(err instanceof ApiError ? err.message : "Не удалось добавить в стартовый список");
     }
   }
 
@@ -927,6 +930,28 @@ export default function EventDetailPage() {
     }
   }
 
+  async function onRemoveFromStartList(entry: StartListEntryOut) {
+    const token = getStoredToken();
+    if (!token || !canRemoveFromStartList || !selectedHeatId) return;
+    const name =
+      participants.find((p) => p.id === entry.participant_id)?.full_name ||
+      `#${entry.participant_id}`;
+    if (
+      !window.confirm(
+        `Убрать «${name}» из стартового списка этого заезда? Статусы заезда для этой записи будут удалены.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await removeStartListEntry(token, eventId, selectedHeatId, entry.id);
+      await loadStartList(selectedHeatId);
+      await refreshChecklist(token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось убрать из стартового списка");
+    }
+  }
+
   async function onHeatStatus(heat: HeatOut, status: string) {
     const token = getStoredToken();
     if (!token || !canModerate) return;
@@ -934,7 +959,7 @@ export default function EventDetailPage() {
       await updateHeatStatus(token, eventId, heat.id, status);
       setHeats(await listHeats(token, eventId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось обновить heat");
+      setError(err instanceof ApiError ? err.message : "Не удалось обновить заезд");
     }
   }
 
@@ -1064,7 +1089,7 @@ export default function EventDetailPage() {
                 <strong>{rosterLocked ? "Состав зафиксирован" : "Состав ещё открыт"}</strong>
                 <p className={styles.muted}>
                   {rosterLocked
-                    ? "Новые заявки и импорт закрыты. Check-in, заезды и судейство доступны. Официальный результат публикует главный судья."
+                    ? "Новые заявки и импорт закрыты. Регистрация на месте, заезды и судейство доступны. Официальный результат публикует главный судья."
                     : "После проверки заявок зафиксируйте состав — это обязательный шаг перед официальными результатами."}
                 </p>
                 <button
@@ -1184,7 +1209,7 @@ export default function EventDetailPage() {
               <div className={styles.nextAction}>
                 <strong>Следующий шаг: снять момент</strong>
                 <p className={styles.muted}>
-                  Бэкстейдж, взгляд пилота, маршал на старте — короткие кадры для эфира. Это не протокол
+                  За кулисами, взгляд пилота, маршал на старте — короткие кадры для эфира. Это не протокол
                   судьи.
                 </p>
                 <button type="button" className="btn btnPrimary btnSm" onClick={() => selectTab("moments")}>
@@ -1377,7 +1402,9 @@ export default function EventDetailPage() {
                     <ul className={styles.list}>
                       {pendingApps.length === 0 ? (
                         <li className={styles.item}>
-                          <span className={styles.muted}>Нет новых заявок.</span>
+                          <span className={styles.muted}>
+                            Нет новых заявок. Когда спортсмен подаст заявку, она появится здесь.
+                          </span>
                         </li>
                       ) : (
                         pendingApps.map((a) => (
@@ -1501,7 +1528,7 @@ export default function EventDetailPage() {
                 <h2 className={styles.itemTitle}>Документы</h2>
                 {canModerate ? (
                   <div className={styles.panel}>
-                    <p className={styles.muted}>Загрузка PDF / XLSX / XLS (до 25 МБ).</p>
+                    <p className={styles.muted}>Загрузка таблицы или документа (до 25 МБ).</p>
                     <label className={styles.muted}>
                       Название{" "}
                       <input
@@ -1556,7 +1583,12 @@ background: "var(--surface)",
                 <ul className={styles.list}>
                   {documents.length === 0 ? (
                     <li className={styles.item}>
-                      <span className={styles.muted}>Документов пока нет.</span>
+                      <span className={styles.muted}>
+                        Документов пока нет.
+                        {canModerate
+                          ? " Загрузите правила или положение кнопкой выше."
+                          : " Организатор опубликует файлы здесь."}
+                      </span>
                     </li>
                   ) : (
                     documents.map((d) => (
@@ -1607,15 +1639,15 @@ background: "var(--surface)",
 
             {tab === "protocol" ? (
               <>
-                <h2 className={styles.itemTitle}>Фото / PDF протокола</h2>
+                <h2 className={styles.itemTitle}>Фото протокола</h2>
                 <p className={styles.muted}>
-                  Листы судей WSWS (DRIVE) или бумажный протокол. Загрузка: JPG/PNG/WebP/PDF до 15 МБ.
+                  Судейский лист или бумажный протокол. Можно загрузить фото или скан (до 15 МБ).
                 </p>
                 {canOrganize ? (
                   <div className={styles.panel}>
-                    <strong>Официальный протокол (export)</strong>
+                    <strong>Официальный протокол</strong>
                     <p className={styles.muted}>
-                      JSON-файл для федерации и печатная версия. Нужны опубликованные результаты
+                      Файл для федерации и печатная версия. Нужны опубликованные результаты
                       или опубликованные вложения протокола.
                       {protocolReadiness ? (
                         <>
@@ -1654,7 +1686,7 @@ background: "var(--surface)",
                       <input
                         value={protocolTitle}
                         onChange={(e) => setProtocolTitle(e.target.value)}
-                        placeholder="Лист судьи 1 · Heat A"
+                        placeholder="Лист судьи 1 · заезд А"
                         style={{
                           marginLeft: "0.5rem",
                           padding: "0.45rem 0.7rem",
@@ -1860,7 +1892,12 @@ background: "var(--surface)",
                 <ul className={styles.list}>
                   {judgeScores.length === 0 ? (
                     <li className={styles.item}>
-                      <span className={styles.muted}>Оценок судей пока нет.</span>
+                      <span className={styles.muted}>
+                        Оценок судей пока нет.
+                        {canJudge
+                          ? " Выберите спортсмена выше и сохраните оценку."
+                          : " Судьи внесут баллы во время заезда."}
+                      </span>
                     </li>
                   ) : (
                     judgeScores.map((s) => {
@@ -1931,7 +1968,12 @@ background: "var(--surface)",
                 <ul className={styles.list}>
                   {heats.length === 0 ? (
                     <li className={styles.item}>
-                      <span className={styles.muted}>Заезды ещё не созданы.</span>
+                      <span className={styles.muted}>
+                        Заезды ещё не созданы.
+                        {canModerate
+                          ? " Укажите код и название выше, затем нажмите «Создать заезд»."
+                          : " Организатор опубликует расписание здесь."}
+                      </span>
                     </li>
                   ) : (
                     heats.map((h) => (
@@ -2039,7 +2081,12 @@ background: "var(--surface)",
                     <ul className={styles.list}>
                       {startList.length === 0 ? (
                         <li className={styles.item}>
-                          <span className={styles.muted}>Список пуст.</span>
+                          <span className={styles.muted}>
+                            Стартовый список пуст.
+                            {canModerate
+                              ? " Добавьте участника из состава выше."
+                              : " Когда организатор назначит старт, список появится здесь."}
+                          </span>
                         </li>
                       ) : (
                         startList.map((e) => {
@@ -2056,48 +2103,64 @@ background: "var(--surface)",
                                   <StatusBadge status={e.status} kind="entry" />
                                 </span>
                               </div>
-                              {canModerate ? (
+                              {canModerate || canRemoveFromStartList ? (
                                 <div className={styles.actions}>
-                                  {(() => {
-                                    const next = nextEntryStatus(e.status);
-                                    const nextLabel = nextEntryStatusLabel(e.status);
-                                    const extras = ["checked_in", "ready", "on_water", "completed", "dns", "dnf"].filter(
-                                      (st) => st !== next && st !== e.status,
-                                    );
-                                    return (
-                                      <>
-                                        {next && nextLabel ? (
-                                          <button
-                                            type="button"
-                                            className="btn btnPrimary btnSm"
-                                            onClick={() => void onEntryStatus(e, next)}
-                                          >
-                                            {nextLabel}
-                                          </button>
-                                        ) : null}
-                                        <details className={styles.moreMenu}>
-                                          <summary
-                                            className="btn btnSecondary btnSm"
-                                            aria-label="Дополнительные статусы участника"
-                                          >
-                                            •••
-                                          </summary>
-                                          <div className={styles.moreMenuPanel}>
-                                            {extras.map((st) => (
+                                  {canModerate
+                                    ? (() => {
+                                        const next = nextEntryStatus(e.status);
+                                        const nextLabel = nextEntryStatusLabel(e.status);
+                                        const extras = [
+                                          "checked_in",
+                                          "ready",
+                                          "on_water",
+                                          "completed",
+                                          "dns",
+                                          "dnf",
+                                        ].filter((st) => st !== next && st !== e.status);
+                                        return (
+                                          <>
+                                            {next && nextLabel ? (
                                               <button
-                                                key={st}
                                                 type="button"
-                                                className={`btn btnSm ${st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
-                                                onClick={() => void onEntryStatus(e, st)}
+                                                className="btn btnPrimary btnSm"
+                                                onClick={() => void onEntryStatus(e, next)}
                                               >
-                                                {labelOf(ENTRY_STATUS_LABELS, st)}
+                                                {nextLabel}
                                               </button>
-                                            ))}
-                                          </div>
-                                        </details>
-                                      </>
-                                    );
-                                  })()}
+                                            ) : null}
+                                            <details className={styles.moreMenu}>
+                                              <summary
+                                                className="btn btnSecondary btnSm"
+                                                aria-label="Дополнительные статусы участника"
+                                              >
+                                                •••
+                                              </summary>
+                                              <div className={styles.moreMenuPanel}>
+                                                {extras.map((st) => (
+                                                  <button
+                                                    key={st}
+                                                    type="button"
+                                                    className={`btn btnSm ${st === "dns" || st === "dnf" ? "btnDanger" : "btnSecondary"}`}
+                                                    onClick={() => void onEntryStatus(e, st)}
+                                                  >
+                                                    {labelOf(ENTRY_STATUS_LABELS, st)}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </details>
+                                          </>
+                                        );
+                                      })()
+                                    : null}
+                                  {canRemoveFromStartList ? (
+                                    <button
+                                      type="button"
+                                      className="btn btnDanger btnSm"
+                                      onClick={() => void onRemoveFromStartList(e)}
+                                    >
+                                      Убрать из списка
+                                    </button>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </li>
@@ -2179,7 +2242,9 @@ background: "var(--surface)",
                   {(canVerifyOfficial ? results : publishedResults).length === 0 ? (
                     <li className={styles.item}>
                       <span className={styles.muted}>
-                        {canVerifyOfficial ? "Результатов пока нет." : "Опубликованных результатов пока нет."}
+                        {canVerifyOfficial
+                          ? "Результатов пока нет. Добавьте черновик выше или внесите оценки на вкладке «Судейство»."
+                          : "Опубликованных результатов пока нет. Следите за объявлениями организатора."}
                       </span>
                     </li>
                   ) : (

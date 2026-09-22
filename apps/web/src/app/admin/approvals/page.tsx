@@ -114,7 +114,10 @@ export default function ApprovalsAdminPage() {
         ) : null}
 
         {gate === "ok" && items.length === 0 && !error ? (
-          <p className={styles.hint}>Очередь пуста.</p>
+          <p className={styles.hint}>
+            Очередь пуста. Новые запросы ролей появятся здесь.{" "}
+            <Link href="/events">К событиям</Link>
+          </p>
         ) : null}
         {gate === "ok" && items.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "1rem" }}>

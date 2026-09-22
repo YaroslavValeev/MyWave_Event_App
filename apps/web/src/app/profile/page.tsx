@@ -172,7 +172,7 @@ export default function ProfilePage() {
         ) : (
         <>
         <p className={styles.hint}>
-          Телефон нужен для входа по OTP. Email: <strong>{email || "—"}</strong>.
+          Телефон нужен для входа. Почта: <strong>{email || "—"}</strong>.
           {athleteId ? (
             <>
               {" "}

@@ -69,7 +69,7 @@ export const DOWNLOAD_STATE_LABELS: Record<string, string> = {
 };
 
 export const FIELD_POV_LABELS: Record<string, string> = {
-  backstage: "Бэкстейдж",
+  backstage: "За кулисами",
   boat_pilot: "Глазами пилота",
   start_marshal: "Маршал на старте",
   on_water: "На воде",

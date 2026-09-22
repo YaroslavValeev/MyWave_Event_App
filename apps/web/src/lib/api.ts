@@ -1182,6 +1182,19 @@ export function updateStartListStatus(
   );
 }
 
+export function removeStartListEntry(
+  token: string,
+  eventId: number | string,
+  heatId: number,
+  entryId: number,
+) {
+  return apiFetch<void>(
+    `/api/v1/events/${eventId}/heats/${heatId}/start-list/${entryId}`,
+    { method: "DELETE" },
+    token,
+  );
+}
+
 export type ResultOut = {
   id: number;
   event_id: number;

@@ -358,22 +358,28 @@
 
 .guideNav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.4rem;
   margin: 0.75rem 0 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
 }
 
 .guideNavLink {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   min-height: 2.5rem;
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 0.4rem;
   background: var(--surface);
   color: var(--ink);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .guideNavLink:hover,

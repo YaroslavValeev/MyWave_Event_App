@@ -20,7 +20,7 @@ import styles from "./login.module.css";
 import { Suspense } from "react";
 
 const OTP_FALLBACK_HINT =
-  "Код подтверждения придёт на email, привязанный к аккаунту. SMS пока не подключено.";
+  "Код подтверждения придёт на почту, привязанную к аккаунту. Сообщения на телефон пока не подключены.";
 
 function LoginForm() {
   const router = useRouter();
@@ -240,7 +240,7 @@ function LoginForm() {
         {optionsLoaded && otpRequired && step === "code" ? (
           <form className={styles.form} onSubmit={onVerify} noValidate>
             <div className={styles.field}>
-              <label htmlFor="code">Код из email</label>
+              <label htmlFor="code">Код из письма</label>
               <input
                 id="code"
                 name="code"

@@ -148,7 +148,7 @@ export default function ImportCenterPage() {
     try {
       const result = await applyKazanScanProtocol(t, eventId);
       setMessage(
-        `Сканы Казани разложены: заездов ${result.heats}, стартов ${result.entries}, черновиков результатов ${result.results} (DNS ${result.dns}). Не опубликовано — на листах Not homologated.`,
+        `Сканы Казани разложены: заездов ${result.heats}, стартов ${result.entries}, черновиков результатов ${result.results} (не стартовали: ${result.dns}). Пока не опубликовано — на листах нет утверждения федерации.`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось разложить сканы");
@@ -180,7 +180,7 @@ export default function ImportCenterPage() {
     setError(null);
     try {
       const result = await commitImportBatch(t, eventId, batch.id);
-      setMessage(`Зафиксировано участий: ${result.committed_count}. Созданы Athlete ID и pending-аккаунты.`);
+      setMessage(`Зафиксировано участий: ${result.committed_count}. Созданы номера участников и аккаунты, ожидающие подтверждения.`);
       const full = await getImportBatch(t, eventId, result.id);
       setBatch(full);
       await loadBatches(eventId);
@@ -209,10 +209,11 @@ export default function ImportCenterPage() {
         {gate === "ok" ? (
           <>
             <p className={loginStyles.hint}>
-              Загружайте xlsx и PDF в выбранную карточку события (для Казани — одно событие ЧР+ПР).
-              Категории приводятся к IWWF: U14, U18, O30, O40, Open (чемпионат). Возраст — на 31.12.2026.
-              Сначала пакет заявок, затем кнопка сканов дня старта. Результаты со сканов остаются черновиками
-              (на листах Not homologated). Персональные данные и фото протоколов не попадают в GitHub.
+              Загрузите таблицу заявок или пакет документов в выбранное событие (для Казани — одно
+              событие чемпионата и первенства). Возрастные группы: до 14, до 18, 30+, 40+, открытый
+              класс. Возраст считается на 31.12.2026. Сначала таблица заявок, затем разбор сканов дня
+              старта. Результаты со сканов остаются черновиками, пока их не утвердят. Личные данные и
+              фото протоколов хранятся только в приложении.
             </p>
             <div className={loginStyles.field}>
               <label htmlFor="event">Событие</label>
@@ -230,7 +231,7 @@ export default function ImportCenterPage() {
               </select>
             </div>
             <div className={`${loginStyles.field} ${styles.fileRow}`}>
-              <label htmlFor="xlsx">Таблица заявок (.xlsx)</label>
+              <label htmlFor="xlsx">Таблица заявок</label>
               <input
                 id="xlsx"
                 type="file"
@@ -240,7 +241,7 @@ export default function ImportCenterPage() {
               />
             </div>
             <div className={`${loginStyles.field} ${styles.fileRow}`}>
-              <label htmlFor="pack">Пакет документов (xlsx + PDF start list + протокол КС)</label>
+              <label htmlFor="pack">Пакет документов (таблица, стартовый список, протокол КС)</label>
               <input
                 id="pack"
                 type="file"

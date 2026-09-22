@@ -51,6 +51,8 @@ RESULT_VERIFY_ROLES: frozenset[Role] = EVENT_WRITE_ROLES | frozenset({Role.chief
 RESULT_PUBLISH_ROLES: frozenset[Role] = frozenset({Role.chief_judge, Role.platform_admin})
 ROSTER_LOCK_ROLES: frozenset[Role] = EVENT_WRITE_ROLES
 JUDGE_SCORE_ROLES: frozenset[Role] = EVENT_WRITE_ROLES | frozenset({Role.judge, Role.chief_judge})
+# Organizer+ and chief judge may remove a rider from a heat start list.
+START_LIST_REMOVE_ROLES: frozenset[Role] = EVENT_WRITE_ROLES | frozenset({Role.chief_judge})
 
 
 def parse_role(value: str | Role) -> Role:

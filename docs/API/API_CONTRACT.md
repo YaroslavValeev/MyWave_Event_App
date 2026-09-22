@@ -79,6 +79,7 @@
 | GET | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer | start list |
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer organizer+ | добавить участника |
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list/fill` | Bearer organizer+ | bulk из roster (optional category_id) |
+| DELETE | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}` | Bearer organizer+ / chief_judge / platform_admin | убрать из списка |
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
 | GET | `/api/v1/events/{id}/results` | optional | results (`?status=`; гость — только published) |

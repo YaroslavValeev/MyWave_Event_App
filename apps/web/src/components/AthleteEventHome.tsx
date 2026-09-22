@@ -32,7 +32,7 @@ export function AthleteEventHome({
         </div>
         {snapshot.athleteId ? (
           <p className={styles.athleteIdLine}>
-            MyWave Athlete ID: <code>{snapshot.athleteId}</code>
+            Номер участника: {snapshot.athleteId}
           </p>
         ) : null}
         <dl className={styles.meta}>

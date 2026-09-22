@@ -56,9 +56,14 @@ export function OrganizerControlRoom({
           ) : (
             <>
               <p className={styles.muted}>Нет активного заезда.</p>
-              <button type="button" className="btn btnSecondary btnSm" onClick={() => onOpenTab("moments")}>
-                Снять момент
-              </button>
+              <div className={styles.actions}>
+                <button type="button" className="btn btnPrimary btnSm" onClick={() => onOpenTab("heats")}>
+                  Открыть заезды
+                </button>
+                <button type="button" className="btn btnSecondary btnSm" onClick={() => onOpenTab("moments")}>
+                  Снять момент
+                </button>
+              </div>
             </>
           )}
         </article>
