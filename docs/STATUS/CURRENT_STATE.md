@@ -13,7 +13,7 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - Host: Timeweb VPS `62.113.42.227` (`mywave-bot-server`), каталог `/var/www/mywave-event-app` — отдельно от ботов.
 - Стек: `docker compose -f docker-compose.staging.yml`, `APP_ENV=staging`.
 - Выкат **0.5.14** (`7795deb` → `581b924`), 2026-09-22T18:18Z. API Healthy, web Started. Production не трогали.
-- Backup перед выкатом 0.5.14: **не записался** (опечатка `er cp` вместо `docker cp`). Актуальный хостовый backup: `mywave_event_staging.20260921T142129Z.db` (614400). Сразу после выката — сделать post-deploy backup (см. P0).
+- Backup перед выкатом 0.5.14: **не записался** (опечатка `er cp`). Post-deploy backup: `/var/backups/mywave-event-app/mywave_event_staging.20260923T045707Z.db` (618496 байт, 2026-09-23). Ранее: `…20260921T142129Z.db` (614400).
 - Web login: http://62.113.42.227:3001/login — HTTP 200 (снаружи 2026-09-23).
 - API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-09-23T04:27Z).
 - OpenAPI version: **0.5.14**.
@@ -63,7 +63,7 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 Порядок: [QA_AND_UX_HARDENING_PLAN.md](../PRODUCT/QA_AND_UX_HARDENING_PLAN.md). Native Android/iOS **после** волн 0–4.
 
 1. ~~Выкат **0.5.14** на staging~~ — сделано 2026-09-22, SHA `581b924`, OpenAPI `0.5.14`, `otp_required=false`, web login 200. Pre-deploy backup не записался (`er cp`).
-2. **Сейчас:** post-deploy backup SQLite на хост (команды владельцу).
+2. ~~Post-deploy backup SQLite~~ — `mywave_event_staging.20260923T045707Z.db` (618496), 2026-09-23.
 3. Вход судьи с другого телефона (заявка → Доступы → вход без кода) — на staging или локально.
 4. Полевой прогон трёх ролей на PWA (баги, 403 publish, roster lock, live heat, вкладка «Моменты», 11 разделов, мобильная навигация).
 5. UX: Athlete / Control Room / Judge / Моменты / справочник площадки — на staging; кабинеты-вкладки ещё есть.
@@ -78,5 +78,5 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - tsc: **passed** (включая справочник 11 разделов)
 - lint (next lint): **passed**, без warning
 - production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
-- smoke staging **0.5.14** (2026-09-22/23): health `db_ok`; OpenAPI `0.5.14`; `login-options.otp_required=false`; `/login` 200; git `581b924`; pre-deploy backup пропущен — остаётся `mywave_event_staging.20260921T142129Z.db`.
+- smoke staging **0.5.14** (2026-09-22/23): health `db_ok`; OpenAPI `0.5.14`; `login-options.otp_required=false`; `/login` 200; git `581b924`; post-deploy backup `mywave_event_staging.20260923T045707Z.db` (618496).
 - npm audit (prod): 4 CVE в дереве `next` (в т.ч. RCE Image Optimization на Windows) — **не** закрыто слепым `audit fix`; TD-19
