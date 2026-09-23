@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
-Дата: 2026-09-22  
-Версия продукта: **0.5.13 на staging** (git `7795deb`) — вход по телефону без OTP, пока SMTP не настроен. Каталог выдачи в manifest по-прежнему подписан **0.5.10** (документация; android/ios недоступны).  
+Дата: 2026-09-23  
+Версия продукта: **0.5.14 на staging** (git `581b924`) — вход по телефону без OTP, пока SMTP не настроен. Каталог выдачи в manifest по-прежнему подписан **0.5.10** (документация; android/ios недоступны).  
 Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — первый срез в 0.5.11. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 
 Сверка с journeys: [ROLE_JOURNEYS_RECONCILIATION.md](./ROLE_JOURNEYS_RECONCILIATION.md).  
@@ -12,10 +12,11 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 
 - Host: Timeweb VPS `62.113.42.227` (`mywave-bot-server`), каталог `/var/www/mywave-event-app` — отдельно от ботов.
 - Стек: `docker compose -f docker-compose.staging.yml`, `APP_ENV=staging`.
-- Выкат **0.5.13** (`ba2df6b` → `7795deb`), 2026-09-22. API Healthy, web Started. Production не трогали.
-- Backup перед выкатом: `/var/backups/mywave-event-app/mywave_event_staging.20260921T142129Z.db` (614400 байт).
-- Web login: http://62.113.42.227:3001/login — HTTP 200 (на сервере 2026-09-22).
-- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-09-22T08:28:37Z).
+- Выкат **0.5.14** (`7795deb` → `581b924`), 2026-09-22T18:18Z. API Healthy, web Started. Production не трогали.
+- Backup перед выкатом 0.5.14: **не записался** (опечатка `er cp` вместо `docker cp`). Актуальный хостовый backup: `mywave_event_staging.20260921T142129Z.db` (614400). Сразу после выката — сделать post-deploy backup (см. P0).
+- Web login: http://62.113.42.227:3001/login — HTTP 200 (снаружи 2026-09-23).
+- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-09-23T04:27Z).
+- OpenAPI version: **0.5.14**.
 - `GET /api/v1/auth/login-options`: `otp_required=false` (SMTP не настроен).
 - Manifest: app.version **0.5.10**, documentation `available`; android / ios / source `unavailable`.
 - Гость: события Казани по-прежнему `draft` на витрине. Казань не публиковать.
@@ -41,7 +42,7 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - **0.5.10:** карточка выдачи MyWave Event App в «Проекты → Чек-лист организатора» и на вкладке подготовки события. API `app-downloads` + analytics ingest. Android/iOS/source **не подключены**. Документация установки bundled. ADR-0009.
 - **0.5.11 (git, на staging `ba2df6b`):** FieldMoment камера PWA; Athlete «Мой старт»; Organizer Control Room; Judge current athlete.
 - **0.5.13 (на staging с `7795deb`, 2026-09-22):** вход по известному телефону без OTP и без пароля, пока SMTP не настроен; роль из аккаунта. Локально: `+79160117179` → «Админ платформы»; неизвестный номер отказан. Прогон судьи с другого телефона — pending. Production OTP не отключается.
-- **0.5.14 (локально `c12cdc9`, до выката):** удаление из стартового списка (organizer+/chief_judge); мобильная навигация со всеми разделами; русские строки без тех. EN; скролл разделов чек-листа; empty states с подсказками.
+- **0.5.14 (на staging с `581b924`, 2026-09-22):** удаление из стартового списка (organizer+/chief_judge); мобильная навигация со всеми разделами; русские строки без тех. EN; скролл разделов чек-листа; empty states с подсказками. Pre-deploy backup 0.5.14 не записался — нужен post-deploy backup.
 
 ## Частично / нет
 
@@ -61,10 +62,10 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 
 Порядок: [QA_AND_UX_HARDENING_PLAN.md](../PRODUCT/QA_AND_UX_HARDENING_PLAN.md). Native Android/iOS **после** волн 0–4.
 
-1. Выкат **0.5.14** на staging (backup SQLite → pull → compose up → smoke).
-2. Вход судьи с другого телефона (заявка → Доступы → вход без кода) — на staging или локально.
-3. Полевой прогон трёх ролей на PWA (баги, 403 publish, roster lock, live heat, вкладка «Моменты», 11 разделов, мобильная навигация).
-4. ~~Дописать backup SQLite на хост~~ — сделано перед 0.5.13.
+1. ~~Выкат **0.5.14** на staging~~ — сделано 2026-09-22, SHA `581b924`, OpenAPI `0.5.14`, `otp_required=false`, web login 200. Pre-deploy backup не записался (`er cp`).
+2. **Сейчас:** post-deploy backup SQLite на хост (команды владельцу).
+3. Вход судьи с другого телефона (заявка → Доступы → вход без кода) — на staging или локально.
+4. Полевой прогон трёх ролей на PWA (баги, 403 publish, roster lock, live heat, вкладка «Моменты», 11 разделов, мобильная навигация).
 5. UX: Athlete / Control Room / Judge / Моменты / справочник площадки — на staging; кабинеты-вкладки ещё есть.
 6. Письмо сайту — точный текст в `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` (вариант A; Android/iOS недоступны).
 7. SMTP на staging — владелец.
@@ -77,5 +78,5 @@ UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).
 - tsc: **passed** (включая справочник 11 разделов)
 - lint (next lint): **passed**, без warning
 - production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
-- smoke staging **0.5.13** (2026-09-22): health `db_ok`; `login-options.otp_required=false`; `/login` 200; git `7795deb`; backup `mywave_event_staging.20260921T142129Z.db` (614400).
+- smoke staging **0.5.14** (2026-09-22/23): health `db_ok`; OpenAPI `0.5.14`; `login-options.otp_required=false`; `/login` 200; git `581b924`; pre-deploy backup пропущен — остаётся `mywave_event_staging.20260921T142129Z.db`.
 - npm audit (prod): 4 CVE в дереве `next` (в т.ч. RCE Image Optimization на Windows) — **не** закрыто слепым `audit fix`; TD-19
