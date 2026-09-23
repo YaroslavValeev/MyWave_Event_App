@@ -1,28 +1,30 @@
 :root {
-  --night: #f3fbfb;
-  --ink: #12383c;
-  --teal-deep: #0f766e;
-  --teal-mid: #14b8a6;
-  --foam: #12383c;
-  --mist: #5b7c80;
-  --sand: #0d9488;
-  --sand-bright: #2dd4bf;
-  --focus: #14b8a6;
+  --night: #f3f1eb;
+  --ink: #12202a;
+  --teal-deep: #0e4f5c;
+  --teal-mid: #1b7f8e;
+  --foam: #12202a;
+  --mist: #5a6b73;
+  --sand: #0e4f5c;
+  --sand-bright: #2a9aaa;
+  --accent: #e85d04;
+  --focus: #1b7f8e;
   --danger: #b42318;
-  --success: #0f9f6e;
+  --success: #1f7a4c;
+  --warning: #b45309;
   --surface: #ffffff;
-  --border: color-mix(in srgb, var(--teal-mid) 38%, white);
+  --border: #d5dde0;
   --line: var(--border);
-  --shadow: 0 6px 18px color-mix(in srgb, var(--teal-mid) 22%, transparent);
-  --shadow-sm: 0 3px 10px color-mix(in srgb, var(--teal-mid) 16%, transparent);
+  --shadow: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, var(--ink) 8%, transparent);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
+  --radius-sm: 0.35rem;
+  --radius-md: 0.55rem;
   --touch: 2.75rem;
 
   --font-display: "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
@@ -49,9 +51,8 @@ body {
   line-height: 1.55;
   color: var(--ink);
   background:
-    radial-gradient(ellipse 80% 50% at 8% -8%, color-mix(in srgb, var(--teal-mid) 18%, white), transparent 55%),
-    radial-gradient(ellipse 55% 40% at 100% 0%, color-mix(in srgb, var(--sand-bright) 20%, white), transparent 50%),
-    linear-gradient(180deg, #eefafa 0%, var(--night) 40%, #e7f6f4 100%);
+    radial-gradient(ellipse 70% 45% at 6% -6%, color-mix(in srgb, var(--teal-mid) 12%, white), transparent 55%),
+    linear-gradient(180deg, #eef3f2 0%, var(--night) 42%, #ebe8e1 100%);
   background-attachment: fixed;
 }
 
@@ -141,15 +142,15 @@ textarea {
 }
 
 .btnPrimary {
-  background: color-mix(in srgb, var(--sand-bright) 28%, white);
+  background: color-mix(in srgb, var(--accent) 18%, white);
   color: var(--teal-deep);
-  border-color: var(--teal-mid);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--teal-mid));
   box-shadow: var(--shadow);
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--sand-bright) 42%, white);
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--teal-mid) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 28%, white);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .btnSecondary {

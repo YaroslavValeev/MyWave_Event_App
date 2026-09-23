@@ -24,8 +24,9 @@ ALLOWED_KINDS = frozenset({"judge_sheet", "chief_protocol", "photo_result", "oth
 ALLOWED_STATUSES = frozenset({"draft", "verified", "published", "rejected"})
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB
 
-PROTOCOL_UPLOAD_ROLES = EVENT_WRITE_ROLES | frozenset({Role.judge})
-PROTOCOL_VERIFY_ROLES = EVENT_WRITE_ROLES
+PROTOCOL_UPLOAD_ROLES = EVENT_WRITE_ROLES | frozenset({Role.judge, Role.chief_judge})
+PROTOCOL_VERIFY_ROLES = EVENT_WRITE_ROLES | frozenset({Role.chief_judge})
+PROTOCOL_PUBLISH_ROLES = frozenset({Role.chief_judge, Role.platform_admin})
 
 
 def _role_of(user: User) -> Role:
@@ -38,6 +39,10 @@ def can_upload_protocol(user: User) -> bool:
 
 def can_verify_protocol(user: User) -> bool:
     return _role_of(user) in PROTOCOL_VERIFY_ROLES
+
+
+def can_publish_protocol(user: User) -> bool:
+    return _role_of(user) in PROTOCOL_PUBLISH_ROLES
 
 
 def _safe_filename(name: str) -> str:
@@ -228,7 +233,16 @@ def update_protocol_capture(
         if status not in ALLOWED_STATUSES:
             raise EventServiceError("invalid_status", f"status must be one of: {', '.join(sorted(ALLOWED_STATUSES))}", 400)
 
-        if status in {"verified", "published", "rejected"}:
+        if status == "published":
+            if not can_publish_protocol(actor):
+                raise EventServiceError(
+                    "chief_approval_required",
+                    "Официальный протокол публикует главный судья (или platform_admin)",
+                    403,
+                )
+            capture.verified_by_user_id = actor.id
+            capture.verified_at = datetime.now(UTC)
+        elif status in {"verified", "rejected"}:
             if not can_verify_protocol(actor):
                 raise EventServiceError("forbidden", "Insufficient role to verify protocol capture", 403)
             capture.verified_by_user_id = actor.id

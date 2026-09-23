@@ -1,0 +1,44 @@
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--mist);
+}
+
+.error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger, #b42318);
+}
+
+.control {
+  width: 100%;
+  min-height: var(--touch, 44px);
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--line, var(--border));
+  background: var(--surface, #fff);
+  color: var(--ink);
+  font: inherit;
+}
+
+.control:focus {
+  outline: 2px solid var(--teal-mid);
+  outline-offset: 2px;
+}
+
+.control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -49,11 +49,48 @@ def test_participants_do_not_expose_phone(client, db_session):
             assert item["has_medical_cert"] is True
 
 
-def test_schedule_hint(client):
-    headers = auth_header(client, "viewer@example.com", "participant")
-    # participant cannot create; use organizer for event
-    org = auth_header(client, "org2@example.com", "organizer")
-    event_id = _ensure_event(client, org)
-    response = client.get(f"/api/v1/events/{event_id}/schedule-hint", headers=headers)
-    assert response.status_code == 200
-    assert "summary" in response.json()
+def test_schedule_hint_follows_this_event_not_kazan_stub(client):
+    org = auth_header(client, "hint-org@example.com", "organizer")
+    event_id = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "slug": "moscow-wake-hint",
+            "title": "Всероссийские соревнования по Вейкборду",
+            "city": "Москва",
+            "venue": "СберСити",
+            "disciplines": "Вейкборд (катер)",
+            "starts_at": "2026-09-05T00:00:00+00:00",
+            "ends_at": "2026-09-06T00:00:00+00:00",
+            "status": "draft",
+        },
+    ).json()["id"]
+    response = client.get(f"/api/v1/events/{event_id}/schedule-hint", headers=org)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    text = body["summary"] + " " + " ".join(body["notes"])
+    assert "Кабан" not in text
+    assert "Торфяная" not in text
+    assert "Excel" not in text
+    assert "Москва" in body["summary"]
+    assert "05.09.2026" in body["summary"]
+    assert "06.09.2026" in body["summary"]
+    assert "0" in " ".join(body["notes"])
+
+
+def test_schedule_hint_kazan_title_gets_bulletin_program(client):
+    org = auth_header(client, "hint-kazan@example.com", "organizer")
+    event_id = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "slug": "chr-pr-kazan-hint",
+            "title": "Чемпионат России в Казани 2026",
+            "city": "Казань",
+            "status": "draft",
+        },
+    ).json()["id"]
+    body = client.get(f"/api/v1/events/{event_id}/schedule-hint", headers=org).json()
+    text = " ".join(body["notes"])
+    assert "Нижний Кабан" in text
+    assert "Казань" in body["summary"]

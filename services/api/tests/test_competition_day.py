@@ -73,6 +73,54 @@ def test_document_upload_and_download(client, tmp_path, monkeypatch):
     assert client.get(f"/api/v1/events/{event_id}/documents", headers=org).json()["total"] == 0
 
 
+def test_document_rejects_empty_oversize_and_path_traversal(client, tmp_path, monkeypatch):
+    org = auth_header(client, "doc-sec@example.com", "organizer")
+    event_id = _create_published_event(client, org, "doc-sec-event")
+
+    from app.config import Settings, get_settings
+    import app.services.document_service as document_service
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(Settings, "repo_root", property(lambda self: tmp_path))
+    monkeypatch.setattr(document_service, "MAX_UPLOAD_BYTES", 64)
+    get_settings.cache_clear()
+    (tmp_path / "data" / "documents").mkdir(parents=True, exist_ok=True)
+
+    empty = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("empty.pdf", BytesIO(b""), "application/pdf")},
+        data={"title": "Пустой", "kind": "other"},
+    )
+    assert empty.status_code == 400
+    assert empty.json()["error"]["code"] == "empty_file"
+
+    huge = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("big.pdf", BytesIO(b"%PDF" + b"x" * 80), "application/pdf")},
+        data={"title": "Большой", "kind": "other"},
+    )
+    assert huge.status_code == 400
+    assert huge.json()["error"]["code"] == "file_too_large"
+
+    traversal = client.post(
+        f"/api/v1/events/{event_id}/documents",
+        headers=org,
+        files={"file": ("../../etc/passwd.pdf", BytesIO(b"%PDF-1.4 ok"), "application/pdf")},
+        data={"title": "Traversal", "kind": "other"},
+    )
+    assert traversal.status_code == 201, traversal.text
+    stored = traversal.json()["file_name"]
+    assert ".." not in stored
+    assert stored.endswith("passwd.pdf")
+    downloaded = client.get(
+        f"/api/v1/events/{event_id}/documents/{traversal.json()['id']}/file",
+        headers=org,
+    )
+    assert downloaded.status_code == 200
+
+
 def test_document_rejects_exe(client, tmp_path, monkeypatch):
     org = auth_header(client, "doc-bad@example.com", "organizer")
     event_id = _create_published_event(client, org, "doc-bad-event")
@@ -256,9 +304,17 @@ def test_fill_start_list_and_results_lifecycle(client, db_session):
         json={"status": "verified"},
     )
     assert verified.status_code == 200
-    published = client.patch(
+    blocked = client.patch(
         f"/api/v1/events/{event_id}/results/{result_id}/status",
         headers=org,
+        json={"status": "published"},
+    )
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "chief_approval_required"
+    chief = auth_header(client, "fill-chief@example.com", "chief_judge")
+    published = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=chief,
         json={"status": "published"},
     )
     assert published.status_code == 200
@@ -277,3 +333,101 @@ def test_fill_start_list_and_results_lifecycle(client, db_session):
         json={"participant_id": pid, "score": 90, "place": 1, "heat_id": heat_id},
     )
     assert blocked.status_code == 409
+
+
+def test_remove_start_list_entry_roles(client, db_session):
+    from app.models.category import Category
+    from app.models.heat import Run
+    from app.models.participant import Participant
+    from sqlalchemy import select
+
+    org = auth_header(client, "rm-org@example.com", "organizer")
+    chief = auth_header(client, "rm-chief@example.com", "chief_judge")
+    judge = auth_header(client, "rm-judge@example.com", "judge")
+    athlete = auth_header(client, "rm-athlete@example.com", "participant")
+    event_id = _create_published_event(client, org, "rm-start-list")
+
+    cat = Category(event_id=event_id, code="OPEN", title="Open", discipline="wakeboard")
+    db_session.add(cat)
+    db_session.flush()
+    parts = []
+    for name in ("Rider One", "Rider Two", "Rider Three"):
+        p = Participant(
+            event_id=event_id,
+            category_id=cat.id,
+            full_name=name,
+            status="accepted",
+        )
+        db_session.add(p)
+        parts.append(p)
+    db_session.commit()
+    ids = [p.id for p in parts]
+    category_id = cat.id
+
+    heat = client.post(
+        f"/api/v1/events/{event_id}/heats",
+        headers=org,
+        json={
+            "code": "Q-RM",
+            "title": "Remove heat",
+            "heat_number": 1,
+            "category_id": category_id,
+        },
+    )
+    assert heat.status_code == 201, heat.text
+    heat_id = heat.json()["id"]
+
+    entry_ids = []
+    for order, pid in enumerate(ids, start=1):
+        entry = client.post(
+            f"/api/v1/events/{event_id}/heats/{heat_id}/start-list",
+            headers=org,
+            json={"participant_id": pid, "start_order": order},
+        )
+        assert entry.status_code == 201, entry.text
+        entry_ids.append(entry.json()["id"])
+
+    denied_judge = client.delete(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/{entry_ids[0]}",
+        headers=judge,
+    )
+    assert denied_judge.status_code == 403
+    assert denied_judge.json()["error"]["code"] == "forbidden"
+
+    denied_athlete = client.delete(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/{entry_ids[0]}",
+        headers=athlete,
+    )
+    assert denied_athlete.status_code == 403
+
+    removed_by_org = client.delete(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/{entry_ids[0]}",
+        headers=org,
+    )
+    assert removed_by_org.status_code == 204
+
+    removed_by_chief = client.delete(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/{entry_ids[1]}",
+        headers=chief,
+    )
+    assert removed_by_chief.status_code == 204
+
+    remaining = client.get(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list",
+        headers=org,
+    )
+    assert remaining.status_code == 200
+    assert remaining.json()["total"] == 1
+    assert remaining.json()["items"][0]["id"] == entry_ids[2]
+
+    runs_left = list(
+        db_session.scalars(select(Run).where(Run.heat_id == heat_id)).all()
+    )
+    assert len(runs_left) == 1
+    assert runs_left[0].participant_id == ids[2]
+
+    missing = client.delete(
+        f"/api/v1/events/{event_id}/heats/{heat_id}/start-list/{entry_ids[0]}",
+        headers=org,
+    )
+    assert missing.status_code == 404

@@ -77,9 +77,16 @@ def _create_scored_event(client):
         json={"status": "verified"},
     )
     assert verified.status_code == 200
-    published = client.patch(
+    denied = client.patch(
         f"/api/v1/events/{event_id}/results/{result_id}/status",
         headers=org,
+        json={"status": "published"},
+    )
+    assert denied.status_code == 403
+    chief = auth_header(client, "op-chief@example.com", "chief_judge")
+    published = client.patch(
+        f"/api/v1/events/{event_id}/results/{result_id}/status",
+        headers=chief,
         json={"status": "published"},
     )
     assert published.status_code == 200
