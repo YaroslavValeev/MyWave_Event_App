@@ -1,6 +1,20 @@
 # CURRENT_STATE
 
-Дата: 2026-09-23  
+Дата сверки: 2026-10-25
+
+## Checkpoint release/staging — 25 октября 2026
+
+- GitHub `main`: `ebb43b7c4fc75e5a5ea9778394182c58deb2bd73`.
+- Кандидат PR #2: `cursor/p0-import-center-athlete-link`, `e2f602fd5c4da018ce2ce6d194817c7386e8d481`; PR открыт, 16 коммитов сверх main. CI run `35845927322` — success.
+- Локальный baseline: API **116 passed**, Python dependencies `pip check` — passed; SQLite read-only `SELECT 1` / `quick_check` — passed. Web production build Next.js 15.5.22 — passed.
+- Сквозной синтетический API dry-run воспроизвёл blocker: импортированные Athlete ID присутствуют в roster, но теряются в JSON official protocol (`null`); при наличии аккаунта экспорт мог подставить ID аккаунта вместо профиля спортсмена.
+- Исправление в `fix/official-protocol-athlete-id`: экспорт использует профиль спортсмена с fallback для legacy User; без миграции, без изменения ролей или схемы ответа. Регресс-тесты до исправления: **2 failed / 2 passed**.
+- Полный локальный API suite после исправления: **120 passed**, 0 skipped (116 существующих + 4 проверки идентичности). Web не менялся; baseline production build остаётся passed. Автоматический API dry-run и полевой акт учитываются отдельно.
+- Актуальный staging: **deployed_sha=null**, версия и состояние БД неизвестны. SSH `22`, API `8001` и web `3001` с этой машины дали timeout. Это не доказательство остановки сервиса.
+- Данные ниже — историческое свидетельство за сентябрь. До выкладки нужны текущие identity API/web, проверенный backup/restore, review/CI и отдельный полевой акт организатора и главного судьи. Production, staging и данные Казани этим циклом не изменялись.
+
+## Исторический срез — 23 сентября 2026
+
 Версия продукта: **0.5.14 на staging** (git `581b924`) — вход по телефону без OTP, пока SMTP не настроен. Каталог выдачи в manifest по-прежнему подписан **0.5.10** (документация; android/ios недоступны).  
 Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — первый срез в 0.5.11. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-10-25
+
+- Official protocol JSON/attachment сохраняет Athlete ID импортированных участников из `AthleteProfile`; приоритет профиля совпадает с roster, legacy fallback через `User` сохранён.
+- Регресс-тесты: импорт без аккаунта, профиль плюс аккаунт с другим ID, legacy User и отсутствие идентификатора. Миграция БД не требуется.
+- CURRENT_STATE отделяет текущую проверку release baseline от исторического staging 23 сентября; текущий deployed SHA неизвестен из-за timeout.
+
 ## 0.5.14 — 2026-09-22 (staging `581b924`)
 
 - Версия пакета API/web → **0.5.14**.
