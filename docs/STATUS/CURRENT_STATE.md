@@ -2,6 +2,16 @@
 
 Дата сверки: 2026-10-26
 
+## SQLite backup/restore — 26 октября 2026, 11:38 UTC
+
+- По live-выводу владельца `Invoke-BackupVerify.ps1` завершился **BACKUP_RESTORE_PASS**: online snapshot staging SQLite и восстановление в отдельном одноразовом контейнере прошли. Gate свежей **SQLite** копии и изолированного restore закрыт.
+- Backup: `/var/backups/mywave-event-app/mywave_event_staging.20261026T113815Z.r3bwDHHf.db` (618496 байт); proof: тот же путь + `.verify.json`.
+- SHA256 файла: `d4a2bab47043a8586ddf7893373dc90668c2500b06b6b4cb3147965c1eec63ba`.
+- Snapshot и restore: **27 таблиц, 1324 строки**, `integrity_check=ok`, FK violations **0**, row counts и logical SHA256 совпадают: `68ff8fa32c1b8d9f2540df5c4aeb81f541aba530cc333a28759912b298ddb81e`.
+- `source_mode=ro`, `restored_temp_removed=true`, `active_database_writes=false`, `application_restarts=false`. API/web container identities и hash dirty Compose сохранились; код приложения не разворачивался, рабочая БД не заменялась.
+- Источник evidence — консольный live-вывод владельца за `2026-10-26T11:38:17.683420Z`; более ранние два SSH banner timeout агента не были успешным backup. Повторное резервирование этим checkpoint не выполнялось.
+- `offsite_verified=false`; env/uploads и полное восстановление приложения этим SQLite-сценарием не удостоверяются. Остаются review/интеграция PR #2 → #3, сохранение loopback bindings, доказанная identity новых API/web images и отдельный полевой акт. Merge/deploy не выполнены.
+
 ## Staging checkpoint — 26 октября 2026, 05:49 UTC
 
 - Повторный read-only SSH прошёл: API healthy, `env=staging`, OpenAPI **0.5.14**, `db_ok=true`; web `/login` **200**, BUILD_ID `p3AXeSOsU4Q12km3-554Z`.
