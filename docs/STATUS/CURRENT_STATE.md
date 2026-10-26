@@ -2,6 +2,15 @@
 
 Дата сверки: 2026-10-26
 
+## Release review — 26 октября 2026
+
+- PR #2 и #3 открыты, CI их текущих head зелёный; зарегистрированных GitHub reviews / review threads нет.
+- Фактический application diff `581b924..c26a466` до review: один service экспорта Athlete ID, один regression test; web/Compose/модели не менялись.
+- Новый blocker воспроизведён в отдельной SQLite: после `verified` и `published` судья мог изменить лист 75 → 100 (HTTP 201), а итог оставался 75. Текущий экспорт становился внутренне противоречивым.
+- В `fix/finalized-judge-score-lock` подготовлен минимальный guard: `409 immutable` для листов проверенного/опубликованного результата; учитывается прежний heat при переносе. Возврат в draft / chief void использует прежние роли и history; миграций нет.
+- Точечная локальная проверка: **15 passed** (11 новых scoring-сценариев + 4 проверки Athlete ID). Полная local/Docker/CI валидация фиксируется в PR этого изменения; до его интеграции staging-кандидат не считать завершённым. Полный review всего PR #2 (164 файла) этим целевым review не удостоверяется.
+- Сервер и реальное соревнование не менялись. Web Dockerfile использует `npm install` без lockfile; для ближайшего минимального staging-кандидата планируется ограничить выкладку API, с отдельным доказательством его image identity и сохранением web/loopback bindings.
+
 ## SQLite backup/restore — 26 октября 2026, 11:38 UTC
 
 - По live-выводу владельца `Invoke-BackupVerify.ps1` завершился **BACKUP_RESTORE_PASS**: online snapshot staging SQLite и восстановление в отдельном одноразовом контейнере прошли. Gate свежей **SQLite** копии и изолированного restore закрыт.

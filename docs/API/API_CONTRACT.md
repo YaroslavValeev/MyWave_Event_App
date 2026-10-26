@@ -140,6 +140,14 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | POST | `/api/v1/events/{id}/judge-scores` | Bearer organizer+/judge | критерии → total |
 | POST | `/api/v1/events/{id}/judge-scores/aggregate` | Bearer organizer+ | панель → result draft |
 
+`POST judge-scores` возвращает `409 immutable`, если результат этой попытки
+и заезда уже `verified` или `published`: запрещены изменение и добавление листов.
+Перенос существующего листа в другой heat также проверяет прежний heat.
+Для исправления организатор возвращает проверенный результат в `draft`;
+опубликованный сначала аннулирует chief_judge/platform_admin, затем организатор
+возвращает его в `draft`. После изменения — повторная агрегация, проверка и publish.
+Другая попытка и несвязанный heat не блокируются; схема БД и ключ листа не меняются.
+
 ## Official protocol export (0.5.4)
 
 | Method | Path | Auth | Описание |
