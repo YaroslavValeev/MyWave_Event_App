@@ -1,6 +1,18 @@
 # CURRENT_STATE
 
-Дата сверки: 2026-10-25
+Дата сверки: 2026-10-26
+
+## Staging checkpoint — 26 октября 2026, 05:49 UTC
+
+- Повторный read-only SSH прошёл: API healthy, `env=staging`, OpenAPI **0.5.14**, `db_ok=true`; web `/login` **200**, BUILD_ID `p3AXeSOsU4Q12km3-554Z`.
+- Серверный checkout: `581b92423422c59cea75a07255cccf8dd4859988`. Все **98 tracked файлов `services/api/app`** побайтово совпадают с `/app/app` работающего API; missing/different/extra — 0. Это подтверждает только файлы приложения, не происхождение всего image.
+- API image: `sha256:6e59fc81e6281460e1da16390d4f95133f91822e77cc53de33e6a36de08d634e`; web image: `sha256:5c68d08ba5b25b1933b3f329a43c6c93c7216dc8f68b242b943606526064edb5`; оба созданы 2026-10-23. Revision labels пусты: **image build SHA / web source SHA неизвестны**.
+- Единственный серверный diff `docker-compose.staging.yml`: `8001:8000` → `127.0.0.1:8001:8000` и `3001:3000` → `127.0.0.1:3001:3000`. Других изменённых строк нет. Сохранить эти ограничения при будущей интеграции; не сбрасывать dirty Compose.
+- Runtime web: product **0.5.14**, Next.js **15.5.26**; локальная проверенная сборка использовала **15.5.22**. Не считать эти web-сборки одинаковыми. Внешний HTTP к IP:8001/3001 не является проверкой сервиса, опубликованного только на loopback.
+- SQLite: 618496 байт, read-only `SELECT 1=1`, `quick_check=ok`. Последний показанный backup: `mywave_event_staging.20260923T045707Z.db`; свежий backup и restore proof не получены.
+- `otp_required=false`, `password_required=false`: staging сохраняет вход по известному телефону без настроенной почтовой доставки. Конфигурация auth не менялась.
+- Исправление Athlete ID — PR #3, code commit `0df9615`; в работающем API его ещё нет. PR #2 и #3 остаются открытыми. Следующий gate: review/порядок интеграции, свежий backup/restore, сохранение loopback bindings, доказанная identity новых API/web images и отдельный полевой акт.
+- PowerShell → Bash: файл скрипта имел LF, но текстовый native pipeline добавлял завершающий CRLF. Передача через `tr -d "\015" | bash -s` проверена локально в Docker и на S1; exit 0. Сервер не перезапускался, fetch/checkout/миграции и записи в БД не выполнялись.
 
 ## Checkpoint release/staging — 25 октября 2026
 
