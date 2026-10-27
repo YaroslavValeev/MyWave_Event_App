@@ -67,6 +67,27 @@ def test_participant_cannot_import(client):
     assert denied.status_code == 403
 
 
+def test_import_upload_is_rejected_at_the_api_size_boundary(client):
+    org = auth_header(client, "imp-org-size@example.com", "organizer")
+    event_id = _event(client, org, "import-size")
+    oversized = b"x" * (5 * 1024 * 1024 + 1)
+
+    response = client.post(
+        f"/api/v1/events/{event_id}/imports",
+        headers=org,
+        files={
+            "file": (
+                "too-large.xlsx",
+                oversized,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "file_too_large"
+
+
 def test_import_idempotent_and_commit_creates_athlete_id(client, db_session):
     org = auth_header(client, "imp-org@example.com", "organizer")
     event_id = _event(client, org, "import-idemp")
