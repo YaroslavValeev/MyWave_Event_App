@@ -8,13 +8,15 @@
 |--------|------|------|----------|
 | GET | `/health` | no | liveness + db_ok |
 | GET | `/ready` | no | readiness (503 если DB down) |
-| GET | `/api/v1/roles` | no | список ролей |
+| GET | `/api/v1/roles` | no | список ролей (`chief_judge` с 0.5.9) |
 
 ## Auth
 
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
 | POST | `/api/v1/auth/register` | no | регистрация (participant active; иначе pending) |
+| GET | `/api/v1/auth/login-options` | no | `otp_required` / `password_required` (пароля нет) |
+| POST | `/api/v1/auth/phone/login` | no | JWT по известному телефону, **только если OTP не обязателен**; роль из аккаунта |
 | POST | `/api/v1/auth/phone/request-otp` | no | OTP на email + mail_outbox |
 | POST | `/api/v1/auth/phone/verify-otp` | no | JWT при status=active |
 | GET | `/api/v1/auth/approvals/pending` | Bearer organizer+ | очередь ролей (**без** token) |
@@ -24,8 +26,11 @@
 | GET | `/api/v1/auth/approvals/{token}/reject` | no (email link) | HTML-форма подтверждения (без мутации) |
 | POST | `/api/v1/auth/approvals/{token}/confirm` | form `decision=approve\|reject` | мутация по email-ссылке |
 | POST | `/api/v1/auth/dev-login` | no (dev/test only) | JWT bootstrap |
-| GET | `/api/v1/me` | Bearer | текущий пользователь |
+| GET | `/api/v1/me` | Bearer | текущий пользователь (`pending_claim_count`) |
 | PATCH | `/api/v1/me` | Bearer | имя и/или телефон |
+| GET | `/api/v1/me/athlete-links` | Bearer | предполагаемые/подтверждённые профили |
+| POST | `/api/v1/me/athlete-links/{id}/confirm` | Bearer | подтвердить связь (OTP уже пройден) |
+| POST | `/api/v1/me/athlete-links/{id}/reject` | Bearer | отклонить связь; чужой link_id → 404 |
 | GET | `/api/v1/me/notifications` | Bearer | журнал уведомлений |
 | GET | `/api/v1/me/notifications/unread-count` | Bearer | число непрочитанных |
 | POST | `/api/v1/me/notifications/read-all` | Bearer | отметить все прочитанными |
@@ -46,7 +51,11 @@
 | POST | `/api/v1/events` | Bearer organizer+ | создать (optional `rules_profile`: governing_body, sanction_body, discipline_codes[], scoring_mode) |
 | GET | `/api/v1/events/{id}` | optional | получить (гости — только публичные статусы) |
 | PATCH | `/api/v1/events/{id}` | Bearer organizer+ | обновить |
-| GET | `/api/v1/events/{id}/detail` | optional | сводка + counts |
+| GET | `/api/v1/events/{id}/detail` | optional | сводка + counts (`roster_locked_at`) |
+| POST | `/api/v1/events/{id}/roster/lock` | Bearer organizer+ | зафиксировать состав (идемпотентно; пустой → `400 roster_empty`) |
+| POST | `/api/v1/events/{id}/roster/unlock` | Bearer organizer+ | снять фиксацию (audit `reason`) |
+
+При `roster_locked_at != null`: новые заявки, accept, import commit, ingest-pack, scan-protocol → **409** `roster_locked`. Check-in / heats / scoring остаются.
 
 ## Competition
 
@@ -59,7 +68,7 @@
 | GET | `/api/v1/events/{id}/applications` | Bearer organizer+ | очередь заявок |
 | PATCH | `/api/v1/events/{id}/applications/{participant_id}` | Bearer organizer+ | accept/reject |
 | GET | `/api/v1/events/{id}/documents` | Bearer | документы |
-| POST | `/api/v1/events/{id}/documents` | Bearer organizer+ | upload (multipart: file, title, kind, language?, description?) |
+| POST | `/api/v1/events/{id}/documents` | Bearer organizer+ | upload (multipart: file, title, kind, language?, description?, access_class?) |
 | DELETE | `/api/v1/events/{id}/documents/{doc_id}` | Bearer organizer+ | удалить документ + файл |
 | GET | `/api/v1/events/{id}/documents/{doc_id}/file` | Bearer | скачать файл |
 | GET | `/api/v1/events/{id}/checklist` | Bearer | чеклист подготовки (auto-seed + auto-tick) |
@@ -70,16 +79,31 @@
 | GET | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer | start list |
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list` | Bearer organizer+ | добавить участника |
 | POST | `/api/v1/events/{id}/heats/{heat_id}/start-list/fill` | Bearer organizer+ | bulk из roster (optional category_id) |
+| DELETE | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}` | Bearer organizer+ / chief_judge / platform_admin | убрать из списка |
 | PATCH | `/api/v1/events/{id}/heats/{heat_id}/start-list/{entry_id}/status` | Bearer organizer+ | check-in / DNS / DNF / … |
 | GET | `/api/v1/events/{id}/heats/{heat_id}/runs` | Bearer | runs (attempt) |
 | GET | `/api/v1/events/{id}/results` | optional | results (`?status=`; гость — только published) |
-| POST | `/api/v1/events/{id}/results` | Bearer organizer+ | upsert draft (score/place) |
-| PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer organizer+ | draft\|verified\|published\|void |
+| POST | `/api/v1/events/{id}/results` | Bearer organizer+/chief_judge | upsert draft (score/place) |
+| PATCH | `/api/v1/events/{id}/results/{result_id}/status` | Bearer | `verified` — organizer+/chief_judge; `published` и void опубликованного — **только** `chief_judge` или `platform_admin` (`403 chief_approval_required`) |
 | GET | `/api/v1/events/{id}/results/{result_id}/history` | Bearer | history/audit строки |
 | GET | `/api/v1/events/{id}/officials` | optional | судьи |
 | GET | `/api/v1/events/{id}/training-slots` | Bearer | слоты (`only_booked`, `discipline`) |
-| GET | `/api/v1/events/{id}/schedule-hint` | optional | текстовая подсказка расписания |
+| GET | `/api/v1/events/{id}/schedule-hint` | optional | подсказка **этого** события (даты/город/слоты; бюллетень Казани — только для ЧР/ПР Казань) |
 | GET | `/api/v1/audit` | Bearer admin | audit |
+
+## Import Center (0.5.8)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| POST | `/api/v1/events/{id}/imports` | Bearer organizer+ | multipart `file` (.xlsx ≤5 МБ). Идемпотентно по SHA-256 |
+| POST | `/api/v1/events/{id}/ingest-pack` | Bearer organizer+ | пакет файлов (xlsx+PDF) → состав IWWF + судьи + heats/start list + documents |
+| POST | `/api/v1/events/{id}/scan-protocol` | Bearer organizer+ | сканы Казани + итоги поста ФВЛС → заезды, старты, **черновики** мест (Not homologated, без publish) |
+| GET | `/api/v1/events/{id}/imports` | Bearer organizer+ | список пакетов |
+| GET | `/api/v1/events/{id}/imports/{batch_id}` | Bearer organizer+ | пакет + строки (телефон маскирован) |
+| PATCH | `/api/v1/events/{id}/imports/{batch_id}/rows/{row_id}` | Bearer organizer+ | `{"decision":"approve\|reject"}` |
+| POST | `/api/v1/events/{id}/imports/{batch_id}/commit` | Bearer organizer+ | профили + pending_claim аккаунты + participants |
+
+Повторная загрузка того же файла возвращает существующий пакет, без дубликатов. PII-файлы в GitHub не коммитятся.
 
 ## Rules & protocol (0.5.2)
 
@@ -90,10 +114,24 @@
 | PUT | `/api/v1/events/{id}/rules-profile` | Bearer organizer+ | создать/обновить профиль |
 | GET | `/api/v1/events/{id}/protocol-captures` | Bearer | список фото/PDF протоколов (`?heat_id=`) |
 | POST | `/api/v1/events/{id}/protocol-captures` | Bearer organizer+/judge | upload (multipart: file, title, kind?, heat_id?, notes?) |
-| PATCH | `/api/v1/events/{id}/protocol-captures/{id}` | Bearer | status draft\|verified\|published\|rejected (verify — organizer+) |
+| PATCH | `/api/v1/events/{id}/protocol-captures/{id}` | Bearer | status draft\|verified\|published\|rejected (verify — organizer+/chief; **published** — chief_judge/platform_admin) |
 | GET | `/api/v1/events/{id}/protocol-captures/{id}/file` | Bearer | скачать файл |
 
 Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `other`. Файлы: JPG/PNG/WebP/PDF ≤15 МБ.
+
+## Field moments (0.5.11, ADR-0011)
+
+Полевые кадры для эфира (бэкстейдж / пилот / маршал), **не** official protocol. Гость и участник — 401/403. Файлы не на витрине.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/field-moments` | Bearer media/commentator/support/organizer+/chief_judge | список (`?heat_id=`) |
+| POST | `/api/v1/events/{id}/field-moments` | Bearer те же роли | multipart: `file`, `title?`, `pov?`, `heat_id?`, `notes?` |
+| PATCH | `/api/v1/events/{id}/field-moments/{id}` | Bearer | `title`/`pov`/`notes`; **status** draft\|approved\|withheld — только organizer+/chief_judge |
+| GET | `/api/v1/events/{id}/field-moments/{id}/file` | Bearer те же роли, что GET списка | файл |
+
+`pov`: `backstage` \| `boat_pilot` \| `start_marshal` \| `on_water` \| `crowd` \| `other`.  
+Фото JPG/PNG/WebP/HEIC ≤15 МБ; видео MP4/WebM/MOV ≤40 МБ. Путь `data/field-media/{slug}/`.
 
 | Method | Path | Auth | Описание |
 |--------|------|------|----------|
@@ -110,10 +148,24 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
 | GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
 
+## App downloads (0.5.10)
+
+Публичный каталог выдачи. URL файлов только в env, не в ответе manifest/status.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/app-downloads/manifest` | no | метаданные приложения и 4 артефакта без target URL |
+| GET | `/api/v1/app-downloads/{id}/status` | no | повторная проверка `android` \| `ios` \| `source` \| `documentation` |
+| POST | `/api/v1/app-downloads/{id}/handoff` | no | validated `location` после подтверждения; 20 запросов/мин/IP |
+| POST | `/api/v1/analytics/events` | no | ingest allowlisted событий (202) |
+
+Состояния артефакта: `available` \| `unavailable` \| `error`. Пустой env или `{{...}}` → `unavailable`. Небезопасный URL → `error`. Handoff: `503 artifact_unavailable` / `artifact_misconfigured`, `429 too_many_requests`. Подключение файлов: `docs/OPERATIONS/APP_DOWNLOADS.md`.
+
 ## Athlete ID & archive (0.5.5)
 
-- `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); в `TokenResponse` / `MeResponse` / roster `ParticipantOut.athlete_id`.
+- `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); канон 0.5.8 — `AthleteProfile.athlete_id`, аккаунт синхронизируется после confirm.
 - `EventDetail.archived` — true при `completed` | `cancelled`.
+- `Event.roster_locked_at` / `roster_locked_by_user_id` — фиксация состава (0.5.9, ADR-0008); не отдельный `Event.status`.
 - Мутации на архивном событии → **409** `event_archived`.
 - Исключение: `PATCH /api/v1/events/{id}/status` (можно вернуть в `live`).
 

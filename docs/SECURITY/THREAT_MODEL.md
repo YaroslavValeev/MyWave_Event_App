@@ -15,7 +15,7 @@
 
 - Public HTTP API / Web.
 - Admin endpoints.
-- Upload artifact endpoints (позже).
+- Upload artifact endpoints (documents, protocol captures, field moments).
 - Server SSH / reverse proxy (ops).
 - Украденный JWT.
 
@@ -34,6 +34,8 @@
 | T8 | Backup theft | encrypt at rest, ограниченный ACL |
 | T9 | Supply chain npm/pip | lockfiles, review deps |
 | T10 | Путаница с Download Center deploy | отдельные SERVER_COMMANDS; нет секретов сайта |
+| T12 | Вредоносный upload (exe, path traversal, oversized) | allowlist расширений, лимит байт, path containment, participant 403 |
+| T13 | Вход по телефону без OTP (пока нет SMTP) | только non-production и без SMTP; роль с сервера; закрывается при SMTP/prod |
 
 ## 4. Out of scope Stage 1
 

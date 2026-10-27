@@ -1,6 +1,6 @@
 # Accessibility (a11y)
 
-**Дата:** 2026-08-04  
+**Дата:** 2026-09-16  
 
 ## 1. Цель Stage 1–2
 
@@ -22,6 +22,7 @@ WCAG 2.2 AA pragmatic baseline для Web UI.
 2. Форма заявки участника.
 3. Судейский ввод результата.
 4. Админ: назначение ролей.
+5. Карточка выдачи `/projects/checklist-org`: tablist, dialog с focus trap, `aria-live`.
 
 ## 4. Проверки
 

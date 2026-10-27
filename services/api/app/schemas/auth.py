@@ -33,6 +33,23 @@ class MeResponse(BaseModel):
     status: str
     display_name: str | None = None
     athlete_id: str | None = None
+    pending_claim_count: int = 0
+
+
+class AthleteLinkOut(BaseModel):
+    id: int
+    athlete_id: str
+    display_name: str
+    latin_name: str | None = None
+    birth_year: int | None = None
+    region: str | None = None
+    relation: str
+    status: str
+
+
+class AthleteLinkListResponse(BaseModel):
+    items: list[AthleteLinkOut]
+    total: int
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -89,6 +106,7 @@ class PhoneOtpRequest(BaseModel):
 class PhoneOtpResponse(BaseModel):
     ok: bool = True
     phone_masked: str
+    email_masked: str | None = None
     message: str
     expires_in_seconds: int
     # Only present in development/test — never rely on this in production clients.
@@ -98,6 +116,16 @@ class PhoneOtpResponse(BaseModel):
 class PhoneOtpVerifyRequest(BaseModel):
     phone: str = Field(min_length=10, max_length=32)
     code: str = Field(min_length=4, max_length=8)
+
+
+class PhoneLoginRequest(BaseModel):
+    phone: str = Field(min_length=10, max_length=32)
+
+
+class LoginOptionsResponse(BaseModel):
+    otp_required: bool
+    password_required: bool = False
+    message: str
 
 
 class RoleDecisionResponse(BaseModel):

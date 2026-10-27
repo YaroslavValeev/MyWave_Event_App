@@ -1,5 +1,5 @@
 ---
-description: Frontend / PWA правила Stage 1
+description: Frontend / PWA + Champ App UX/UI 1.0
 globs: apps/web/**/*
 alwaysApply: false
 ---
@@ -8,8 +8,11 @@ alwaysApply: false
 
 - Stage 1 клиент: `apps/web` (Next.js + TypeScript). Нативных мобильных сборок нет.
 - Не создавать фиктивные APK/IPA/AAB.
-- UI на русском; a11y baseline из `docs/QUALITY/ACCESSIBILITY.md`.
+- **Production UI — только русский.** Коды API (`draft`, `heat`, …) → presentation labels (`labels.ts` / `roles.ts`). Не добавлять английские пользовательские строки.
+- Перед UI-правками читать `docs/PRODUCT/UX_UI_CANON.md` (Role Based + Live First).
+- a11y baseline из `docs/QUALITY/ACCESSIBILITY.md`.
 - Бизнес-правила дублировать на сервере; UI — только UX-ограничения.
-- API base URL из `NEXT_PUBLIC_API_BASE_URL`.
+- API base URL из `NEXT_PUBLIC_API_BASE_URL`. Не показывать пользователю тексты про «API / dev».
 - PWA install/offline — Stage 3; не обещать offline-first в UI copy Stage 1.
 - Не встраивать логику Flask Download Center в web app.
+- Не ломать working flows; UX-рефакторинг — presentation / nav / components.

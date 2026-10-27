@@ -96,8 +96,12 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/register -H "Content-Type: ap
 # заявка судьи (нужен approve)
 curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/register -H "Content-Type: application/json" -d "{\"phone\":\"+79001110002\",\"email\":\"test.judge@example.com\",\"display_name\":\"Тест Судья\",\"requested_role\":\"judge\"}"
 
-# OTP для уже существующего телефона из seed
+# OTP для уже существующего телефона из seed (нужен, когда настроен SMTP или APP_ENV=production)
 curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/phone/request-otp -H "Content-Type: application/json" -d "{\"phone\":\"+79647005403\"}"
+
+# Пока SMTP нет: вход по известному телефону, роль из аккаунта, без кода и пароля
+curl.exe http://127.0.0.1:8000/api/v1/auth/login-options
+curl.exe -X POST http://127.0.0.1:8000/api/v1/auth/phone/login -H "Content-Type: application/json" -d "{\"phone\":\"+79160117179\"}"
 ```
 
 Approve локально без почты:

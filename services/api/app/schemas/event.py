@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.event import EventStatus
 from app.schemas.rules import EventRulesProfileCreate
@@ -28,6 +28,18 @@ class EventUpdateStatus(BaseModel):
     status: EventStatus
 
 
+class RosterLockRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class EventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -42,6 +54,8 @@ class EventRead(BaseModel):
     starts_at: datetime | None
     ends_at: datetime | None
     status: EventStatus
+    roster_locked_at: datetime | None = None
+    roster_locked_by_user_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

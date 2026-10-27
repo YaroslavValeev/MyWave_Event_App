@@ -7,12 +7,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app import __version__
 from app.api.errors import http_exception_handler, validation_exception_handler
 from app.api.router import api_router, v1_router
 from app.config import get_settings
 from app.db import init_db
+from app.services.app_downloads_service import sync_bundled_downloads
 
 
 @asynccontextmanager
@@ -28,7 +31,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="0.5.7",
+        version=__version__,
         lifespan=lifespan,
     )
     application.add_middleware(
@@ -42,6 +45,13 @@ def create_app() -> FastAPI:
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
     application.include_router(api_router)
     application.include_router(v1_router)
+    downloads_dir = settings.data_dir / "downloads"
+    sync_bundled_downloads(downloads_dir)
+    application.mount(
+        "/downloads",
+        StaticFiles(directory=str(downloads_dir)),
+        name="app-downloads",
+    )
     return application
 
 

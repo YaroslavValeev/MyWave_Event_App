@@ -116,6 +116,15 @@ class Settings(BaseSettings):
         return self.app_env == "production"
 
     @property
+    def smtp_configured(self) -> bool:
+        return bool((self.smtp_host or "").strip() and (self.smtp_from or "").strip())
+
+    @property
+    def otp_challenge_required(self) -> bool:
+        """OTP is mandatory in production and whenever email delivery is configured."""
+        return self.is_production or self.smtp_configured
+
+    @property
     def repo_root(self) -> Path:
         return _REPO_ROOT
 

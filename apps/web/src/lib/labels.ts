@@ -54,10 +54,67 @@ export const DOCUMENT_KIND_LABELS: Record<string, string> = {
   schedule: "Расписание",
   rules: "Правила",
   start_list: "Стартовый список",
+  questionnaire: "Анкета / реестр",
+  official_appointment: "Назначение судей",
+  rulebook: "Регламент",
   other: "Другое",
+};
+
+export const DOWNLOAD_STATE_LABELS: Record<string, string> = {
+  loading: "Проверяем файл…",
+  available: "Файл доступен",
+  unavailable: "Файл временно недоступен",
+  error: "Ошибка скачивания",
+  success: "Скачивание запущено",
+};
+
+export const FIELD_POV_LABELS: Record<string, string> = {
+  backstage: "За кулисами",
+  boat_pilot: "Глазами пилота",
+  start_marshal: "Маршал на старте",
+  on_water: "На воде",
+  crowd: "Зрители и эмоции",
+  other: "Другой момент",
+};
+
+export const FIELD_MOMENT_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик команды",
+  approved: "Для эфира",
+  withheld: "Скрыт",
 };
 
 export function labelOf(map: Record<string, string>, value: string | null | undefined): string {
   if (!value) return "—";
   return map[value] ?? value;
+}
+
+/** Primary next status for start-list entry (Live Heat contextual CTA). */
+export function nextEntryStatus(current: string): string | null {
+  const flow: Record<string, string> = {
+    scheduled: "checked_in",
+    checked_in: "ready",
+    ready: "on_water",
+    on_water: "completed",
+  };
+  return flow[current] ?? null;
+}
+
+export function nextEntryStatusLabel(current: string): string | null {
+  const next = nextEntryStatus(current);
+  return next ? labelOf(ENTRY_STATUS_LABELS, next) : null;
+}
+
+/** Primary next heat status. */
+export function nextHeatStatus(current: string): string | null {
+  const flow: Record<string, string> = {
+    planned: "ready",
+    ready: "on_water",
+    on_water: "completed",
+  };
+  return flow[current] ?? null;
+}
+
+export function nextHeatStatusLabel(current: string): string | null {
+  const next = nextHeatStatus(current);
+  return next ? labelOf(HEAT_STATUS_LABELS, next) : null;
 }

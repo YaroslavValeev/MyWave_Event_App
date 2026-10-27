@@ -56,6 +56,18 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
             )
         if "medical_cert_url" not in cols:
             conn.execute(text("ALTER TABLE participants ADD COLUMN medical_cert_url VARCHAR(1024)"))
+        if "athlete_profile_id" not in cols:
+            conn.execute(text("ALTER TABLE participants ADD COLUMN athlete_profile_id INTEGER"))
+
+        event_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(events)")).fetchall()
+        }
+        if event_cols:
+            if "roster_locked_at" not in event_cols:
+                conn.execute(text("ALTER TABLE events ADD COLUMN roster_locked_at DATETIME"))
+            if "roster_locked_by_user_id" not in event_cols:
+                conn.execute(text("ALTER TABLE events ADD COLUMN roster_locked_by_user_id INTEGER"))
 
         user_cols = {
             row[1]
@@ -66,6 +78,20 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
             conn.execute(
                 text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_athlete_id ON users (athlete_id)")
             )
+
+        doc_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(documents)")).fetchall()
+        }
+        if doc_cols:
+            if "access_class" not in doc_cols:
+                conn.execute(
+                    text("ALTER TABLE documents ADD COLUMN access_class VARCHAR(32) DEFAULT 'public' NOT NULL")
+                )
+            if "content_sha256" not in doc_cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN content_sha256 VARCHAR(64)"))
+            if "superseded_by_id" not in doc_cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN superseded_by_id INTEGER"))
 
 
 def get_engine():

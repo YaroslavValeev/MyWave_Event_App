@@ -111,7 +111,7 @@ export default function RegisterPage() {
           </div>
 
           <div className={styles.field}>
-            <label htmlFor="email">Email (на него придёт код входа)</label>
+            <label htmlFor="email">Почта (на неё придёт код входа)</label>
             <input
               id="email"
               name="email"

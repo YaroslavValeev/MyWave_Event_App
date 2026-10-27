@@ -72,6 +72,23 @@
   background: color-mix(in srgb, var(--teal-mid) 8%, white);
 }
 
+.ctaText {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.25rem;
+  font-weight: 600;
+  color: var(--teal-deep);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  background: transparent;
+  border: none;
+}
+
+.ctaText:hover {
+  color: var(--ink);
+}
+
 .featured {
   margin-top: 2.5rem;
 }

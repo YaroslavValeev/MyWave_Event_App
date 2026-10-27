@@ -1,20 +1,26 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ApiError,
   devLogin,
+  getLoginOptions,
+  loginByKnownPhone,
   requestPhoneOtp,
   saveSession,
   verifyPhoneOtp,
+  type TokenResponse,
 } from "@/lib/api";
 import { postLoginPath } from "@/lib/format";
 import type { Role } from "@/lib/roles";
 import styles from "./login.module.css";
 import { Suspense } from "react";
+
+const OTP_FALLBACK_HINT =
+  "Код подтверждения придёт на почту, привязанную к аккаунту. Сообщения на телефон пока не подключены.";
 
 function LoginForm() {
   const router = useRouter();
@@ -28,11 +34,62 @@ function LoginForm() {
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [otpRequired, setOtpRequired] = useState(true);
+  const [modeMessage, setModeMessage] = useState(OTP_FALLBACK_HINT);
 
   const nextPath = useMemo(
     () => postLoginPath(searchParams.get("next")),
     [searchParams],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const options = await getLoginOptions();
+        if (cancelled) return;
+        setOtpRequired(options.otp_required);
+        setModeMessage(options.message);
+      } catch {
+        if (cancelled) return;
+        setOtpRequired(true);
+        setModeMessage(OTP_FALLBACK_HINT);
+      } finally {
+        if (!cancelled) setOptionsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function finishLogin(result: TokenResponse) {
+    saveSession(result.access_token, result.user);
+    if (result.user.status === "pending_claim") {
+      router.replace("/profile");
+    } else {
+      router.replace(nextPath);
+    }
+  }
+
+  async function onPhoneLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setPending(true);
+    try {
+      const result = await loginByKnownPhone(phone.trim());
+      finishLogin(result);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setError("Этот номер ещё не в системе. Сначала создайте аккаунт.");
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось войти.");
+      }
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function onRequestOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +99,11 @@ function LoginForm() {
     setPending(true);
     try {
       const result = await requestPhoneOtp(phone.trim());
-      setHint(result.message);
+      setHint(
+        result.email_masked
+          ? `Код отправлен на ${result.email_masked}. Действует ${Math.round(result.expires_in_seconds / 60)} мин.`
+          : result.message,
+      );
       if (result.dev_otp) setDevOtp(result.dev_otp);
       setStep("code");
     } catch (err) {
@@ -58,10 +119,13 @@ function LoginForm() {
     setPending(true);
     try {
       const result = await verifyPhoneOtp(phone.trim(), code.trim());
-      saveSession(result.access_token, result.user);
-      router.replace(nextPath);
+      finishLogin(result);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Неверный код. Если аккаунт ждёт подтверждения — дождитесь решения организатора.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Неверный код. Запросите новый — действует только последний код (до 10 минут).",
+      );
     } finally {
       setPending(false);
     }
@@ -78,7 +142,7 @@ function LoginForm() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Dev-login недоступен. Проверьте, что API запущен на :8000.",
+          : "Не удалось войти в режиме отладки. Попробуйте позже.",
       );
     } finally {
       setPending(false);
@@ -95,12 +159,55 @@ function LoginForm() {
             После входа вернёмся к прерванному действию.
           </p>
         ) : null}
-        <p className={styles.hint}>
-          Введите номер телефона. Код отправим на email, привязанный к аккаунту (SMS подключим
-          позже). Нет аккаунта? <Link href="/register">Создать</Link>
-        </p>
+        {!optionsLoaded ? (
+          <p className={styles.hint}>Загрузка входа…</p>
+        ) : (
+          <p className={styles.hint}>
+            {modeMessage} Нет аккаунта? <Link href="/register">Создать</Link>
+          </p>
+        )}
 
-        {step === "phone" ? (
+        {optionsLoaded && !otpRequired ? (
+          <form className={styles.form} onSubmit={onPhoneLogin} noValidate>
+            <div className={styles.field}>
+              <label htmlFor="phone">Телефон</label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                required
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+7 900 000-00-00"
+                disabled={pending}
+              />
+            </div>
+            <p className={styles.hint}>
+              Код и пароль не нужны, пока не настроена почтовая доставка. Роль уже
+              привязана к этому номеру в аккаунте.
+            </p>
+
+            {error ? (
+              <p className={styles.error} role="alert">
+                {error}
+                {error.includes("ещё не в системе") ? (
+                  <>
+                    {" "}
+                    <Link href="/register">Регистрация</Link>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+
+            <button type="submit" className={styles.submit} disabled={pending}>
+              {pending ? "Входим…" : "Войти"}
+            </button>
+          </form>
+        ) : null}
+
+        {optionsLoaded && otpRequired && step === "phone" ? (
           <form className={styles.form} onSubmit={onRequestOtp} noValidate>
             <div className={styles.field}>
               <label htmlFor="phone">Телефон</label>
@@ -128,10 +235,12 @@ function LoginForm() {
               {pending ? "Отправляем…" : "Получить код"}
             </button>
           </form>
-        ) : (
+        ) : null}
+
+        {optionsLoaded && otpRequired && step === "code" ? (
           <form className={styles.form} onSubmit={onVerify} noValidate>
             <div className={styles.field}>
-              <label htmlFor="code">Код из email</label>
+              <label htmlFor="code">Код из письма</label>
               <input
                 id="code"
                 name="code"
@@ -176,7 +285,7 @@ function LoginForm() {
               Изменить телефон
             </button>
           </form>
-        )}
+        ) : null}
 
         {showDev ? (
           <div className={styles.form} style={{ marginTop: "2rem" }}>

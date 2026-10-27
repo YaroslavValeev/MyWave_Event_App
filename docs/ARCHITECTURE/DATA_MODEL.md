@@ -21,6 +21,24 @@
 
 История: при повторном grant предыдущая активная строка того же purpose закрывается `revoked_at`.
 
+### AthleteProfile / AccountAthleteLink / ImportBatch (0.5.8)
+
+**AthleteProfile** — SoT постоянного MyWave Athlete ID (`MW-XXXXXXXX`, без PII в самом ID): `display_name`, `latin_name`, `birth_year`, `region`.
+
+**AthleteContact** — телефоны E.164, kind `self|guardian|representative`. Один телефон может относиться к нескольким профилям.
+
+**AccountAthleteLink** — связь `User` ↔ профиль: `pending_claim` → `confirmed` | `rejected`. Нельзя автоматически объединять профили только по ФИО или телефону.
+
+**ImportBatch / ImportRow** — staging импорта. Unique `(event_id, content_sha256)`. Статусы пакета: parsed → committed. Строка хранит исходный sheet/row, нормализованные поля, `match_kind` (`new|exact|probable|conflict|excluded`), `conflict_codes`, решение администратора. Медицинские URL в API и `raw_json` не кладём — только `has_medical`.
+
+**Participant.athlete_profile_id** — связь roster с профилем. `user_id` может быть null (несколько дисциплин на событии).
+
+**Document.access_class** — `public|participant|official|commentator|medical-restricted|consent-restricted|media-rights|admin-only`. Restricted классы не отдаются participant.
+
+### Event roster lock / chief judge (0.5.9)
+
+Runtime `Event` (integer PK): колонки `roster_locked_at`, `roster_locked_by_user_id` — фиксация состава без нового `status`. Роль `chief_judge` публикует official result; организатор делает draft/verified. См. ADR-0008.
+
 ### Notification (добавлено 2026-08-24)
 
 | Поле | Тип | Обяз. | Описание |
@@ -59,6 +77,29 @@ SoT подготовки — в Event App, не на сайте.
 **Run**: attempt для entry (`attempt_no`, sync status с entry при смене статуса).
 
 Document upload пишет в существующую таблицу `documents` + файлы `data/documents/{slug}/`.
+
+### FieldMoment (0.5.11, ADR-0011)
+
+Эмоциональные/операционные кадры площадки. **Не** `ProtocolCapture`. Гость и участник файлы не получают.
+
+| Поле | Тип | Обяз. | Описание |
+|------|-----|-------|----------|
+| id | int | ✓ | PK |
+| event_id | int | ✓ | → Event |
+| heat_id | int | | → Heat, опционально |
+| title | string | ✓ | если пусто при upload — русское имя `pov` |
+| pov | string | ✓ | `backstage` \| `boat_pilot` \| `start_marshal` \| `on_water` \| `crowd` \| `other` |
+| media_kind | string | ✓ | `photo` \| `video` |
+| status | string | ✓ | `draft` \| `approved` \| `withheld` |
+| file_name | string | ✓ | исходное имя (санитизировано) |
+| relative_path | string | ✓ | `{slug}/{uuid}_{name}` под `data/field-media/` |
+| mime_type | string | ✓ | |
+| byte_size | int | ✓ | |
+| notes | text | | |
+| created_by_user_id | int | | → User |
+| created_at | datetime | ✓ | |
+
+Съёмка: `media`, `commentator`, `support`, organizer+, `chief_judge`. Смену статуса — organizer+ / `chief_judge`.
 
 
 - Один SoT на инсталляцию приложения.

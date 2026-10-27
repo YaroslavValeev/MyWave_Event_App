@@ -12,10 +12,14 @@ from app.api.deps import AppSettings, CurrentUser, DbSession
 from app.api.errors import raise_api_error
 from app.domain.roles import EVENT_WRITE_ROLES, Role
 from app.schemas.auth import (
+    AthleteLinkListResponse,
+    AthleteLinkOut,
     DevLoginRequest,
+    LoginOptionsResponse,
     MeResponse,
     PendingApprovalItem,
     PendingApprovalListResponse,
+    PhoneLoginRequest,
     PhoneOtpRequest,
     PhoneOtpResponse,
     PhoneOtpVerifyRequest,
@@ -25,11 +29,13 @@ from app.schemas.auth import (
     RoleDecisionResponse,
     TokenResponse,
 )
+from app.services.athlete_id_service import canonical_athlete_id, ensure_athlete_id
 from app.services.auth_service import (
     AuthError,
     decide_role_approval,
     decide_role_approval_by_id,
     dev_login,
+    login_by_known_phone,
     list_pending_approvals,
     peek_role_approval,
     register_user,
@@ -37,9 +43,16 @@ from app.services.auth_service import (
     update_profile,
     verify_phone_otp,
 )
+from app.services.claim_service import ClaimError, confirm_link, list_links_for_user, reject_link
 from app.services.phone_utils import mask_phone
 
 router = APIRouter(tags=["auth"])
+
+
+@router.get("/roles")
+def list_roles() -> dict[str, object]:
+    items = [role.value for role in Role]
+    return {"items": items, "total": len(items)}
 
 
 def _token_response(user, token: str) -> TokenResponse:
@@ -128,18 +141,36 @@ def post_register(body: RegisterRequest, db: DbSession, settings: AppSettings) -
     )
 
 
+@router.get("/auth/login-options", response_model=LoginOptionsResponse)
+def get_login_options(settings: AppSettings) -> LoginOptionsResponse:
+    if settings.otp_challenge_required:
+        return LoginOptionsResponse(
+            otp_required=True,
+            password_required=False,
+            message="Код подтверждения придёт на email, привязанный к аккаунту. SMS пока не подключено.",
+        )
+    return LoginOptionsResponse(
+        otp_required=False,
+        password_required=False,
+        message="Пока почтовая доставка не настроена, вход по номеру, который уже есть в системе. Роль берётся из аккаунта.",
+    )
+
+
 @router.post("/auth/phone/request-otp", response_model=PhoneOtpResponse)
 def post_request_otp(
     body: PhoneOtpRequest, db: DbSession, settings: AppSettings
 ) -> PhoneOtpResponse:
     try:
-        masked, ttl, dev_otp = request_phone_otp(db, phone_raw=body.phone, settings=settings)
+        masked, ttl, dev_otp, email_masked = request_phone_otp(
+            db, phone_raw=body.phone, settings=settings
+        )
     except AuthError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
 
     return PhoneOtpResponse(
         phone_masked=masked,
-        message="Код отправлен на email аккаунта (и в mail_outbox). SMS будет позже.",
+        email_masked=email_masked,
+        message="Код подтверждения отправлен на email, привязанный к аккаунту. SMS пока не подключено.",
         expires_in_seconds=ttl,
         dev_otp=dev_otp,
     )
@@ -153,6 +184,17 @@ def post_verify_otp(
         user, token = verify_phone_otp(
             db, phone_raw=body.phone, code=body.code, settings=settings
         )
+    except AuthError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return _token_response(user, token)
+
+
+@router.post("/auth/phone/login", response_model=TokenResponse)
+def post_phone_login(
+    body: PhoneLoginRequest, db: DbSession, settings: AppSettings
+) -> TokenResponse:
+    try:
+        user, token = login_by_known_phone(db, phone_raw=body.phone, settings=settings)
     except AuthError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
     return _token_response(user, token)
@@ -295,7 +337,13 @@ def post_dev_login(body: DevLoginRequest, db: DbSession, settings: AppSettings) 
     return _token_response(user, token)
 
 
-def _me_response(user) -> MeResponse:
+def _me_response(user, db=None) -> MeResponse:
+    pending = 0
+    athlete_id = user.athlete_id
+    if db is not None:
+        links = list_links_for_user(db, user=user)
+        pending = sum(1 for item in links if item["status"] == "pending_claim")
+        athlete_id = canonical_athlete_id(db, user)
     return MeResponse(
         id=user.id,
         email=user.email,
@@ -304,19 +352,18 @@ def _me_response(user) -> MeResponse:
         requested_role=Role(user.requested_role) if user.requested_role else None,
         status=user.status,
         display_name=user.display_name,
-        athlete_id=user.athlete_id,
+        athlete_id=athlete_id,
+        pending_claim_count=pending,
     )
 
 
 @router.get("/me", response_model=MeResponse)
 def get_me(user: CurrentUser, db: DbSession) -> MeResponse:
-    from app.services.athlete_id_service import ensure_athlete_id
-
     if not user.athlete_id:
         ensure_athlete_id(db, user)
         db.commit()
         db.refresh(user)
-    return _me_response(user)
+    return _me_response(user, db)
 
 
 @router.patch("/me", response_model=MeResponse)
@@ -338,4 +385,46 @@ def patch_me(
         )
     except AuthError as exc:
         raise_api_error(exc.status_code, exc.code, exc.message)
-    return _me_response(updated)
+    return _me_response(updated, db)
+
+
+@router.get("/me/athlete-links", response_model=AthleteLinkListResponse)
+def get_athlete_links(user: CurrentUser, db: DbSession) -> AthleteLinkListResponse:
+    items = [AthleteLinkOut.model_validate(row) for row in list_links_for_user(db, user=user)]
+    return AthleteLinkListResponse(items=items, total=len(items))
+
+
+@router.post("/me/athlete-links/{link_id}/confirm", response_model=AthleteLinkOut)
+def post_confirm_athlete_link(
+    link_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    settings: AppSettings,
+) -> AthleteLinkOut:
+    try:
+        confirm_link(db, user=user, link_id=link_id, audit_enabled=settings.enable_audit_log)
+    except ClaimError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    items = list_links_for_user(db, user=user)
+    row = next((item for item in items if item["id"] == link_id), None)
+    if row is None:
+        raise_api_error(404, "not_found", "Связь не найдена")
+    return AthleteLinkOut.model_validate(row)
+
+
+@router.post("/me/athlete-links/{link_id}/reject", response_model=AthleteLinkOut)
+def post_reject_athlete_link(
+    link_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    settings: AppSettings,
+) -> AthleteLinkOut:
+    try:
+        reject_link(db, user=user, link_id=link_id, audit_enabled=settings.enable_audit_log)
+    except ClaimError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    items = list_links_for_user(db, user=user)
+    row = next((item for item in items if item["id"] == link_id), None)
+    if row is None:
+        raise_api_error(404, "not_found", "Связь не найдена")
+    return AthleteLinkOut.model_validate(row)

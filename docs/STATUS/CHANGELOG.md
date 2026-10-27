@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.5.14 — 2026-09-22 (staging `581b924`)
+
+- Версия пакета API/web → **0.5.14**.
+- Стартовый список заезда: кнопка **«Убрать из списка»** для организатора+, главного судьи и админа платформы (`DELETE .../start-list/{entry_id}`). Обычный судья и участник — 403.
+- Навигация: на телефоне — Главная / События / Проекты / Лента / Ещё (Доступы, Импорт, Профиль, Выйти); на десктопе все пункты видны; мелкий шрифт, без почты в шапке.
+- UI только на русском: убраны технические EN-слова и символы в пользовательских строках (имена продукта и федераций оставлены).
+- Чек-лист площадки: горизонтальный скролл разделов; пустые состояния с подсказкой, что делать дальше.
+- Палитра: акцент Editorial Ops (`--accent`) на основных кнопках.
+
+## 0.5.13 — 2026-09-21
+
+- Пока SMTP не настроен и это не production: вход по известному телефону без кода и пароля. Роль берётся из аккаунта, не с формы.
+- `GET /api/v1/auth/login-options`, `POST /api/v1/auth/phone/login`. После SMTP или в production снова обязателен OTP на email.
+- UI `/login` прячет поле кода, пока API говорит `otp_required: false`.
+- Живая локальная проверка 2026-09-21: владелец `+79160117179` входит как админ платформы; неизвестный номер отказан. Прогон судьи с другого телефона — вечером.
+
+## 0.5.12 — 2026-09-18 (git `6f33a7a`, выкатывать вместе с 0.5.11)
+
+- Страница `/projects/checklist-org`: интерактивный справочник площадки — **11 разделов** (судьи, акватория, зоны, медиа, партнёры). Отметки в браузере, не в протоколе события.
+- Вкладка «Подготовка» события ссылается на этот справочник. Операционный чеклист события (документы/состав/старты) не заменён.
+
+## 0.5.11 — 2026-09-17 (git `46a23b4`, staging ещё 0.5.10 до выката)
+
+- FieldMoment: фото/видео с камеры телефона (PWA `<input capture>`) для бэкстейджа, взгляда пилота, маршала на старте и других эмоциональных кадров.
+- API `GET/POST/PATCH /api/v1/events/{id}/field-moments` + file; роли media/commentator/support/organizer+/chief_judge; участник 403; гость 401.
+- Статусы `draft` → `approved` (для эфира) / `withheld`; approve только организатор+ и главный судья.
+- UI: вкладка «Моменты», кнопка «Снять момент» на пульте организатора. Не смешивается с ProtocolCapture.
+- ADR-0011. EXIF, альбом спортсмена, соцсети, live-превью getUserMedia — не этот срез.
+
+## 0.5.10 — 2026-09-16
+
+- Каталог выдачи MyWave Event App: `/projects/checklist-org#mywave-event-app` и блок на вкладке «Подготовка» события.
+- API: `GET /api/v1/app-downloads/manifest|status`, `POST .../handoff` (URL только из env, fail-closed).
+- Аналитика: `POST /api/v1/analytics/events` для событий карточки выдачи.
+- Плейсхолдеры `{{android_download_url}}`, `{{ios_testflight_url}}`, `{{source_archive_url}}` — нативных сборок нет.
+- Документация по установке bundled: `/downloads/install-and-run.html` (без фиктивного APK).
+- Документы: ADR-0009, ADR-0010 (JWT localStorage), `docs/OPERATIONS/APP_DOWNLOADS.md`, письмо сайту `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`.
+- План отладки PWA до native: `docs/PRODUCT/QA_AND_UX_HARDENING_PLAN.md`. Письмо сайту уточнено: documentation available, android/ios/source нет, staging на 2026-09-16 ещё 0.5.9.
+- Карточка события: «Мой старт» для участника, пульт организатора, судейство текущего спортсмена без длинного dropdown как primary.
+- Authz: участник 403 на roster lock и official publish (регресс-тест). Analytics ingest не сохраняет email/phone/token. Upload: empty/oversize/path traversal.
+
+## 0.5.9+ UX/UI 1.0 foundation — 2026-09-15
+
+- Канон: `docs/PRODUCT/UX_UI_CANON.md` (Role Based + Live First + Russian-only UI); обновлены AGENTS, PRD, CANONICAL_DOCS_INDEX, правило frontend.
+- Quick Wins: Events → Идёт сейчас / Ближайшие / Мои / Архив; `pickNearestEvent`; mobile nav без «Выйти» (выход в профиле); actionable notifications + deep-link; «Следующий шаг» на event home; live heat/entry — один primary CTA + меню `•••`.
+- UI copy: без production-текстов про API/dev/mail_outbox; OTP явно на email; светлые controls вместо тёмных inline-styles; Field foundation.
+- Backend: user-facing OTP message без `mail_outbox`.
+
+## 0.5.9 — 2026-09-15
+
+- P0 vertical slice: **roster lock** + публикация official result только **главным судьёй** (ADR-0008).
+- Роль `chief_judge`; API `POST .../roster/lock|unlock`; `403 chief_approval_required` если организатор публикует сам.
+- Целевые journeys перенесены в `docs/PRODUCT/journeys/`; сверка — `docs/STATUS/ROLE_JOURNEYS_RECONCILIATION.md`.
+- Казань на staging по-прежнему draft до утверждения chief judge (Not homologated, без auto-publish).
+
+## 0.5.8 — 2026-08-30
+
+- Import Center: staging xlsx → match/conflicts → commit в `AthleteProfile` + `EventRegistration` (`Participant`). Повтор того же файла идемпотентен.
+- MyWave Athlete ID на профиле спортсмена; `pending_claim` аккаунты для известных телефонов; OTP обязателен; подтверждение связи в профиле.
+- Документы: `access_class`; medical-restricted скрыт от participant.
+- ADR-0007: категории «до 15/до 19» vs U14/U18 — decision required, без молчаливого маппинга.
+- UI: `/admin/imports`, пункт «Импорт», подтверждение профилей на `/profile`.
+- `GET .../schedule-hint` строится из полей **этого** события; текст бюллетеня Казани (оз. Кабан, 11–16.08) не подставляется в чужие карточки.
+- ADR-0007 **accepted**: одно событие ЧР+ПР Казань; канон категорий IWWF U14 / U18 / O30 / O40 / Open (чемпионат). Junior/Grom → U14/U18. Возраст на 31.12.2026.
+- `POST /api/v1/events/{id}/ingest-pack` — пакет xlsx+PDF: состав, судьи, start list, документы.
+- `POST /api/v1/events/{id}/scan-protocol` — бумажные протоколы Казани + итоги поста ФВЛС 15.08.2026 (места финалов, Мастерс → O30) и пьедестал O40 ветераны вейкборд-катер. Черновики, без автопубликации.
+- UI `/admin/imports`: кнопка «Разложить сканы Казани». Фото протоколов и xlsx с телефонами **не** в git.
+- Казанские xlsx/pdf с PII **не** в git. Загрузка только на сервер через UI.
+
 ## 0.5.7 — 2026-08-27
 
 - Светлая тема: белый/мятный фон, тёмный текст, бирюзовые обводки и тени кнопок.

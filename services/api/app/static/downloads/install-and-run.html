@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyWave Event App — установка и запуск</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; line-height: 1.55; color: #12383c; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+    h1, h2 { line-height: 1.2; }
+    code, pre { background: #eefafa; border-radius: 6px; }
+    code { padding: 0.1rem 0.35rem; }
+    pre { padding: 0.85rem 1rem; overflow: auto; }
+    .note { color: #5b7c80; }
+  </style>
+</head>
+<body>
+  <h1>MyWave Event App — установка и запуск</h1>
+  <p>Цифровая платформа соревнований: заявка, старт, судейство и протокол. Текущая готовая оболочка — веб-приложение (PWA) в браузере телефона и компьютера. Нативные сборки Android и iOS подключаются отдельно, когда появятся файлы.</p>
+
+  <h2>1. Открыть готовое приложение</h2>
+  <ol>
+    <li>Локально: <code>http://127.0.0.1:3000</code></li>
+    <li>Staging: порт web 3001 на сервере Event App</li>
+    <li>Карточка выдачи: <code>/projects/checklist-org#mywave-event-app</code></li>
+  </ol>
+
+  <h2>2. Запуск из исходников</h2>
+  <p class="note">Нужны Python 3.11+, Node.js 20+, Git. Секреты не хранятся в Git — скопируйте <code>.env.example</code> в <code>.env</code>.</p>
+  <pre>npm run dev</pre>
+  <p>API: <code>http://127.0.0.1:8000</code> · Web: <code>http://127.0.0.1:3000</code> · проверка: <code>GET /health</code></p>
+  <p>Только интерфейс, если API уже запущен:</p>
+  <pre>npm run dev:web</pre>
+
+  <h2>3. Первый вход</h2>
+  <ul>
+    <li>Участник: <code>/register</code> — сразу активен</li>
+    <li>Организатор, судья и другие staff-роли: регистрация → ожидание подтверждения</li>
+    <li>Вход: <code>/login</code> по телефону, код приходит на email (или в <code>data/mail_outbox</code>, если SMTP не настроен)</li>
+  </ul>
+
+  <h2>4. Чек-лист организатора</h2>
+  <p>Подготовка конкретного соревнования — вкладка «Подготовка» карточки события. Готовое решение приложения — раздел «Проекты → Чек-лист организатора».</p>
+
+  <h2>5. Нативные файлы</h2>
+  <p>APK, TestFlight и архив исходников появляются в карточке только после подключения реальных HTTPS-ссылок в окружении API. Пока ссылок нет, интерфейс показывает «файл временно недоступен» и не подставляет выдуманные адреса.</p>
+
+  <p class="note">Версия документа: 0.5.10 · 2026-09-16</p>
+</body>
+</html>

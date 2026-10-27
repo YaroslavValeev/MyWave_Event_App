@@ -307,6 +307,110 @@ def test_staff_approve_by_id(client, db_session):
     assert decided.json()["role"] == "judge"
 
 
+def test_login_options_without_smtp(client):
+    response = client.get("/api/v1/auth/login-options")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["otp_required"] is False
+    assert body["password_required"] is False
+
+
+def test_phone_login_preserves_role_without_otp(client, db_session):
+    org = auth_header(client, "org.phone.login@example.com", "organizer")
+    registered = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230005",
+            email="judge.phone.login@example.com",
+            display_name="Судья Телефон",
+            requested_role="judge",
+        ),
+    )
+    assert registered.status_code == 200
+    user_id = registered.json()["user_id"]
+    approval = db_session.scalar(select(RoleApproval).where(RoleApproval.user_id == user_id))
+    assert approval is not None
+    decided = client.post(
+        f"/api/v1/auth/approvals/{approval.id}/approve",
+        headers=org,
+    )
+    assert decided.status_code == 200
+
+    login = client.post("/api/v1/auth/phone/login", json={"phone": "+79001230005"})
+    assert login.status_code == 200, login.text
+    body = login.json()
+    assert body["role"] == "judge"
+    assert body["email"] == "judge.phone.login@example.com"
+
+    again = client.post("/api/v1/auth/phone/login", json={"phone": "9001230005"})
+    assert again.status_code == 200
+    assert again.json()["role"] == "judge"
+    assert again.json()["user_id"] == body["user_id"]
+
+
+def test_phone_login_unknown_and_pending(client):
+    missing = client.post("/api/v1/auth/phone/login", json={"phone": "+79000000000"})
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "user_not_found"
+
+    pending = client.post(
+        "/api/v1/auth/register",
+        json=register_payload(
+            phone="+79001230006",
+            email="judge.phone.pending@example.com",
+            display_name="Судья Ожидает",
+            requested_role="judge",
+        ),
+    )
+    assert pending.status_code == 200
+    blocked = client.post("/api/v1/auth/phone/login", json={"phone": "+79001230006"})
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "account_pending"
+
+
+def test_phone_login_forbidden_when_smtp_configured(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("SMTP_FROM", "noreply@example.com")
+    get_settings.cache_clear()
+    try:
+        options = client.get("/api/v1/auth/login-options")
+        assert options.status_code == 200
+        assert options.json()["otp_required"] is True
+        forbidden = client.post(
+            "/api/v1/auth/phone/login",
+            json={"phone": "+79001112233"},
+        )
+        assert forbidden.status_code == 403
+        assert forbidden.json()["error"]["code"] == "otp_required"
+    finally:
+        monkeypatch.setenv("SMTP_HOST", "")
+        monkeypatch.setenv("SMTP_FROM", "")
+        get_settings.cache_clear()
+
+
+def test_phone_login_forbidden_in_production(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key-not-for-production")
+    get_settings.cache_clear()
+    try:
+        options = client.get("/api/v1/auth/login-options")
+        assert options.status_code == 200
+        assert options.json()["otp_required"] is True
+        forbidden = client.post(
+            "/api/v1/auth/phone/login",
+            json={"phone": "+79001112233"},
+        )
+        assert forbidden.status_code == 403
+        assert forbidden.json()["error"]["code"] == "otp_required"
+    finally:
+        monkeypatch.setenv("APP_ENV", "test")
+        get_settings.cache_clear()
+
+
 def test_production_rejects_insecure_secret(monkeypatch):
     from pydantic import ValidationError
 

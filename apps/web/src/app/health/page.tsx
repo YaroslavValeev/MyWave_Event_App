@@ -25,7 +25,7 @@ export default function HealthPage() {
         const message =
           err instanceof ApiError
             ? err.message
-            : "API недоступен. Проверьте, что backend запущен.";
+            : "Не удалось проверить статус системы. Попробуйте позже.";
         setState({ kind: "error", message });
       }
     }
@@ -38,16 +38,16 @@ export default function HealthPage() {
 
   return (
     <>
-      <AppHeader subtitle="Проверка API" />
+      <AppHeader subtitle="Проверка системы" />
       <main id="main" className={styles.main}>
         <h1 className={styles.title}>Статус системы</h1>
         <p className={styles.base}>
-          Базовый URL: <code>{getApiBaseUrl()}</code>
+          Служебная страница для команды. Адрес сервиса: {getApiBaseUrl()}
         </p>
 
         {state.kind === "loading" ? (
           <p className={styles.muted} aria-live="polite">
-            Запрос к <code>/health</code>…
+            Проверяем связь с сервером…
           </p>
         ) : null}
 
@@ -72,7 +72,13 @@ export default function HealthPage() {
             <dl className={styles.grid}>
               <div>
                 <dt>Статус</dt>
-                <dd>{state.data.status}</dd>
+                <dd>
+                  {state.data.status === "ok"
+                    ? "в порядке"
+                    : state.data.status === "degraded"
+                      ? "частично"
+                      : state.data.status}
+                </dd>
               </div>
               <div>
                 <dt>Приложение</dt>
@@ -80,11 +86,19 @@ export default function HealthPage() {
               </div>
               <div>
                 <dt>Окружение</dt>
-                <dd>{state.data.env}</dd>
+                <dd>
+                  {state.data.env === "development"
+                    ? "разработка"
+                    : state.data.env === "staging"
+                      ? "пробный сервер"
+                      : state.data.env === "production"
+                        ? "боевой"
+                        : state.data.env}
+                </dd>
               </div>
               <div>
-                <dt>БД</dt>
-                <dd>{state.data.db_ok ? "ok" : "ошибка"}</dd>
+                <dt>База данных</dt>
+                <dd>{state.data.db_ok ? "в порядке" : "ошибка"}</dd>
               </div>
               <div>
                 <dt>Время сервера</dt>

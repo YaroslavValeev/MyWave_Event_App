@@ -7,7 +7,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domain.roles import EVENT_WRITE_ROLES, Role
+from app.domain.roles import JUDGE_SCORE_ROLES, RESULT_VERIFY_ROLES, Role
 from app.domain.scoring_engines import (
     ScoringError,
     aggregate_panel,
@@ -21,11 +21,9 @@ from app.models.participant import Participant
 from app.models.user import User
 from app.schemas.scoring import JudgeScoreSubmit
 from app.services.audit_service import append_audit
-from app.services.event_service import EventServiceError, can_write_events, get_event
+from app.services.event_service import EventServiceError, get_event
 from app.services.result_service import upsert_draft_result
 from app.services.rules_profile_service import get_rules_profile
-
-JUDGE_SCORE_ROLES = EVENT_WRITE_ROLES | frozenset({Role.judge})
 
 
 def _role(user: User) -> Role:
@@ -159,8 +157,8 @@ def aggregate_to_result(
     place: int | None = None,
     audit_enabled: bool = True,
 ) -> dict:
-    if not can_write_events(actor):
-        raise EventServiceError("forbidden", "Only organizer+ can aggregate panel scores", 403)
+    if Role(actor.role) not in RESULT_VERIFY_ROLES:
+        raise EventServiceError("forbidden", "Only organizer/chief judge can aggregate panel scores", 403)
 
     get_event(db, event_id=event_id, actor=actor, require_mutable=True)
     sheets = list(

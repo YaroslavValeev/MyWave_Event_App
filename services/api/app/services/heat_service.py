@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.domain.roles import START_LIST_REMOVE_ROLES, Role
 from app.models.category import Category
 from app.models.heat import Heat, Run, StartListEntry
 from app.models.participant import Participant
@@ -20,6 +21,10 @@ ENTRY_STATUSES = frozenset(
     {"scheduled", "checked_in", "ready", "on_water", "completed", "dns", "dnf"}
 )
 RUN_STATUSES = frozenset({"scheduled", "ready", "on_water", "completed", "dns", "dnf"})
+
+
+def can_remove_start_list_entry(user: User) -> bool:
+    return Role(user.role) in START_LIST_REMOVE_ROLES
 
 
 def list_heats(db: Session, *, event_id: int, actor: User | None) -> list[Heat]:
@@ -348,6 +353,55 @@ def update_start_list_status(
     db.commit()
     db.refresh(entry)
     return entry
+
+
+def remove_start_list_entry(
+    db: Session,
+    *,
+    event_id: int,
+    heat_id: int,
+    entry_id: int,
+    actor: User,
+    audit_enabled: bool = True,
+) -> None:
+    """Remove one rider from a heat start list (and linked runs)."""
+    if not can_remove_start_list_entry(actor):
+        raise EventServiceError(
+            "forbidden",
+            "Убрать из стартового списка могут организатор, главный судья или админ платформы.",
+            403,
+        )
+    get_event(db, event_id=event_id, actor=actor, require_mutable=True)
+    entry = db.get(StartListEntry, entry_id)
+    if entry is None or entry.event_id != event_id or entry.heat_id != heat_id:
+        raise EventServiceError("not_found", "Запись стартового списка не найдена", 404)
+
+    payload = {
+        "heat_id": heat_id,
+        "participant_id": entry.participant_id,
+        "start_order": entry.start_order,
+        "status": entry.status,
+    }
+    db.execute(delete(Run).where(Run.start_list_entry_id == entry.id))
+    db.delete(entry)
+
+    append_audit(
+        db,
+        action="start_list.remove",
+        actor_user_id=actor.id,
+        actor_email=actor.email,
+        entity_type="start_list_entry",
+        entity_id=str(entry_id),
+        payload=payload,
+        enabled=audit_enabled,
+    )
+    db.commit()
+
+
+def clear_start_list(db: Session, *, heat_id: int) -> None:
+    db.execute(delete(Run).where(Run.heat_id == heat_id))
+    db.execute(delete(StartListEntry).where(StartListEntry.heat_id == heat_id))
+    db.flush()
 
 
 def list_runs_for_heat(db: Session, *, event_id: int, heat_id: int, actor: User) -> list[Run]:

@@ -1,6 +1,6 @@
 # Staging
 
-**Дата:** 2026-08-24  
+**Дата:** 2026-09-15  
 **Статус:** runbook готов; host deploy — blocker владельца.
 
 ## Цель
@@ -53,6 +53,148 @@ Owner:
 4. Заполнить `.env.staging` на сервере (секреты только там).
 5. `docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build`.
 6. Записать в CURRENT_STATE: host, tag, дата, evidence `/health`.
+
+### Обновление staging до 0.5.8 (Import Center)
+
+После merge/tag: backup volume SQLite, `git fetch && git checkout <tag>`, `docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build`.  
+Казанские xlsx **не** класть в git. Загрузка: войти организатором → `/admin/imports` → выбрать событие (создать draft/published если БД пустая) → загрузить файл с рабочей машины.  
+Rollback: предыдущий tag + restore backup volume. Не `git reset --hard` на боевых данных.
+
+### Обновление staging до 0.5.9 (roster lock / chief judge)
+
+Ветка `cursor/p0-import-center-athlete-link` (или tag после merge). **Production не трогать.**
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+# volume SQLite — имя смотреть: docker volume ls | grep mwe
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/roles
+```
+
+Казань не публиковать автоматически. Нужен пользователь с ролью `chief_judge` для official publish. Rollback: предыдущий SHA + restore backup DB.
+
+### Обновление staging до 0.5.10 (каталог выдачи + UX foundation)
+
+Ветка `cursor/p0-import-center-athlete-link` (или tag после merge). **Production не трогать.** Сначала backup SQLite.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+# volume SQLite — имя: docker volume ls | grep mwe
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/app-downloads/manifest
+curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3001/projects/checklist-org
+```
+
+Ожидание manifest: `documentation.state = available`; `android` / `ios` / `source` = `unavailable`. Казань не публиковать. Письмо сайту (`docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md`) отправлять **после** этого smoke.
+
+Факт на 2026-09-19: remote staging выкачен до **0.5.11+** (`ba2df6b`). Хостовый backup перед выкатом не записался — сделать копию с живого volume.
+
+### Обновление staging до 0.5.11 (FieldMoment камера + ролевые экраны)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. Сначала backup SQLite в docker volume.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/api/v1/app-downloads/manifest
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/projects/checklist-org
+```
+
+Ожидание health: `"app"` содержит Staging, `db_ok: true`. OpenAPI/version API = **0.5.11**. Manifest: documentation available, android/ios/source unavailable. Таблица `field_moments` создаётся `create_all` при старте API.
+
+Smoke UI (после входа организатором/медиа): карточка события → вкладка **Моменты**; участник вкладку не видит.
+
+Rollback: предыдущий SHA `6ce503b` + restore backup DB. Файлы `data/field-media` в контейнере окажутся под `/data/field-media` (repo_root в Docker = `/`).
+
+### Обновление staging до 0.5.13 (вход по телефону без OTP)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. SMTP на сервере не включать этим выкатом. Сначала backup SQLite (**в той же SSH-сессии**, иначе `$STAMP` пустой и `docker cp` падает).
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+echo "STAMP=$STAMP"
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/openapi.json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
+curl -fsS http://127.0.0.1:8001/api/v1/auth/login-options
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/login
+```
+
+Ожидание: health `env=staging`, `db_ok: true`; OpenAPI **0.5.13**; `login-options.otp_required=false` (пока SMTP не задан); `/login` без поля кода. Казань не публиковать.
+
+Rollback: SHA `ba2df6b` + restore backup DB.
+
+### Обновление staging до 0.5.14 (start-list remove + nav + RU UI)
+
+Ветка `cursor/p0-import-center-athlete-link`. **Production не трогать.** Казань не публиковать. SMTP не включать. Backup SQLite **в той же SSH-сессии**.
+
+```bash
+cd /var/www/mywave-event-app
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+echo "STAMP=$STAMP"
+install -d /var/backups/mywave-event-app
+docker compose -f docker-compose.staging.yml --env-file .env.staging ps
+docker compose -f docker-compose.staging.yml --env-file .env.staging exec -T api \
+  python -c "import shutil; shutil.copy('/data/mywave_event_staging.db', '/tmp/mywave_event_staging.${STAMP}.db')"
+docker cp "mwe-staging-api:/tmp/mywave_event_staging.${STAMP}.db" \
+  "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+ls -l "/var/backups/mywave-event-app/mywave_event_staging.${STAMP}.db"
+git fetch origin
+git checkout cursor/p0-import-center-athlete-link
+git pull --ff-only origin cursor/p0-import-center-athlete-link
+git rev-parse --short HEAD
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+sleep 8
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/openapi.json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
+curl -fsS http://127.0.0.1:8001/api/v1/auth/login-options
+curl -fsS -o /dev/null -w "web %{http_code}\n" http://127.0.0.1:3001/login
+```
+
+Ожидание: `git rev-parse` → короткий SHA коммита с версией **0.5.14**; health `db_ok: true`; OpenAPI **0.5.14**; `otp_required=false`; web login `200`. С телефона: нижняя навигация Главная/События/Проекты/Лента/Ещё.
+
+Rollback: SHA `7795deb` + restore backup DB.
 
 ## Что staging не делает
 

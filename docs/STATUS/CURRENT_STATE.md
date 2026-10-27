@@ -1,40 +1,82 @@
 # CURRENT_STATE
 
-Дата: 2026-08-27  
-Версия продукта: **0.5.7**  
-Путь до DoD v1 (аудит): ~**80%**
+Дата: 2026-09-23  
+Версия продукта: **0.5.14 на staging** (git `581b924`) — вход по телефону без OTP, пока SMTP не настроен. Каталог выдачи в manifest по-прежнему подписан **0.5.10** (документация; android/ios недоступны).  
+Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — первый срез в 0.5.11. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 
+Сверка с journeys: [ROLE_JOURNEYS_RECONCILIATION.md](./ROLE_JOURNEYS_RECONCILIATION.md).  
+UX/UI канон: [UX_UI_CANON.md](../PRODUCT/UX_UI_CANON.md).  
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
+
+## Staging (remote)
+
+- Host: Timeweb VPS `62.113.42.227` (`mywave-bot-server`), каталог `/var/www/mywave-event-app` — отдельно от ботов.
+- Стек: `docker compose -f docker-compose.staging.yml`, `APP_ENV=staging`.
+- Выкат **0.5.14** (`7795deb` → `581b924`), 2026-09-22T18:18Z. API Healthy, web Started. Production не трогали.
+- Backup перед выкатом 0.5.14: **не записался** (опечатка `er cp`). Post-deploy backup: `/var/backups/mywave-event-app/mywave_event_staging.20260923T045707Z.db` (618496 байт, 2026-09-23). Ранее: `…20260921T142129Z.db` (614400).
+- Web login: http://62.113.42.227:3001/login — HTTP 200 (снаружи 2026-09-23).
+- API health: `{"status":"ok","app":"MyWave Event App (Staging)","env":"staging","db_ok":true}` (2026-09-23T04:27Z).
+- OpenAPI version: **0.5.14**.
+- `GET /api/v1/auth/login-options`: `otp_required=false` (SMTP не настроен).
+- Manifest: app.version **0.5.10**, documentation `available`; android / ios / source `unavailable`.
+- Гость: события Казани по-прежнему `draft` на витрине. Казань не публиковать.
+- SMTP нет — вход по известному телефону без OTP (роль из аккаунта). OTP снова включится, когда зададут SMTP.
+- Это **не** production. Production не менялся.
 
 ## Работает
 
 - Remote + CI + release + staging runbook.
 - Auth / roles / consent / notifications / applications / roster / training slots.
 - Documents, checklist, heats / start list / runs.
-- Results draft → verified → published → void.
+- Results draft → verified → **published только chief_judge** (0.5.9).
+- Roster lock: фиксирует состав; check-in и судейство остаются.
 - Rules catalog + EventRulesProfile (FVLS/IWWF).
-- ProtocolCapture (фото/PDF).
+- ProtocolCapture (фото/PDF); publish протокола — chief_judge.
+- **FieldMoment (0.5.11, на staging с `ba2df6b`):** камера PWA для media/commentator/support/organizer+/chief_judge; не протокол, не витрина.
 - Structured scoring, official protocol export, Athlete ID, archive lock.
-- **UX 0.5.6:** публичная витрина событий (J4); ролевые вкладки; русские статусы; вход без dev-console; регистрация участником по умолчанию; нижняя навигация на телефоне.
-- **UX 0.5.7:** светлая тема, бирюзовые обводки и тени кнопок. Просроченный токен не тупик: гостевой просмотр + «Войти снова» с возвратом. Ролевые пути закрыты CTA (создание события, доступы, профиль, уведомления). GET heats публичный на витрине (start list по-прежнему с входом).
+- **UX 0.5.6–0.5.7:** публичная витрина, светлая тема, закрытые ролевые пути.
+- **0.5.8:** AthleteProfile + Import Center + pending_claim. ADR-0007 **accepted**.
+- Транскрипт бумажных протоколов Казани + места ФВЛС 15.08.2026 в **draft**. Не homologated → не публикуется автоматически. Площадка: оз. Нижний Кабан.
+- **0.5.9:** ADR-0008 roster lock + chief_judge; journeys в `docs/PRODUCT/journeys/`.
+- **Champ App UX/UI 1.0 (foundation):** `UX_UI_CANON.md`; Russian-only UI в AGENTS/PRD; Events (Идёт сейчас / Ближайшие / Мои / Архив); nearest event; mobile bottom nav без «Выйти»; notifications deep-link; live heat primary CTA + `•••`; «Следующий шаг» на карточке события; Field foundation; user-facing ошибки без «API/dev».
+- **0.5.10:** карточка выдачи MyWave Event App в «Проекты → Чек-лист организатора» и на вкладке подготовки события. API `app-downloads` + analytics ingest. Android/iOS/source **не подключены**. Документация установки bundled. ADR-0009.
+- **0.5.11 (git, на staging `ba2df6b`):** FieldMoment камера PWA; Athlete «Мой старт»; Organizer Control Room; Judge current athlete.
+- **0.5.13 (на staging с `7795deb`, 2026-09-22):** вход по известному телефону без OTP и без пароля, пока SMTP не настроен; роль из аккаунта. Локально: `+79160117179` → «Админ платформы»; неизвестный номер отказан. Прогон судьи с другого телефона — pending. Production OTP не отключается.
+- **0.5.14 (на staging с `581b924`, 2026-09-22):** удаление из стартового списка (organizer+/chief_judge); мобильная навигация со всеми разделами; русские строки без тех. EN; скролл разделов чек-листа; empty states с подсказками. Pre-deploy backup 0.5.14 не записался — нужен post-deploy backup.
 
 ## Частично / нет
 
-- Media / ParserNews / broadcast
-- Score-now / Excel import adapters
-- PDF export (HTML → Print пока достаточно)
-- SMTP + remote staging host — owner
+- Полные role modes: Athlete Event Home / Organizer Control Room / Judge current — **первый срез на карточке события** (обзор + судейство); вкладки кабинета ещё есть. Broadcast — нет.
+- Казань: нет баллов части финалов и части квалиф.; O40 только пьедестал WB boat men
+- Commentator / photographer: FieldMoment-срез (камера) в коде; нет EXIF, Athlete ID match, личного альбома, публикации наружу
+- ParserNews / volunteer / boat captain / полный broadcast rundown
+- PDF protocol export
+- SMTP — owner
 - Telegram/MAX/native — не Stage 1 этого репо
 - Native iOS/Android — нет (PWA)
-- Полевой dry-run судья+организатор на площадке — не выполнен
+- Полевой dry-run судья+организатор+chief на площадке — не выполнен
+- PR #2 в `main` не влит (`main` = 0.5.7)
+- В логе деплоя 0.5.9 сначала не было копии SQLite; backup сделан 2026-09-15T15:03Z (580K). Данные Казани не потеряны.
 
-## Следующий P0 (код)
+## Следующий P0
 
-1. Pilot dry-run одного события на площадке (судья + организатор)
-2. PDF protocol export (optional)
-3. Deep-link уведомлений в конкретную заявку
+Порядок: [QA_AND_UX_HARDENING_PLAN.md](../PRODUCT/QA_AND_UX_HARDENING_PLAN.md). Native Android/iOS **после** волн 0–4.
+
+1. ~~Выкат **0.5.14** на staging~~ — сделано 2026-09-22, SHA `581b924`, OpenAPI `0.5.14`, `otp_required=false`, web login 200. Pre-deploy backup не записался (`er cp`).
+2. ~~Post-deploy backup SQLite~~ — `mywave_event_staging.20260923T045707Z.db` (618496), 2026-09-23.
+3. Вход судьи с другого телефона (заявка → Доступы → вход без кода) — на staging или локально.
+4. Полевой прогон трёх ролей на PWA (баги, 403 publish, roster lock, live heat, вкладка «Моменты», 11 разделов, мобильная навигация).
+5. UX: Athlete / Control Room / Judge / Моменты / справочник площадки — на staging; кабинеты-вкладки ещё есть.
+6. Письмо сайту — точный текст в `docs/INTEGRATIONS/SITE_MYWAVE_DOWNLOAD_HANDOFF.md` (вариант A; Android/iOS недоступны).
+7. SMTP на staging — владелец.
+8. Карточка Казани `draft` → витрина только явным решением; результаты не публиковать.
+9. Native-сборки и реальные `MYWAVE_EVENT_APP_*_URL` — только после чеклиста волн 0–4. **Не** подставлять example.org / xxxxxxxx.
 
 ## Проверки
 
-- pytest: public events + invalid bearer as guest + guest heats
-- UI: светлый фон; бирюза на кнопках; истекшая сессия → «Войти снова»
+- pytest: **115 passed** (phone login без OTP + FieldMoment + каталог выдачи + authz участника + upload + analytics PII)
+- tsc: **passed** (включая справочник 11 разделов)
+- lint (next lint): **passed**, без warning
+- production build web: **passed** ранее на 0.5.10; tsc/lint зелёные после FieldMoment
+- smoke staging **0.5.14** (2026-09-22/23): health `db_ok`; OpenAPI `0.5.14`; `login-options.otp_required=false`; `/login` 200; git `581b924`; post-deploy backup `mywave_event_staging.20260923T045707Z.db` (618496).
+- npm audit (prod): 4 CVE в дереве `next` (в т.ч. RCE Image Optimization на Windows) — **не** закрыто слепым `audit fix`; TD-19

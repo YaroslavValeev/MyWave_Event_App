@@ -218,8 +218,8 @@ export default function NewEventPage() {
         {gate === "ok" ? (
         <>
         <p className={styles.hint}>
-          Черновик соревнования: название, даты, город, дисциплины. Правила по умолчанию — FVLS, санкция
-          IWWF. <Link href="/events">Назад к списку</Link>
+          Черновик соревнования: название, даты, город, дисциплины. Правила по умолчанию — ФВВС, санкция
+          международной федерации. <Link href="/events">Назад к списку</Link>
         </p>
         <form className={styles.form} onSubmit={onSubmit} noValidate>
           <div className={styles.field}>
@@ -232,7 +232,7 @@ export default function NewEventPage() {
               placeholder="Например: Чемпионат России — Казань 2026"
               disabled={pending}
             />
-            <p className={styles.fieldHint}>Технический код создаётся автоматически.</p>
+            <p className={styles.fieldHint}>Код события создаётся автоматически.</p>
           </div>
           <div className={styles.field}>
             <label htmlFor="city">Город</label>
@@ -297,7 +297,7 @@ export default function NewEventPage() {
           <div className={styles.field}>
             <label htmlFor="scoring_mode">Как фиксируем результаты</label>
             <p className={styles.fieldHint}>
-              Для старта удобнее «Фото / PDF протокола» — судья фотографирует лист, организатор проверяет.
+              Для старта удобнее «Фото протокола» — судья фотографирует лист, организатор проверяет.
             </p>
             <select
               id="scoring_mode"

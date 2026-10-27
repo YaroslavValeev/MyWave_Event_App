@@ -16,16 +16,17 @@
 |------------|------------------|--------------|
 | Регистрация / роли / roster | да | да |
 | Документы события | да | да |
-| Checklist подготовки | да | да |
+| Checklist подготовки | да | да (событие) + **11 разделов площадки** на `/projects/checklist-org` |
 | Heats / start lists / check-in | да | foundation |
 | Results draft → published | да | foundation (ручной score/place) |
 | Фото/PDF протокола | да (режим) | ProtocolCapture |
+| Полевые моменты (камера) | да (срез 1) | FieldMoment PWA, ADR-0011; не альбом спортсмена |
 | Rules / org (FVLS+IWWF) | ADR-0006 | catalog + EventRulesProfile |
 | Structured scoring (DRIVE / T+I / EIC) | да | **done (0.5.3)** |
 | Official protocol export | да | **partial (0.5.4)** JSON + HTML; PDF — позже |
 | Read-only archive | да | **done (0.5.5)** |
 | Athlete ID | да | **done (0.5.5)** |
-| Media / photographer mode | этап 5 | **нет** (правильно позже) |
+| Media / photographer mode | этап 5 | **срез 1** FieldMoment; EXIF/альбом — нет |
 | ParserNews / broadcast | этап 7–8 | **нет** (правильно позже) |
 | Telegram / MAX / native / offline-first | Production-план Hub | **не Stage 1** (adapters позже) |
 | SMTP + remote staging | owner | staging compose есть; host/SMTP — owner |

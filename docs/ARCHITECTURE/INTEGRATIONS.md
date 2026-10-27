@@ -1,6 +1,6 @@
 # Интеграции
 
-**Дата:** 2026-08-04  
+**Дата:** 2026-09-16  
 
 ## 1. Правило
 
@@ -13,7 +13,7 @@
 | Browser / PWA | 1 | Client → API | В работе (scaffold) |
 | Postgres | 1 optional / prod | API → DB | Documented |
 | Redis | optional | cache/queue | Не обязателен Stage 1 |
-| Site_MyWave Download Center | archive | Site → files | Архив в `releases/`; не runtime app |
+| Site_MyWave Download Center | archive + API handoff | Site → Event App API | Архив Flask в `releases/`; runtime 0.5.10 — `/api/v1/app-downloads` |
 | Telegram | 4 | Adapter ↔ API | Feature flag off |
 | MAX | 4 | Adapter ↔ API | Feature flag off |
 | Analytics sink | 2+ | API/Web → sink | События описаны; sink TBD |
@@ -34,9 +34,10 @@ ENABLE_AUDIT_LOG=1
 - Не пишет напрямую в БД.
 - Не хранит копию PII дольше политики retention.
 
-## 5. Download Center
+## 5. Download Center / выдача приложения
 
-Связан с **дистрибуцией билдов**, когда они появятся. Команды деплоя Flask-карточки **не** являются командами деплоя этого приложения. См. архив `releases/download-center-2026-08-02/`.
+Архив Flask-карточки: `releases/download-center-2026-08-02/` — не команды деплоя Event App.  
+Runtime с 0.5.10: API каталога + UI `/projects/checklist-org`. Сайт потребляет страницу или API (ADR-0009). Подключение файлов: `docs/OPERATIONS/APP_DOWNLOADS.md`.
 
 ## 6. Запреты
 
