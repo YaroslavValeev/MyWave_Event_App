@@ -2,6 +2,17 @@
 
 Дата сверки: 2026-10-26
 
+## Staging API candidate — 27 октября 2026, 09:26 UTC
+
+- API-only кандидат PR #4 применён на S1 и независимо проверен в `STAGING_API_APPLIED_VERIFIED` (read-back: `2026-10-27T09:26:59Z`). OCI revision: `8d8b5f3cab128d470b69ca346b15b4b0f738116b`; image `sha256:67ff7a71d5353cca177af652eb3c095274e4c0400ffba99416afa9f572203f90`; container `92b83811aef2a5fd101dceb512746e6022b6a9299370c005fb4f121145696cd7`.
+- Server checkout намеренно остался на baseline `581b92423422c59cea75a07255cccf8dd4859988`; Compose diff с loopback bindings не менялся. Это image-only выкладка, а не checkout deploy или merge.
+- API `/health`: `env=staging`, `db_ok=true`; `/login` web HTTP 200. Восемь независимых проверок успешны: API health/DB, environment, candidate source, deployment receipt, сохранность БД, ports, web identity и web login. Кандидатные runtime-файлы: 98/98 совпадают; QA-контейнеров не осталось.
+- SQLite после выкладки: `integrity_check=ok`, FK violations 0, 27 таблиц/1324 строки; logical SHA256 `68ff8fa32c1b8d9f2540df5c4aeb81f541aba530cc333a28759912b298ddb81e`, совпадает с restore-проверенной копией от 26 октября. Миграций, восстановления рабочей БД и записей результатов не было.
+- Web остался прежним: image `sha256:5c68d08ba5b25b1933b3f329a43c6c93c7216dc8f68b242b943606526064edb5`, container `68a4b621f4fc86a70a67cc14e3fd9b69c0f87681fac9785e88c526f1448b88e3`; bindings API/web остались `127.0.0.1:8001` / `127.0.0.1:3001`.
+- Кандидат применён через временный override `/var/backups/mywave-event-app/candidate-8d8b5f3/api-candidate.override.yml`. Последующие Compose-операции, затрагивающие API, должны явно включать этот override до интеграции кандидата в канонический checkout. Rollback override: `/var/backups/mywave-event-app/candidate-8d8b5f3/api-rollback.override.yml`. Не выполнять обычный `up --build` без проверки этих файлов и runtime.
+- Доказательства Windows: `outputs/2026-10-27/staging-api/after.json` и `REPORT.md`. Точное время UTC: Apply receipt `09:26:49Z`; независимый read-back `09:26:59Z`.
+- Следующие незакрытые gates: review/merge PR #4 через GitHub; отдельное полевое принятие главным судьёй/организатором; offsite backup. Production не менялся; реальное соревнование не принималось.
+
 ## Release review — 26 октября 2026
 
 - PR #2 и #3 открыты, CI их текущих head зелёный; зарегистрированных GitHub reviews / review threads нет.

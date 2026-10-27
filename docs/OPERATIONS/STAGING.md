@@ -1,7 +1,28 @@
 # Staging
 
-**Дата:** 2026-09-15  
-**Статус:** runbook готов; host deploy — blocker владельца.
+**Дата:** 2026-10-27
+**Статус:** remote staging работает; API candidate 8d8b5f3 применён и независимо проверен (API-only image).
+
+## Текущее исключение: API candidate image-only — 27 октября 2026
+
+На S1 API-контейнер `mwe-staging-api` применён из OCI image с revision `8d8b5f3cab128d470b69ca346b15b4b0f738116b`. Независимый read-back подтвердил API health/DB, неизменность SQLite, web identity/login и loopback bindings. Серверный checkout остаётся на `581b92423422c59cea75a07255cccf8dd4859988`; код кандидата не смёржен.
+
+Для любых последующих Compose операций, которые могут пересоздать API, сначала проверьте действующий override. Пока кандидат не интегрирован в checkout, используйте оба Compose файла:
+
+```bash
+cd /var/www/mywave-event-app
+docker compose --project-directory /var/www/mywave-event-app -p mywave-event-app \
+  -f /var/www/mywave-event-app/docker-compose.staging.yml \
+  -f /var/backups/mywave-event-app/candidate-8d8b5f3/api-candidate.override.yml \
+  --env-file /var/www/mywave-event-app/.env.staging ps
+docker inspect --format '{{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{.State.Status}}' mwe-staging-api
+curl -fsS http://127.0.0.1:8001/health
+curl -fsS -o /dev/null -w 'web_login_http=%{http_code}\n' http://127.0.0.1:3001/login
+```
+
+Не запускайте обычный `docker compose ... up --build` без проверки текущего API image/revision: базовый checkout старее применённого образа, и пересборка может вернуть прежнюю версию API. Проверенный откатный override находится в `/var/backups/mywave-event-app/candidate-8d8b5f3/api-rollback.override.yml`; перед rollback используйте закреплённый guarded rollback-процесс и затем независимый read-back. Данные SQLite при candidate Apply не восстанавливались и не мигрировались.
+
+Итоговый локальный evidence-пакет: `outputs/2026-10-27/staging-api/REPORT.md` (относительно workspace App Champ). Production и полевой приёмочный акт этим staging smoke не подтверждаются.
 
 ## Цель
 
