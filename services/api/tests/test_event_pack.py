@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from io import BytesIO
 
 from openpyxl import Workbook
+import pytest
 
 from sqlalchemy import select
 
+from app.models.athlete import AthleteContact, AthleteProfile
 from app.models.category import Category
 from app.models.heat import Heat, StartListEntry
+from app.models.importing import ImportBatch, ImportRow
 from app.models.official import Official
 from conftest import auth_header
+from app.services.event_pack_service import MAX_UPLOAD_BYTES, PackIngestError, files_from_uploads
 
 
 STARTLIST_TEXT = """
@@ -35,6 +40,13 @@ KS_TEXT = """
 2 Главный секретарь Живаев С.В. Самарская область ВК
 11 Судья комментатор Валеев Я. Республика Татарстан
 """
+
+
+class _OversizedUpload:
+    filename = "oversized.pdf"
+
+    async def read(self, size: int) -> bytes:
+        return b"x" * size
 
 
 def _xlsx() -> bytes:
@@ -128,3 +140,49 @@ def test_ingest_pack_xlsx_and_pdfs(client, db_session, monkeypatch):
     assert len(entries) >= 3
     officials = list(db_session.scalars(select(Official).where(Official.event_id == event_id)).all())
     assert any("Филиппов" in o.full_name for o in officials)
+
+
+def test_ingest_pack_keeps_conflicting_import_rows_for_manual_review(client, db_session):
+    org = auth_header(client, "pack-conflict-org@example.com", "organizer")
+    event_id = _event(client, org, "pack-conflict")
+    profile = AthleteProfile(athlete_id="MW-PACK-LOCKED-1", display_name="Другой спортсмен")
+    db_session.add(profile)
+    db_session.flush()
+    db_session.add(
+        AthleteContact(
+            athlete_profile_id=profile.id,
+            phone_e164="+79001112201",
+            kind="self",
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/events/{event_id}/ingest-pack",
+        headers=org,
+        files=[
+            ("files", ("registration.xlsx", _xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+        ],
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "import_review_required"
+    batch = db_session.scalar(select(ImportBatch).where(ImportBatch.event_id == event_id))
+    assert batch is not None
+    conflicting_row = db_session.scalar(
+        select(ImportRow).where(
+            ImportRow.batch_id == batch.id,
+            ImportRow.display_name == "Тестова Анна",
+        )
+    )
+    assert conflicting_row is not None
+    assert conflicting_row.match_kind == "conflict"
+    assert conflicting_row.admin_decision == "pending"
+
+
+def test_pack_upload_reader_caps_each_file_before_buffering_it():
+    with pytest.raises(PackIngestError) as exc_info:
+        asyncio.run(files_from_uploads([_OversizedUpload()]))
+
+    assert exc_info.value.code == "file_too_large"
+    assert MAX_UPLOAD_BYTES == 25 * 1024 * 1024

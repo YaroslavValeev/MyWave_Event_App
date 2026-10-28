@@ -42,6 +42,9 @@ class PackIngestError(EventServiceError):
     pass
 
 
+MAX_PACK_TOTAL_UPLOAD_BYTES = 100 * 1024 * 1024
+
+
 def _latin_key(value: str | None) -> str:
     if not value:
         return ""
@@ -356,11 +359,15 @@ def _ingest_xlsx(
         audit_enabled=audit_enabled,
     )
     if batch.status != "committed":
-        for row in list_rows(db, batch_id=batch.id):
-            if row.admin_decision != "reject" and row.match_kind != "excluded":
-                row.admin_decision = "approve"
-                db.add(row)
-        db.flush()
+        rows = list_rows(db, batch_id=batch.id)
+        review_rows = [row for row in rows if row.match_kind in {"probable", "conflict"}]
+        if review_rows:
+            raise PackIngestError(
+                "import_review_required",
+                "Сначала проверьте вероятные совпадения и конфликты в Import Center, "
+                "затем повторите загрузку пакета.",
+                409,
+            )
         batch = commit_batch(
             db, event_id=event.id, batch_id=batch.id, actor=actor, audit_enabled=audit_enabled
         )
@@ -496,7 +503,20 @@ def ingest_pack(
 
 async def files_from_uploads(uploads: list[UploadFile]) -> list[tuple[str, bytes]]:
     out: list[tuple[str, bytes]] = []
+    total_bytes = 0
     for item in uploads:
-        payload = await item.read()
+        remaining = MAX_PACK_TOTAL_UPLOAD_BYTES - total_bytes
+        if remaining <= 0:
+            raise PackIngestError("file_too_large", "Пакет файлов превышает 100 МБ", 400)
+        read_limit = min(MAX_UPLOAD_BYTES, remaining)
+        payload = await item.read(read_limit + 1)
+        if len(payload) > read_limit:
+            message = (
+                "Пакет файлов превышает 100 МБ"
+                if remaining <= MAX_UPLOAD_BYTES
+                else "Один файл превышает 25 МБ"
+            )
+            raise PackIngestError("file_too_large", message, 400)
+        total_bytes += len(payload)
         out.append((item.filename or "upload.bin", payload))
     return out
