@@ -148,6 +148,11 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
 | GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
 
+`participants[].athlete_id` в JSON и attachment совпадает с составом:
+приоритет у `AthleteProfile.athlete_id` через `Participant.athlete_profile_id`;
+для старых записей без профиля используется `User.athlete_id`, иначе `null`.
+Подтверждение аккаунта не является условием экспорта ID импортированного спортсмена.
+
 ## App downloads (0.5.10)
 
 Публичный каталог выдачи. URL файлов только в env, не в ответе manifest/status.

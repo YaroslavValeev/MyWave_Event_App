@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import __version__
 from app.domain.roles import RESULT_VERIFY_ROLES, Role
+from app.models.athlete import AthleteProfile
 from app.models.judge_score import JudgeScore
 from app.models.protocol_capture import ProtocolCapture
 from app.models.result import Result
@@ -102,12 +103,33 @@ def build_official_protocol_bundle(
         for c in list_categories(db, event_id=event_id, actor=actor)
     ]
 
+    participant_rows = list_participants(db, event_id=event_id, actor=actor)
+    user_ids = {p.user_id for p in participant_rows if p.user_id}
+    profile_ids = {p.athlete_profile_id for p in participant_rows if p.athlete_profile_id}
+    user_athlete_ids = {}
+    profile_athlete_ids = {}
+    if user_ids:
+        user_athlete_ids = {
+            row.id: row.athlete_id
+            for row in db.scalars(select(User).where(User.id.in_(user_ids))).all()
+        }
+    if profile_ids:
+        profile_athlete_ids = {
+            row.id: row.athlete_id
+            for row in db.scalars(
+                select(AthleteProfile).where(AthleteProfile.id.in_(profile_ids))
+            ).all()
+        }
     participants = [
         {
             "id": p.id,
             "category_id": p.category_id,
             "user_id": p.user_id,
-            "athlete_id": None,
+            "athlete_id": (
+                profile_athlete_ids[p.athlete_profile_id]
+                if p.athlete_profile_id in profile_athlete_ids
+                else user_athlete_ids.get(p.user_id)
+            ),
             "full_name": p.full_name,
             "club": p.club,
             "region": p.region,
@@ -116,14 +138,8 @@ def build_official_protocol_bundle(
             "birth_year": p.birth_year,
             "status": p.status,
         }
-        for p in list_participants(db, event_id=event_id, actor=actor)
+        for p in participant_rows
     ]
-    user_ids = {p["user_id"] for p in participants if p.get("user_id")}
-    if user_ids:
-        for row in db.scalars(select(User).where(User.id.in_(user_ids))).all():
-            for item in participants:
-                if item.get("user_id") == row.id:
-                    item["athlete_id"] = row.athlete_id
 
     heats_out: list[dict[str, Any]] = []
     for heat in list_heats(db, event_id=event_id, actor=actor):

@@ -1,6 +1,42 @@
 # CURRENT_STATE
 
-Дата: 2026-09-23  
+Дата сверки: 2026-10-26
+
+## SQLite backup/restore — 26 октября 2026, 11:38 UTC
+
+- По live-выводу владельца `Invoke-BackupVerify.ps1` завершился **BACKUP_RESTORE_PASS**: online snapshot staging SQLite и восстановление в отдельном одноразовом контейнере прошли. Gate свежей **SQLite** копии и изолированного restore закрыт.
+- Backup: `/var/backups/mywave-event-app/mywave_event_staging.20261026T113815Z.r3bwDHHf.db` (618496 байт); proof: тот же путь + `.verify.json`.
+- SHA256 файла: `d4a2bab47043a8586ddf7893373dc90668c2500b06b6b4cb3147965c1eec63ba`.
+- Snapshot и restore: **27 таблиц, 1324 строки**, `integrity_check=ok`, FK violations **0**, row counts и logical SHA256 совпадают: `68ff8fa32c1b8d9f2540df5c4aeb81f541aba530cc333a28759912b298ddb81e`.
+- `source_mode=ro`, `restored_temp_removed=true`, `active_database_writes=false`, `application_restarts=false`. API/web container identities и hash dirty Compose сохранились; код приложения не разворачивался, рабочая БД не заменялась.
+- Источник evidence — консольный live-вывод владельца за `2026-10-26T11:38:17.683420Z`; более ранние два SSH banner timeout агента не были успешным backup. Повторное резервирование этим checkpoint не выполнялось.
+- `offsite_verified=false`; env/uploads и полное восстановление приложения этим SQLite-сценарием не удостоверяются. Остаются review/интеграция PR #2 → #3, сохранение loopback bindings, доказанная identity новых API/web images и отдельный полевой акт. Merge/deploy не выполнены.
+
+## Staging checkpoint — 26 октября 2026, 05:49 UTC
+
+- Повторный read-only SSH прошёл: API healthy, `env=staging`, OpenAPI **0.5.14**, `db_ok=true`; web `/login` **200**, BUILD_ID `p3AXeSOsU4Q12km3-554Z`.
+- Серверный checkout: `581b92423422c59cea75a07255cccf8dd4859988`. Все **98 tracked файлов `services/api/app`** побайтово совпадают с `/app/app` работающего API; missing/different/extra — 0. Это подтверждает только файлы приложения, не происхождение всего image.
+- API image: `sha256:6e59fc81e6281460e1da16390d4f95133f91822e77cc53de33e6a36de08d634e`; web image: `sha256:5c68d08ba5b25b1933b3f329a43c6c93c7216dc8f68b242b943606526064edb5`; оба созданы 2026-10-23. Revision labels пусты: **image build SHA / web source SHA неизвестны**.
+- Единственный серверный diff `docker-compose.staging.yml`: `8001:8000` → `127.0.0.1:8001:8000` и `3001:3000` → `127.0.0.1:3001:3000`. Других изменённых строк нет. Сохранить эти ограничения при будущей интеграции; не сбрасывать dirty Compose.
+- Runtime web: product **0.5.14**, Next.js **15.5.26**; локальная проверенная сборка использовала **15.5.22**. Не считать эти web-сборки одинаковыми. Внешний HTTP к IP:8001/3001 не является проверкой сервиса, опубликованного только на loopback.
+- SQLite: 618496 байт, read-only `SELECT 1=1`, `quick_check=ok`. Последний показанный backup: `mywave_event_staging.20260923T045707Z.db`; свежий backup и restore proof не получены.
+- `otp_required=false`, `password_required=false`: staging сохраняет вход по известному телефону без настроенной почтовой доставки. Конфигурация auth не менялась.
+- Исправление Athlete ID — PR #3, code commit `0df9615`; в работающем API его ещё нет. PR #2 и #3 остаются открытыми. Следующий gate: review/порядок интеграции, свежий backup/restore, сохранение loopback bindings, доказанная identity новых API/web images и отдельный полевой акт.
+- PowerShell → Bash: файл скрипта имел LF, но текстовый native pipeline добавлял завершающий CRLF. Передача через `tr -d "\015" | bash -s` проверена локально в Docker и на S1; exit 0. Сервер не перезапускался, fetch/checkout/миграции и записи в БД не выполнялись.
+
+## Checkpoint release/staging — 25 октября 2026
+
+- GitHub `main`: `ebb43b7c4fc75e5a5ea9778394182c58deb2bd73`.
+- Кандидат PR #2: `cursor/p0-import-center-athlete-link`, `e2f602fd5c4da018ce2ce6d194817c7386e8d481`; PR открыт, 16 коммитов сверх main. CI run `35845927322` — success.
+- Локальный baseline: API **116 passed**, Python dependencies `pip check` — passed; SQLite read-only `SELECT 1` / `quick_check` — passed. Web production build Next.js 15.5.22 — passed.
+- Сквозной синтетический API dry-run воспроизвёл blocker: импортированные Athlete ID присутствуют в roster, но теряются в JSON official protocol (`null`); при наличии аккаунта экспорт мог подставить ID аккаунта вместо профиля спортсмена.
+- Исправление в `fix/official-protocol-athlete-id`: экспорт использует профиль спортсмена с fallback для legacy User; без миграции, без изменения ролей или схемы ответа. Регресс-тесты до исправления: **2 failed / 2 passed**.
+- Полный локальный API suite после исправления: **120 passed**, 0 skipped (116 существующих + 4 проверки идентичности). Web не менялся; baseline production build остаётся passed. Автоматический API dry-run и полевой акт учитываются отдельно.
+- Актуальный staging: **deployed_sha=null**, версия и состояние БД неизвестны. SSH `22`, API `8001` и web `3001` с этой машины дали timeout. Это не доказательство остановки сервиса.
+- Данные ниже — историческое свидетельство за сентябрь. До выкладки нужны текущие identity API/web, проверенный backup/restore, review/CI и отдельный полевой акт организатора и главного судьи. Production, staging и данные Казани этим циклом не изменялись.
+
+## Исторический срез — 23 сентября 2026
+
 Версия продукта: **0.5.14 на staging** (git `581b924`) — вход по телефону без OTP, пока SMTP не настроен. Каталог выдачи в manifest по-прежнему подписан **0.5.10** (документация; android/ios недоступны).  
 Путь до DoD v1 (аудит): ~**86%** — identity + import + транскрипт Казани + **roster lock / chief-judge publish**; полевой dry-run и homologation на реальном старте ещё не закрыты. UX-итерация начата (канон + Quick Wins), role modes Athlete/Judge/Control Room — первый срез в 0.5.11. Каталог выдачи приложения — в Event App, нативных APK/IPA **нет**.
 
