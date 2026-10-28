@@ -108,16 +108,16 @@ def submit_judge_score(
     if existing is not None and existing.heat_id != data.heat_id:
         # Moving a sheet must not remove evidence from its finalized old heat.
         heat_scopes.append(Result.heat_id == existing.heat_id)
-    finalized_stmt = select(Result.id).where(
+    result_scope_stmt = select(Result).where(
         Result.event_id == event_id,
         Result.participant_id == data.participant_id,
         Result.attempt_no == data.attempt_no,
-        Result.status.in_(("verified", "published")),
     )
     if heat_scopes:
-        finalized_stmt = finalized_stmt.where(or_(*heat_scopes))
-    finalized = db.scalar(finalized_stmt.limit(1))
-    if finalized is not None:
+        result_scope_stmt = result_scope_stmt.where(or_(*heat_scopes))
+    # Serialize score writes with verify/publish transitions for existing result rows.
+    result_rows = list(db.scalars(result_scope_stmt.with_for_update()).all())
+    if any(result.status in {"verified", "published"} for result in result_rows):
         raise EventServiceError(
             "immutable",
             "Оценки проверенного или опубликованного результата заблокированы. "

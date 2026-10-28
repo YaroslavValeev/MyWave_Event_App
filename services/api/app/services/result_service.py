@@ -157,7 +157,11 @@ def transition_result(
     if status not in RESULT_STATUSES:
         raise EventServiceError("invalid_status", f"status must be one of {sorted(RESULT_STATUSES)}", 400)
 
-    row = db.get(Result, result_id)
+    row = db.scalar(
+        select(Result)
+        .where(Result.id == result_id, Result.event_id == event_id)
+        .with_for_update()
+    )
     if row is None or row.event_id != event_id:
         raise EventServiceError("not_found", "Result not found", 404)
 
