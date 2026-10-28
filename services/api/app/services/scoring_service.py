@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.domain.roles import JUDGE_SCORE_ROLES, RESULT_VERIFY_ROLES, Role
@@ -18,6 +18,7 @@ from app.domain.scoring_engines import (
 from app.domain.rules_catalog import RULES_PACKS, default_rules_pack_for
 from app.models.judge_score import JudgeScore
 from app.models.participant import Participant
+from app.models.result import Result
 from app.models.user import User
 from app.schemas.scoring import JudgeScoreSubmit
 from app.services.audit_service import append_audit
@@ -103,6 +104,27 @@ def submit_judge_score(
             JudgeScore.attempt_no == data.attempt_no,
         )
     )
+    heat_scopes = [Result.heat_id == data.heat_id] if data.heat_id is not None else []
+    if existing is not None and existing.heat_id != data.heat_id:
+        # Moving a sheet must not remove evidence from its finalized old heat.
+        heat_scopes.append(Result.heat_id == existing.heat_id)
+    result_scope_stmt = select(Result).where(
+        Result.event_id == event_id,
+        Result.participant_id == data.participant_id,
+        Result.attempt_no == data.attempt_no,
+    )
+    if heat_scopes:
+        result_scope_stmt = result_scope_stmt.where(or_(*heat_scopes))
+    # Serialize score writes with verify/publish transitions for existing result rows.
+    result_rows = list(db.scalars(result_scope_stmt.with_for_update()).all())
+    if any(result.status in {"verified", "published"} for result in result_rows):
+        raise EventServiceError(
+            "immutable",
+            "Оценки проверенного или опубликованного результата заблокированы. "
+            "Организатор должен вернуть результат в черновик; "
+            "опубликованный результат сначала аннулирует главный судья.",
+            409,
+        )
     if existing is not None:
         existing.engine = engine
         existing.heat_id = data.heat_id

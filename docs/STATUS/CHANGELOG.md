@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-10-25
 
+- Review 2026-10-26: листы судей для `verified/published` результатов защищены от изменения и добавления (`409 immutable`), включая обход переносом в другой heat. Исправление требует существующего workflow draft / chief void; миграций нет.
+
 - Official protocol JSON/attachment сохраняет Athlete ID импортированных участников из `AthleteProfile`; приоритет профиля совпадает с roster, legacy fallback через `User` сохранён.
 - Регресс-тесты: импорт без аккаунта, профиль плюс аккаунт с другим ID, legacy User и отсутствие идентификатора. Миграция БД не требуется.
 - CURRENT_STATE отделяет текущую проверку release baseline от исторического staging 23 сентября; текущий deployed SHA неизвестен из-за timeout.
