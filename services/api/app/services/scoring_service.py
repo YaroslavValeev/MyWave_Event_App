@@ -104,21 +104,19 @@ def submit_judge_score(
             JudgeScore.attempt_no == data.attempt_no,
         )
     )
-    heat_scopes = [Result.heat_id == data.heat_id]
+    heat_scopes = [Result.heat_id == data.heat_id] if data.heat_id is not None else []
     if existing is not None and existing.heat_id != data.heat_id:
         # Moving a sheet must not remove evidence from its finalized old heat.
         heat_scopes.append(Result.heat_id == existing.heat_id)
-    finalized = db.scalar(
-        select(Result.id)
-        .where(
-            Result.event_id == event_id,
-            Result.participant_id == data.participant_id,
-            Result.attempt_no == data.attempt_no,
-            Result.status.in_(("verified", "published")),
-            or_(*heat_scopes),
-        )
-        .limit(1)
+    finalized_stmt = select(Result.id).where(
+        Result.event_id == event_id,
+        Result.participant_id == data.participant_id,
+        Result.attempt_no == data.attempt_no,
+        Result.status.in_(("verified", "published")),
     )
+    if heat_scopes:
+        finalized_stmt = finalized_stmt.where(or_(*heat_scopes))
+    finalized = db.scalar(finalized_stmt.limit(1))
     if finalized is not None:
         raise EventServiceError(
             "immutable",

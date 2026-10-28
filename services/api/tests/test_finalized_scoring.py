@@ -1,8 +1,11 @@
 """Finalized result evidence stays stable until an authorized reopen."""
 
 import pytest
+from sqlalchemy import select
 
 from conftest import auth_header
+from app.models.judge_score import JudgeScore
+from app.models.result import Result
 from test_official_protocol import _create_scored_event
 
 
@@ -99,6 +102,39 @@ def test_moving_sheet_cannot_bypass_old_heat_lock(client):
     assert response.status_code == 409, response.text
     sheets = client.get(base + "/judge-scores", headers=org).json()["items"]
     assert all(row["heat_id"] is None and row["total"] == 75 for row in sheets)
+
+
+def test_new_unassigned_sheet_cannot_bypass_finalized_heat_scope(client, db_session):
+    org, _, base, pid, result_id = _context(client)
+    heat_response = client.post(
+        base + "/heats",
+        headers=org,
+        json={"code": "LOCKED", "title": "Заезд с итогом", "heat_number": 2},
+    )
+    assert heat_response.status_code == 201, heat_response.text
+    heat_id = heat_response.json()["id"]
+
+    result = db_session.get(Result, result_id)
+    assert result is not None
+    result.heat_id = heat_id
+    sheets = list(
+        db_session.scalars(
+            select(JudgeScore).where(
+                JudgeScore.event_id == result.event_id,
+                JudgeScore.participant_id == pid,
+                JudgeScore.attempt_no == result.attempt_no,
+            )
+        ).all()
+    )
+    for sheet in sheets:
+        sheet.heat_id = heat_id
+    db_session.commit()
+
+    new_judge = auth_header(client, "unassigned-heat-judge@example.com", "judge")
+    response = _sheet(client, base, pid, new_judge, heat_id=None)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "immutable"
 
 
 def test_unrelated_heat_accepts_new_judge_sheet(client):
