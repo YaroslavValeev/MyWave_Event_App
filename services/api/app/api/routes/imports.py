@@ -19,6 +19,7 @@ from app.services.protocol_pack_service import apply_scan_protocol
 from app.services.event_service import EventServiceError
 from app.services.import_service import (
     ImportServiceError,
+    MAX_UPLOAD_BYTES,
     batch_public_dict,
     commit_batch,
     create_or_reuse_batch,
@@ -45,7 +46,9 @@ async def post_import_batch(
     settings: AppSettings,
     file: UploadFile = File(...),
 ) -> ImportBatchOut:
-    payload = await file.read()
+    payload = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise_api_error(400, "file_too_large", "Файл больше 5 МБ")
     try:
         batch = create_or_reuse_batch(
             db,
@@ -139,8 +142,8 @@ async def post_ingest_pack(
     settings: AppSettings,
     files: list[UploadFile] = File(...),
 ) -> PackIngestOut:
-    payloads = await files_from_uploads(files)
     try:
+        payloads = await files_from_uploads(files)
         result = ingest_pack(
             db,
             event_id=event_id,
