@@ -219,6 +219,7 @@ def assemble_event_report(
     enable_llm: bool = True,
     openai_api_key: str | None = None,
     openai_model: str = "gpt-4o-mini",
+    openai_base_url: str | None = None,
     audit_enabled: bool = True,
 ) -> EventReport:
     if not can_edit_event_report(actor):
@@ -249,9 +250,16 @@ def assemble_event_report(
             facts=facts,
             openai_api_key=openai_api_key,
             openai_model=openai_model,
+            openai_base_url=openai_base_url,
         )
         source = "llm"
-        facts["ai"] = {"provider": provider, "model": openai_model if provider == "openai" else "local"}
+        facts["ai"] = {
+            "provider": provider,
+            "model": openai_model if provider == "openai" else "local",
+            "base_url": (openai_base_url or "https://api.openai.com/v1")
+            if provider == "openai"
+            else None,
+        }
     else:
         body = _render_template_markdown(event_title=event.title, facts=facts)
         source = "template"

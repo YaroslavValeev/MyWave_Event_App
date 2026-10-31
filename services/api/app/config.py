@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     enable_event_report_stt: bool = Field(default=False, alias="ENABLE_EVENT_REPORT_STT")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    # OpenAI-compatible base, e.g. https://api.openai.com/v1 or a regional proxy / OpenRouter.
+    openai_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        alias="OPENAI_BASE_URL",
+    )
     jwt_access_token_expire_minutes: int = Field(
         default=1440,
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
@@ -99,6 +104,14 @@ class Settings(BaseSettings):
         if value == "":
             return None
         return value
+
+    @field_validator("openai_base_url", mode="before")
+    @classmethod
+    def normalize_openai_base_url(cls, value: object) -> object:
+        if value is None or value == "":
+            return "https://api.openai.com/v1"
+        text = str(value).strip().rstrip("/")
+        return text or "https://api.openai.com/v1"
 
     @model_validator(mode="after")
     def reject_insecure_production_secret(self):

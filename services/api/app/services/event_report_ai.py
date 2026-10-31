@@ -15,6 +15,18 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
+
+
+def openai_chat_completions_url(base_url: str | None = None) -> str:
+    """Build chat/completions URL from OPENAI_BASE_URL (OpenAI-compatible)."""
+    base = (base_url or _DEFAULT_OPENAI_BASE).strip().rstrip("/")
+    if not base:
+        base = _DEFAULT_OPENAI_BASE
+    if base.endswith("/chat/completions"):
+        return base
+    return f"{base}/chat/completions"
+
 
 def render_ai_local_markdown(*, event_title: str, facts: dict[str, Any]) -> str:
     """Deterministic AI-style chronicle from structured facts."""
@@ -118,9 +130,10 @@ def render_ai_openai_markdown(
     facts: dict[str, Any],
     api_key: str,
     model: str,
+    base_url: str | None = None,
     timeout_s: float = 45.0,
 ) -> str:
-    """Call OpenAI chat completions; raises on transport/API errors."""
+    """Call OpenAI-compatible chat completions; raises on transport/API errors."""
     system = (
         "Ты помощник секретаря соревнования wakeboard/wakesurf. "
         "Напиши отчёт на русском в Markdown: резюме, призёры, DNS/DNF, коллегия, "
@@ -140,12 +153,9 @@ def render_ai_openai_markdown(
         "temperature": 0.4,
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    url = openai_chat_completions_url(base_url)
     with httpx.Client(timeout=timeout_s) as client:
-        resp = client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
-        )
+        resp = client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
     content = data["choices"][0]["message"]["content"]
@@ -160,6 +170,7 @@ def compose_ai_body(
     facts: dict[str, Any],
     openai_api_key: str | None,
     openai_model: str,
+    openai_base_url: str | None = None,
 ) -> tuple[str, str]:
     """Return (body_markdown, provider) where provider is openai|local."""
     key = (openai_api_key or "").strip()
@@ -170,6 +181,7 @@ def compose_ai_body(
                 facts=facts,
                 api_key=key,
                 model=openai_model,
+                base_url=openai_base_url,
             )
             return body, "openai"
         except Exception as exc:  # noqa: BLE001 — fallback to local AI

@@ -93,8 +93,12 @@ cd "F:\Проекты MyWave\NEW2026\App Champ\MyWave_Event_App"
 Copy-Item .env.staging.example .env.staging -ErrorAction SilentlyContinue
 # В .env.staging добавить:
 # ENABLE_EVENT_REPORT_LLM=1
-# OPENAI_API_KEY=sk-...
+# OPENAI_API_KEY=sk-...   # или ключ прокси (OpenRouter: sk-or-...)
 # OPENAI_MODEL=gpt-4o-mini
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# # если VPS в неподдерживаемом регионе OpenAI (403 territory):
+# # OPENAI_BASE_URL=https://openrouter.ai/api/v1
+# # OPENAI_MODEL=openai/gpt-4o-mini
 # SECRET_KEY=... (≥32)
 
 docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d

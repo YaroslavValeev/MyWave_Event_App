@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
-Дата: 2026-10-27  
-Версия продукта: **0.5.10** (deep-link уведомлений + dry-run Казань + auto-port; отчётность с 0.5.9)  
+Дата: 2026-10-31  
+Версия продукта: **0.5.11** (`OPENAI_BASE_URL` для прокси LLM; 0.5.10 — deep-link + dry-run)  
 Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
@@ -17,7 +17,7 @@
 - Structured scoring, official protocol export (JSON + HTML), Athlete ID, archive lock.
 - **UX 0.5.6:** публичная витрина событий (J4); ролевые вкладки; русские статусы; вход без dev-console; регистрация участником по умолчанию; нижняя навигация на телефоне.
 - **UX 0.5.7:** светлая тема, бирюзовые обводки и тени кнопок. Просроченный токен не тупик: гостевой просмотр + «Войти снова» с возвратом. Ролевые пути закрыты CTA. GET heats публичный на витрине (start list по-прежнему с входом).
-- **Отчётность 0.5.8–0.5.9:** Dual-track; виртуальный прогон Казани; AI assemble (local/OpenAI); Excel export; матрица физ. действий ↔ ролей.
+- **Отчётность 0.5.8–0.5.11:** Dual-track; AI assemble (local / OpenAI-compatible via `OPENAI_BASE_URL`); Excel; role handoffs. На VPS в РФ прямой `api.openai.com` часто 403 territory → нужен прокси (напр. OpenRouter).
 
 ## Частично / нет
 

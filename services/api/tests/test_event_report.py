@@ -4,9 +4,63 @@ from __future__ import annotations
 
 import io
 
+import httpx
 from openpyxl import load_workbook
 
+from app.services.event_report_ai import compose_ai_body, openai_chat_completions_url
 from conftest import auth_header
+
+
+def test_openai_chat_completions_url_normalization():
+    assert (
+        openai_chat_completions_url("https://api.openai.com/v1")
+        == "https://api.openai.com/v1/chat/completions"
+    )
+    assert (
+        openai_chat_completions_url("https://openrouter.ai/api/v1/")
+        == "https://openrouter.ai/api/v1/chat/completions"
+    )
+    assert (
+        openai_chat_completions_url("https://proxy.example/v1/chat/completions")
+        == "https://proxy.example/v1/chat/completions"
+    )
+
+
+def test_compose_ai_body_uses_custom_base_url(monkeypatch):
+    calls: list[str] = []
+
+    class _Resp:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"choices": [{"message": {"content": "# Proxy draft\n\nОк."}}]}
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):  # noqa: A003
+            calls.append(url)
+            return _Resp()
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    body, provider = compose_ai_body(
+        event_title="Test",
+        facts={"published_results_count": 0},
+        openai_api_key="sk-test",
+        openai_model="gpt-4o-mini",
+        openai_base_url="https://openrouter.ai/api/v1",
+    )
+    assert provider == "openai"
+    assert "Proxy draft" in body
+    assert calls == ["https://openrouter.ai/api/v1/chat/completions"]
 
 
 def _seed_event_with_published_result(client, slug: str = "report-cup"):

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.11 — 2026-10-31
+
+- `OPENAI_BASE_URL` — OpenAI-compatible endpoint для EventReport AI (прокси / OpenRouter), если прямой `api.openai.com` даёт 403 territory с VPS.
+- Staging compose пробрасывает `OPENAI_BASE_URL`.
+
 ## 0.5.10 — 2026-10-27
 
 - Deep-link в уведомлениях: поле `href` (заявка → `/events/{id}#apps`, роль staff → `/admin/approvals`, отчёт → `#report`).

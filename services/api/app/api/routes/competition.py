@@ -1030,6 +1030,7 @@ def event_report_assemble(
             enable_llm=settings.enable_event_report_llm,
             openai_api_key=settings.openai_api_key,
             openai_model=settings.openai_model,
+            openai_base_url=settings.openai_base_url,
             audit_enabled=settings.enable_audit_log,
         )
     except EventServiceError as exc:
