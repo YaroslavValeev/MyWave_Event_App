@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
@@ -79,7 +80,8 @@ export default function NotificationsPage() {
       <main id="main" className={styles.main} style={{ maxWidth: "40rem" }}>
         <h1 className={styles.title}>Уведомления</h1>
         <p className={styles.hint}>
-          Статусы заявок и ролей приходят сюда. Непрочитанных: {unread}.
+          Статусы заявок, ролей и отчётов. Клик по ссылке открывает нужный экран. Непрочитанных:{" "}
+          {unread}.
         </p>
         {needsAuth ? (
           <AuthNeeded next="/notifications" title="Нужен вход" actionLabel="Войти">
@@ -119,17 +121,23 @@ export default function NotificationsPage() {
                 <p className={styles.hint} style={{ margin: "0.35rem 0 0" }}>
                   {item.body}
                 </p>
-                {!item.is_read ? (
-                  <button
-                    type="button"
-                    className={styles.secondary}
-                    disabled={pending}
-                    onClick={() => void markOne(item.id)}
-                    style={{ marginTop: "0.6rem" }}
-                  >
-                    Прочитано
-                  </button>
-                ) : null}
+                <p style={{ marginTop: "0.55rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {item.href ? (
+                    <Link href={item.href} className="btn btnPrimary btnSm" onClick={() => void markOne(item.id)}>
+                      Открыть
+                    </Link>
+                  ) : null}
+                  {!item.is_read ? (
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={pending}
+                      onClick={() => void markOne(item.id)}
+                    >
+                      Прочитано
+                    </button>
+                  ) : null}
+                </p>
               </li>
             ))}
           </ul>

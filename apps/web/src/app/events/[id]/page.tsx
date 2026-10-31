@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { EventReportPanel } from "@/components/EventReportPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   ApiError,
@@ -83,6 +84,7 @@ type TabId =
   | "slots"
   | "docs"
   | "protocol"
+  | "report"
   | "scoring"
   | "heats"
   | "results"
@@ -95,6 +97,7 @@ const ALL_TABS: TabId[] = [
   "slots",
   "docs",
   "protocol",
+  "report",
   "scoring",
   "heats",
   "results",
@@ -108,7 +111,7 @@ function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
     return ["overview", "scoring", "heats", "protocol", "results", "participants"];
   }
   if (isBroadcastRole(role)) {
-    return ["overview", "heats", "results", "participants", "docs"];
+    return ["overview", "heats", "results", "participants", "docs", "report"];
   }
   if (role === "support") {
     return ["overview", "participants", "docs", "results", "apps"];
@@ -786,6 +789,7 @@ export default function EventDetailPage() {
     { id: "slots", label: "Слоты" },
     { id: "docs", label: `Документы (${documents.length})` },
     { id: "protocol", label: `Протокол (${protocols.length})` },
+    { id: "report", label: "Отчёт" },
     { id: "scoring", label: "Судейство" },
     { id: "heats", label: `Заезды (${heats.length})` },
     { id: "results", label: "Результаты" },
@@ -1409,6 +1413,17 @@ export default function EventDetailPage() {
                   )}
                 </ul>
               </>
+            ) : null}
+
+            {tab === "report" ? (
+              <EventReportPanel
+                eventId={String(eventId)}
+                eventSlug={detail?.slug || `event-${eventId}`}
+                canEdit={canOrganize || isBroadcastRole(user?.role)}
+                canPublish={canModerate}
+                isArchived={isArchived}
+                onError={setError}
+              />
             ) : null}
 
             {tab === "scoring" ? (

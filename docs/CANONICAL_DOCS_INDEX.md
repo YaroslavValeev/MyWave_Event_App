@@ -1,7 +1,8 @@
 # Canonical Docs Index — MyWave Event App
 
-Дата: 2026-08-24  
-Статус: активный
+Дата: 2026-10-27  
+Статус: активный  
+Факт продукта: см. `docs/STATUS/CURRENT_STATE.md` (версия **0.5.10**, DoD v1 ~80%).
 
 | Документ | Путь | Назначение | Когда обновлять |
 |----------|------|------------|-----------------|
@@ -10,6 +11,9 @@
 | PRD | `docs/PRODUCT/PRD.md` | продукт | функции/сценарии |
 | Roles | `docs/PRODUCT/USER_ROLES_AND_JOURNEYS.md` | роли | RBAC/UX |
 | Roadmap | `docs/PRODUCT/ROADMAP.md` | этапы | приоритеты |
+| Kazan dry-run | `docs/PRODUCT/KAZAN_VIRTUAL_DRY_RUN.md` | виртуальный E2E Казань P/N | пилот / seed gaps |
+| Event reporting | `docs/PRODUCT/EVENT_REPORTING_MODEL.md` | Dual-track отчётность | слой отчёта / AI flags |
+| Role physical actions | `docs/PRODUCT/ROLE_PHYSICAL_ACTIONS.md` | физ. шаги ↔ роли ↔ App | handoff на площадке |
 | Architecture | `docs/ARCHITECTURE/ARCHITECTURE.md` | фактическая архитектура | модули |
 | Data model | `docs/ARCHITECTURE/DATA_MODEL.md` | сущности | schema |
 | Offline | `docs/ARCHITECTURE/OFFLINE_SYNC.md` | offline (этап 3+) | sync |
@@ -29,6 +33,7 @@
 | Backup | `docs/OPERATIONS/BACKUP_RESTORE.md` | backup | storage |
 | Release | `docs/OPERATIONS/RELEASE.md` | релиз | versioning |
 | Staging | `docs/OPERATIONS/STAGING.md` | staging env | deploy staging |
+| Event report cmds | `docs/OPERATIONS/EVENT_REPORT_COMMANDS.md` | AI/Excel/smoke/server | отчётность 0.5.9 |
 | Testing | `docs/QUALITY/TESTING.md` | тесты | coverage |
 | A11y | `docs/QUALITY/ACCESSIBILITY.md` | доступность | UI |
 | Current state | `docs/STATUS/CURRENT_STATE.md` | факт | каждый цикл |

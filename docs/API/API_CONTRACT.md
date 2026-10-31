@@ -110,6 +110,23 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 | GET | `/api/v1/events/{id}/official-protocol/download` | Bearer organizer+ | attachment `.json` |
 | GET | `/api/v1/events/{id}/official-protocol/html` | Bearer organizer+ | printable HTML |
 
+## EventReport (0.5.8→0.5.9, ADR-0012)
+
+AI draft (default) из published results + DNS/DNF + officials + role handoffs.  
+`ENABLE_EVENT_REPORT_LLM=1` по умолчанию; без `OPENAI_API_KEY` — local AI. STT — flag off.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/event-report` | Bearer | draft — editor; иначе только `published` |
+| POST | `/api/v1/events/{id}/event-report/assemble` | Bearer organizer+/commentator | AI draft (`use_llm` default true; false = template) |
+| PATCH | `/api/v1/events/{id}/event-report` | Bearer editor | `title`, `body_markdown` |
+| POST | `/api/v1/events/{id}/event-report/publish` | Bearer organizer+ | draft → published |
+| POST | `/api/v1/events/{id}/event-report/void` | Bearer organizer+ | published/draft → void (потом снова assemble) |
+| GET | `/api/v1/events/{id}/event-report/excel` | Bearer editor | `.xlsx` выгрузка (не SoT) |
+| GET | `/api/v1/events/{id}/role-actions` | Bearer | физ. действия ↔ роли ↔ handoff (`?phase=` `?role=`) |
+
+Статусы: `draft` \| `published` \| `void`. Один отчёт на событие.
+
 ## Athlete ID & archive (0.5.5)
 
 - `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); в `TokenResponse` / `MeResponse` / roster `ParticipantOut.athlete_id`.

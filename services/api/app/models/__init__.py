@@ -6,6 +6,7 @@ from app.models.consent import ConsentRecord
 from app.models.category import Category
 from app.models.document import Document
 from app.models.event import Event, EventStatus
+from app.models.event_report import EventReport
 from app.models.event_rules import EventRulesProfile
 from app.models.protocol_capture import ProtocolCapture
 from app.models.judge_score import JudgeScore
@@ -41,4 +42,5 @@ __all__ = [
     "EventRulesProfile",
     "ProtocolCapture",
     "JudgeScore",
+    "EventReport",
 ]

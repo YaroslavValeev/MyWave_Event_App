@@ -1,9 +1,9 @@
 # ROADMAP — Competition Platform (v1)
 
-Дата: 2026-08-24  
+Дата: 2026-10-27  
 Цель: провести **одно реальное соревнование** end-to-end без Excel как Source of Truth.
 
-Оценка аудита (вход): ~**32%** пути до DoD v1.
+Оценка пути до DoD v1: ~**80%** (ядро Stage 1 в коде; блокер — пилот на площадке).
 
 ## Definition of Done v1
 
@@ -31,16 +31,18 @@
 |--------|--------|
 | upload документов | **done (0.5.0)** |
 | checklist в Event App | **done (0.5.0)** |
-| categories / officials / approvals / registration / roster | частично (read + seed; CRUD UI ограничен) |
+| categories / officials / approvals / registration / roster | **done для пилота** (seed + API + UI; полный CRUD категорий — polish) |
 
-## Этап 2 — День старта (главный функциональный разрыв)
+## Этап 2 — День старта
 
 | Задача | Статус |
 |--------|--------|
 | Heat / StartList / Run foundation | **done (0.5.0)** |
-| bulk start list, live board, DNS/DNF UX polish | next |
-| Results scoring | **partial (0.5.3)** engines + judge sheets + aggregate |
-| Official protocol export | **partial (0.5.4)** JSON + HTML |
+| bulk start list | **done (0.5.1)** |
+| DNS/DNF labels | **done (0.5.5)** |
+| live board polish | next (не блокер пилота) |
+| Results scoring | **done (0.5.3)** engines + judge sheets + aggregate |
+| Official protocol export | **partial (0.5.4)** JSON + HTML; PDF optional |
 
 ## Этап 3 — Results
 
@@ -70,9 +72,15 @@
 
 После `completed` → read-only архив: roster, heats, protocols, results, media, Athlete IDs, документы. — **done (0.5.5)** (media ещё нет)
 
+## Этап 6.5 — Event reporting (канон 2026-10-27)
+
+Dual-track: Live ops + sparse moments + EventReport draft (template → optional LLM) + human publish.  
+Docs: `EVENT_REPORTING_MODEL.md`, ADR-0012, виртуальный прогон Казани.  
+Код 0.5.8: assemble/publish template без LLM; STT/LLM — feature flags.
+
 ## Этап 7 — ParserNews / Content Engine
 
-Published result → ParserNews → draft article → Owner commentary → publication.
+Published **EventReport** (+ published results) → ParserNews → draft article → Owner commentary → publication.
 
 ## Этап 8 — Broadcast / commentator
 
@@ -91,14 +99,14 @@ Published result → ParserNews → draft article → Owner commentary → publi
 
 ## Owner blockers (вне кода)
 
-1. Production SMTP (Gmail App Password)
-2. Создание/доступ к GitHub remote + push
-3. Hosting для staging (VPS / container host)
+1. **Pilot dry-run** судья + организатор на одном событии (закрывает DoD v1)
+2. Production SMTP (Gmail App Password или аналог)
+3. Hosting для staging (VPS / container host) — compose/runbook уже есть
+4. ~~GitHub remote + push~~ **done**
 
-## Следующий код P0 (после Этапа 0)
+## Следующий P0 (2026-10-27)
 
-1. ~~Document upload API организатора~~ **done 0.5.0**
-2. ~~Event checklist в Event App~~ **done 0.5.0**
-3. ~~Модель Heat / StartList / Run (foundation)~~ **done 0.5.0**
-4. Bulk start list + results draft/publish
-5. Athlete ID
+1. Pilot dry-run E2E: подготовка → регистрация → check-in → heats → scoring → results → protocol → archive
+2. SMTP + staging host (owner)
+3. EventReport UI + day-of checklist; deep-link / PDF / live board — polish
+4. Этапы 5–8 (Media, Archive media, ParserNews, Broadcast) — **после** стабильного дня старта

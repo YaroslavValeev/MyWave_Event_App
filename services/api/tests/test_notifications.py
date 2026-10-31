@@ -23,6 +23,8 @@ def test_role_pending_creates_notifications(client):
     kinds = {item["kind"] for item in staff.json()["items"]}
     assert "role.pending_staff" in kinds
     assert staff.json()["unread_count"] >= 1
+    pending_staff = next(i for i in staff.json()["items"] if i["kind"] == "role.pending_staff")
+    assert pending_staff["href"] == "/admin/approvals"
 
 
 def test_application_flow_notifies_athlete_and_staff(client):
@@ -60,10 +62,12 @@ def test_application_flow_notifies_athlete_and_staff(client):
 
     athlete_notes = client.get("/api/v1/me/notifications", headers=athlete_headers)
     assert athlete_notes.status_code == 200
-    assert any(item["kind"] == "application.submitted" for item in athlete_notes.json()["items"])
+    submitted = next(i for i in athlete_notes.json()["items"] if i["kind"] == "application.submitted")
+    assert submitted["href"] == f"/events/{event_id}#apps"
 
     staff_notes = client.get("/api/v1/me/notifications", headers=org)
-    assert any(item["kind"] == "application.submitted_staff" for item in staff_notes.json()["items"])
+    staff_item = next(i for i in staff_notes.json()["items"] if i["kind"] == "application.submitted_staff")
+    assert staff_item["href"] == f"/events/{event_id}#apps"
 
     decided = client.patch(
         f"/api/v1/events/{event_id}/applications/{app_id}",

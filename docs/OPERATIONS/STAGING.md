@@ -42,6 +42,8 @@ curl http://127.0.0.1:3001/
 | `CORS_ORIGINS` | URL staging web |
 | `PUBLIC_WEB_URL` | URL staging web |
 | `API_PUBLIC_URL` | URL staging API |
+| `ENABLE_EVENT_REPORT_LLM` | `1` для AI-отчёта |
+| `OPENAI_API_KEY` | опционально; без ключа — local AI |
 
 ## Remote staging (VPS)
 

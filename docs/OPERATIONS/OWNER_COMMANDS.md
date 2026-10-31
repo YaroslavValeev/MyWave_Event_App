@@ -138,15 +138,28 @@ curl.exe http://127.0.0.1:8001/health
 
 Подробнее: `docs/OPERATIONS/STAGING.md`
 
-## 8) Что дальше по продукту
+## 8) EventReport / AI / Excel / dry-run (0.5.10)
 
-Сделано в 0.4.0: phone-auth, approvals, applications, notifications, CI, release/staging discipline.
+Точные команды: [EVENT_REPORT_COMMANDS.md](./EVENT_REPORT_COMMANDS.md)
+
+```powershell
+cd "F:\Проекты MyWave\NEW2026\App Champ\MyWave_Event_App"
+npm run dev
+# API часто на :8010 (если :8000 занят Docker) — .env.local пишется сам
+
+npm run dry-run:kazan
+# или: powershell -File .\scripts\dry_run_kazan.ps1 -ApiBase http://127.0.0.1:8010
+```
+
+UI: `/events/1#report` · уведомления с кнопкой «Открыть» → deep-link.
+
+## 9) Что дальше по продукту
+
+Сделано до 0.5.10: день старта, протокол, Athlete ID, AI-отчёт, Excel, handoffs, UI «Отчёт», deep-link уведомлений, автопорт, dry-run Казань.
 
 Остаётся за владельцем:
-1. GitHub remote + push `main` и tag `v0.4.0`
-2. SMTP (вы) → проверка OTP на реальную почту
-3. Staging на VPS (после remote)
-4. (опционально) реальные email спортсменов вместо `p{phone}@participants.mywave.local`
-
-Следующий код P0: document upload → event checklist → heats/start lists.
+1. SMTP → реальные OTP/approve
+2. Staging/VPS + `.env` с `OPENAI_API_KEY`
+3. Полевой pilot (судья+организатор) — цифровой dry-run уже прогнан скриптом
+4. (опционально) реальные email вместо `*.mywave.local`
 

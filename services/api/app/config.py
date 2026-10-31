@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./data/mywave_event.db", alias="DATABASE_URL")
     redis_url: str | None = Field(default=None, alias="REDIS_URL")
     enable_audit_log: bool = Field(default=True, alias="ENABLE_AUDIT_LOG")
+    enable_event_report_llm: bool = Field(default=True, alias="ENABLE_EVENT_REPORT_LLM")
+    enable_event_report_stt: bool = Field(default=False, alias="ENABLE_EVENT_REPORT_STT")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
     jwt_access_token_expire_minutes: int = Field(
         default=1440,
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
@@ -89,9 +93,9 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, value: object) -> list[str]:
         return _split_cors(value)
 
-    @field_validator("redis_url", mode="before")
+    @field_validator("redis_url", "openai_api_key", mode="before")
     @classmethod
-    def empty_redis_to_none(cls, value: object) -> object:
+    def empty_optional_to_none(cls, value: object) -> object:
         if value == "":
             return None
         return value

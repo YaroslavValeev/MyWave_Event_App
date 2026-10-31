@@ -41,7 +41,7 @@
 |------|-----|-------|----------|
 | id | int | ✓ | |
 | event_id | int | ✓ | → Event |
-| code | string | ✓ | documents / categories / officials / … |
+| code | string | ✓ | documents / categories / officials / … + day_* (0.5.8) |
 | title | string | ✓ | |
 | is_done | bool | ✓ | |
 | sort_order | int | ✓ | |
@@ -49,6 +49,22 @@
 | done_by_user_id | int | | → User |
 
 SoT подготовки — в Event App, не на сайте.
+
+### EventReport (добавлено 2026-10-27, ADR-0012)
+
+| Поле | Тип | Обяз. | Описание |
+|------|-----|-------|----------|
+| id | int | ✓ | |
+| event_id | int | ✓ | unique → Event |
+| status | string | ✓ | `draft` \| `published` \| `void` |
+| title | string | ✓ | |
+| body_markdown | text | ✓ | редактируемая хроника |
+| facts_json | text | ✓ | снимок SoT на assemble |
+| source | string | ✓ | `template` \| `llm` |
+| created_by / updated_by / published_by | int | | → User |
+| published_at | datetime | | |
+
+Цифры SoT остаются в `results` / start list; отчёт не дублирует их как второй store.
 
 ### Heat / StartListEntry / Run (foundation, 2026-08-24)
 

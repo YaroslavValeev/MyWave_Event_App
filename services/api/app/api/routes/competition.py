@@ -51,6 +51,11 @@ from app.schemas.competition import (
 from app.schemas.protocol import ProtocolCaptureListResponse, ProtocolCaptureOut, ProtocolCaptureUpdate
 from app.schemas.rules import EventRulesProfileOut, EventRulesProfileUpdate
 from app.schemas.official_protocol import OfficialProtocolBundle
+from app.schemas.event_report import (
+    EventReportAssembleRequest,
+    EventReportOut,
+    EventReportUpdate,
+)
 from app.schemas.scoring import (
     AggregateScoresOut,
     AggregateScoresRequest,
@@ -106,6 +111,17 @@ from app.services.official_protocol_service import (
     build_official_protocol_bundle,
     record_official_protocol_export,
     render_official_protocol_html,
+)
+from app.domain.role_physical_actions import list_role_physical_actions
+from app.services.event_report_excel import build_event_report_xlsx
+from app.services.event_report_service import (
+    assemble_event_report,
+    can_edit_event_report,
+    get_event_report,
+    publish_event_report,
+    report_to_out,
+    update_event_report,
+    void_event_report,
 )
 from app.services.scoring_service import (
     aggregate_to_result,
@@ -983,6 +999,145 @@ def official_protocol_html(
         media_type="text/html; charset=utf-8",
         headers={"Content-Disposition": f'inline; filename="{slug}-official-protocol.html"'},
     )
+
+
+@router.get("/{event_id}/event-report", response_model=EventReportOut)
+def event_report_get(event_id: int, db: DbSession, user: CurrentUser) -> EventReportOut:
+    try:
+        row = get_event_report(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    if row is None:
+        raise_api_error(404, "not_found", "Отчёт ещё не собран")
+    return report_to_out(row)
+
+
+@router.post("/{event_id}/event-report/assemble", response_model=EventReportOut)
+def event_report_assemble(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+    body: EventReportAssembleRequest | None = None,
+) -> EventReportOut:
+    payload = body or EventReportAssembleRequest()
+    try:
+        row = assemble_event_report(
+            db,
+            event_id=event_id,
+            actor=user,
+            use_llm=payload.use_llm,
+            enable_llm=settings.enable_event_report_llm,
+            openai_api_key=settings.openai_api_key,
+            openai_model=settings.openai_model,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return report_to_out(row)
+
+
+@router.patch("/{event_id}/event-report", response_model=EventReportOut)
+def event_report_patch(
+    event_id: int,
+    body: EventReportUpdate,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> EventReportOut:
+    try:
+        row = update_event_report(
+            db,
+            event_id=event_id,
+            actor=user,
+            data=body,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return report_to_out(row)
+
+
+@router.post("/{event_id}/event-report/publish", response_model=EventReportOut)
+def event_report_publish(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> EventReportOut:
+    try:
+        row = publish_event_report(
+            db,
+            event_id=event_id,
+            actor=user,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return report_to_out(row)
+
+
+@router.post("/{event_id}/event-report/void", response_model=EventReportOut)
+def event_report_void(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    settings: AppSettings,
+) -> EventReportOut:
+    try:
+        row = void_event_report(
+            db,
+            event_id=event_id,
+            actor=user,
+            audit_enabled=settings.enable_audit_log,
+        )
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    return report_to_out(row)
+
+
+@router.get("/{event_id}/event-report/excel")
+def event_report_excel(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+) -> Response:
+    try:
+        if not can_edit_event_report(user):
+            raise EventServiceError("forbidden", "Excel отчёта — organizer+/commentator", 403)
+        event = get_event(db, event_id=event_id, actor=user)
+        row = get_event_report(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    if row is None:
+        raise_api_error(404, "not_found", "Отчёт ещё не собран")
+    payload = build_event_report_xlsx(
+        event_slug=event.slug,
+        event_title=event.title,
+        report=row,
+    )
+    filename = f"{event.slug}-event-report.xlsx"
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{event_id}/role-actions")
+def event_role_actions(
+    event_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    phase: str | None = Query(default=None),
+    role: str | None = Query(default=None),
+) -> dict:
+    try:
+        get_event(db, event_id=event_id, actor=user)
+    except EventServiceError as exc:
+        raise_api_error(exc.status_code, exc.code, exc.message)
+    items = list_role_physical_actions(phase=phase, role=role)
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/{event_id}/schedule-hint", response_model=ScheduleHint)

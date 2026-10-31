@@ -144,7 +144,7 @@ npm run reseed
 npm run test:api
 ```
 
-Ожидаемо: **60 passed**.
+Ожидаемо: полный suite `npm run test:api` (включая EventReport 0.5.8).
 
 ---
 

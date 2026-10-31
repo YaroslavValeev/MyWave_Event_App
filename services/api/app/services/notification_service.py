@@ -7,7 +7,35 @@ from sqlalchemy.orm import Session
 
 from app.domain.roles import EVENT_WRITE_ROLES
 from app.models.notification import Notification
+from app.models.participant import Participant
 from app.models.user import User
+
+
+def resolve_notification_href(db: Session, row: Notification) -> str | None:
+    """Deep-link for UI: заявка → карточка события #apps; роль → доступы/профиль."""
+    kind = row.kind or ""
+    if kind == "role.pending_staff":
+        return "/admin/approvals"
+    if kind.startswith("role."):
+        return "/profile"
+    if kind.startswith("event_report."):
+        if row.entity_id:
+            return f"/events/{row.entity_id}#report"
+        return "/events"
+    if row.entity_type == "event" and row.entity_id:
+        return f"/events/{row.entity_id}#apps"
+    if row.entity_type == "participant" and row.entity_id:
+        try:
+            pid = int(row.entity_id)
+        except ValueError:
+            return None
+        part = db.get(Participant, pid)
+        if part is None:
+            return None
+        return f"/events/{part.event_id}#apps"
+    if kind.startswith("application."):
+        return "/events"
+    return None
 
 
 def create_notification(

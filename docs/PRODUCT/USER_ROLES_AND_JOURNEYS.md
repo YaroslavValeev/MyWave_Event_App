@@ -73,8 +73,14 @@
 - Судейство полностью offline с conflict-resolution UI.
 - Approve через Telegram как обязательный шаг.
 
-## 5. Связанные документы
+## 5. Физические действия на площадке
+
+См. [ROLE_PHYSICAL_ACTIONS.md](./ROLE_PHYSICAL_ACTIONS.md) — перевод «что делают руками» в статусы App и handoff следующей роли (check-in → понтон → оценки → publish → отчёт).
+
+## 6. Связанные документы
 
 - [PRD.md](PRD.md)
+- [ROLE_PHYSICAL_ACTIONS.md](./ROLE_PHYSICAL_ACTIONS.md)
+- [EVENT_REPORTING_MODEL.md](./EVENT_REPORTING_MODEL.md)
 - [../ARCHITECTURE/DATA_MODEL.md](../ARCHITECTURE/DATA_MODEL.md)
 - [../API/API_CONTRACT.md](../API/API_CONTRACT.md)

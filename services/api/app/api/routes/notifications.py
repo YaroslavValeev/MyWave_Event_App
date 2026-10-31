@@ -15,13 +15,14 @@ from app.services.notification_service import (
     list_notifications,
     mark_all_read,
     mark_read,
+    resolve_notification_href,
     unread_count,
 )
 
 router = APIRouter(tags=["notifications"])
 
 
-def _out(row) -> NotificationOut:
+def _out(db: DbSession, row) -> NotificationOut:
     return NotificationOut(
         id=row.id,
         kind=row.kind,
@@ -29,6 +30,7 @@ def _out(row) -> NotificationOut:
         body=row.body,
         entity_type=row.entity_type,
         entity_id=row.entity_id,
+        href=resolve_notification_href(db, row),
         is_read=row.is_read,
         created_at=row.created_at.isoformat() if row.created_at else "",
     )
@@ -38,7 +40,7 @@ def _out(row) -> NotificationOut:
 def get_my_notifications(db: DbSession, user: CurrentUser) -> NotificationListResponse:
     items = list_notifications(db, user_id=user.id)
     return NotificationListResponse(
-        items=[_out(row) for row in items],
+        items=[_out(db, row) for row in items],
         total=len(items),
         unread_count=unread_count(db, user_id=user.id),
     )
@@ -62,4 +64,4 @@ def post_mark_read(
     row = mark_read(db, user_id=user.id, notification_id=notification_id)
     if row is None:
         raise_api_error(404, "notification_not_found", "Уведомление не найдено")
-    return _out(row)
+    return _out(db, row)

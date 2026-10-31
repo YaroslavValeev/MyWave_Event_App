@@ -1,9 +1,117 @@
 # Server Commands — MyWave Event App (standalone)
 
-**Дата:** 2026-08-04  
+**Дата:** 2026-10-27  
 **Важно:** это деплой **самостоятельного** MyWave Event App (API + Web), **не** Flask Site Download Center.
 
 Секреты в команды не подставлять. Значения брать из EnvironmentFile / секрет-хранилища сервера.
+
+Для EventReport AI на сервере в `$APP_DIR/.env` должны быть:
+
+```bash
+ENABLE_EVENT_REPORT_LLM=1
+OPENAI_API_KEY=...          # только на сервере
+OPENAI_MODEL=gpt-4o-mini
+```
+
+После pull обязателен `pip install -r requirements.txt` (пакет `openpyxl` для Excel).  
+Смок отчёта / dry-run: [EVENT_REPORT_COMMANDS.md](./EVENT_REPORT_COMMANDS.md).
+
+## Если `sudo: unknown user mywave` / unit not found
+
+Это **не** готовый prod-хост. Сначала диагностика (от root, **по одной команде**):
+
+```bash
+cd /var/www/mywave-event-app || pwd
+whoami
+id
+ls -la
+ls -la .env .env.staging 2>/dev/null || true
+command -v docker; command -v docker-compose; docker compose version 2>/dev/null || true
+systemctl list-units --type=service --all | grep -Ei 'mywave|uvicorn|next|nginx|docker' || true
+ss -lntp | grep -E ':80|:443|:3000|:8000|:8001' || netstat -lntp | grep -E ':80|:443|:3000|:8000|:8001' || true
+git remote -v; git status -sb; git rev-parse --short HEAD
+```
+
+Два рабочих пути ниже. **Не** копируйте блок `sudo -u mywave … systemctl restart mywave-event-*`, пока диагностика не покажет, что user и unit уже созданы.
+
+### Путь A — Staging через Docker (рекомендуется для первого подъёма)
+
+```bash
+cd /var/www/mywave-event-app
+git pull --ff-only origin main
+
+cp -n .env.staging.example .env.staging
+nano .env.staging
+# Обязательно:
+#   SECRET_KEY=... (>=32)
+#   ENABLE_EVENT_REPORT_LLM=1
+#   OPENAI_API_KEY=sk-...
+#   NEXT_PUBLIC_API_BASE_URL=http://SERVER_IP:8001
+#   API_PUBLIC_URL=http://SERVER_IP:8001
+#   PUBLIC_WEB_URL=http://SERVER_IP:3001
+#   CORS_ORIGINS=http://SERVER_IP:3001
+
+docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d
+docker compose -f docker-compose.staging.yml ps
+curl -fsS http://127.0.0.1:8001/health
+curl -fsSI http://127.0.0.1:3001/ | head -n 1
+```
+
+Порты снаружи: API **8001**, Web **3001**. Откройте их в firewall/security group.
+
+### Путь B — Bare metal (создать user + systemd с нуля)
+
+```bash
+# 1) user
+id mywave 2>/dev/null || useradd --system --create-home --shell /bin/bash mywave
+chown -R mywave:mywave /var/www/mywave-event-app
+
+# 2) code + deps (от mywave)
+su - mywave -c 'cd /var/www/mywave-event-app && git pull --ff-only origin main'
+su - mywave -c 'cd /var/www/mywave-event-app/services/api && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt'
+su - mywave -c 'cd /var/www/mywave-event-app/apps/web && npm ci && npm run build'
+
+# 3) .env в корне репо (секреты только на сервере)
+nano /var/www/mywave-event-app/.env
+
+# 4) unit-файлы — создать вручную (в Stage 1 их нет в git), затем:
+systemctl daemon-reload
+systemctl enable --now mywave-event-api mywave-event-web
+curl -fsS http://127.0.0.1:8000/health
+```
+
+Пример unit API (`/etc/systemd/system/mywave-event-api.service`):
+
+```ini
+[Unit]
+Description=MyWave Event App API
+After=network.target
+
+[Service]
+User=mywave
+Group=mywave
+WorkingDirectory=/var/www/mywave-event-app/services/api
+EnvironmentFile=/var/www/mywave-event-app/.env
+Environment=PYTHONPATH=/var/www/mywave-event-app/services/api
+ExecStart=/var/www/mywave-event-app/services/api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Web обычно через `next start` на 3000 за nginx — unit `mywave-event-web` или только nginx → `apps/web`.
+
+Минимальный upgrade **только** когда user `mywave` и units уже есть:
+
+```bash
+cd /var/www/mywave-event-app
+sudo -u mywave git pull --ff-only origin main
+cd services/api && sudo -u mywave bash -lc 'source .venv/bin/activate && pip install -r requirements.txt'
+cd ../../apps/web && sudo -u mywave npm ci && sudo -u mywave npm run build
+sudo systemctl restart mywave-event-api mywave-event-web
+curl -fsS http://127.0.0.1:8000/health
+```
 
 ## Готовый блок (Linux)
 

@@ -12,6 +12,7 @@ class NotificationOut(BaseModel):
     body: str
     entity_type: str | None
     entity_id: str | None
+    href: str | None = None
     is_read: bool
     created_at: str
 

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.10 — 2026-10-27
+
+- Deep-link в уведомлениях: поле `href` (заявка → `/events/{id}#apps`, роль staff → `/admin/approvals`, отчёт → `#report`).
+- UI `/notifications`: кнопка «Открыть».
+- `scripts/dev.ps1`: автопорт API 8000→8010 если 8000 занят Docker; пишет `apps/web/.env.local`.
+- `scripts/dry_run_kazan.ps1` + npm `dry-run:kazan` — E2E heat/DNS/result/AI report/Excel/publish.
+- Staging compose пробрасывает `OPENAI_API_KEY` / `ENABLE_EVENT_REPORT_LLM`.
+
+## 0.5.9 — 2026-10-27
+
+- AI EventReport **включён** по умолчанию: local heuristic + optional OpenAI (`OPENAI_API_KEY`).
+- Excel-выгрузка отчёта: `GET .../event-report/excel` (листы Summary/Podium/Results/DNS_DNF/Officials/RoleActions/Narrative) — не SoT.
+- Матрица физ. действий между ролями: `role_physical_actions` + `GET .../role-actions` + `ROLE_PHYSICAL_ACTIONS.md`.
+- UI: вкладка **Отчёт** на карточке события (assemble / edit / publish / Excel / handoffs).
+- Ops: `EVENT_REPORT_COMMANDS.md`, `scripts/smoke_event_report.ps1`.
+- `ENABLE_EVENT_REPORT_LLM=1` default; template остаётся через `use_llm=false`.
+
+## 0.5.8 — 2026-10-27
+
+- Канон отчётности: Dual-track Live ops + sparse moments + human-approved EventReport (ADR-0012).
+- Виртуальный прогон Казани: `docs/PRODUCT/KAZAN_VIRTUAL_DRY_RUN.md` (сценарии P/N + пробелы seed).
+- API: `GET/POST .../event-report`, assemble template из published results + DNS/DNF start list + officials; publish; flags `ENABLE_EVENT_REPORT_LLM` / `ENABLE_EVENT_REPORT_STT`.
+- ROADMAP этап 6.5; ParserNews питается от published EventReport.
+
+## docs — 2026-10-27
+
+- Синхронизация статуса с фактом кода **0.5.7**: `CURRENT_STATE`, `ROADMAP`, `TECH_DEBT`, `GAP_VS_ATTACHED_DOCS`.
+- DoD v1 ~80%; главный следующий шаг — pilot dry-run; закрыты устаревшие P0 (Athlete ID, bulk start list, git remote).
+
 ## 0.5.7 — 2026-08-27
 
 - Светлая тема: белый/мятный фон, тёмный текст, бирюзовые обводки и тени кнопок.

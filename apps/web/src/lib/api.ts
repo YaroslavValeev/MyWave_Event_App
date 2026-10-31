@@ -409,6 +409,7 @@ export type NotificationOut = {
   body: string;
   entity_type: string | null;
   entity_id: string | null;
+  href?: string | null;
   is_read: boolean;
   created_at: string;
 };
@@ -664,6 +665,97 @@ export function getOfficialProtocol(token: string, eventId: number | string) {
     { method: "GET" },
     token,
   );
+}
+
+export type EventReportOut = {
+  id: number;
+  event_id: number;
+  status: string;
+  title: string;
+  body_markdown: string;
+  facts: Record<string, unknown>;
+  source: string;
+  created_by_user_id: number | null;
+  updated_by_user_id: number | null;
+  published_by_user_id: number | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RoleActionOut = {
+  code: string;
+  phase: string;
+  physical_ru: string;
+  role: string;
+  app_action: string;
+  handoff_to: string;
+  notify_kinds?: string[];
+};
+
+export function getEventReport(token: string, eventId: number | string) {
+  return apiFetch<EventReportOut>(`/api/v1/events/${eventId}/event-report`, { method: "GET" }, token);
+}
+
+export function assembleEventReport(
+  token: string,
+  eventId: number | string,
+  body: { use_llm?: boolean } = {},
+) {
+  return apiFetch<EventReportOut>(
+    `/api/v1/events/${eventId}/event-report/assemble`,
+    { method: "POST", body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export function updateEventReport(
+  token: string,
+  eventId: number | string,
+  body: { title?: string; body_markdown?: string },
+) {
+  return apiFetch<EventReportOut>(
+    `/api/v1/events/${eventId}/event-report`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export function publishEventReport(token: string, eventId: number | string) {
+  return apiFetch<EventReportOut>(
+    `/api/v1/events/${eventId}/event-report/publish`,
+    { method: "POST", body: JSON.stringify({}) },
+    token,
+  );
+}
+
+export function voidEventReport(token: string, eventId: number | string) {
+  return apiFetch<EventReportOut>(
+    `/api/v1/events/${eventId}/event-report/void`,
+    { method: "POST", body: JSON.stringify({}) },
+    token,
+  );
+}
+
+export function eventReportExcelUrl(eventId: number | string): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/event-report/excel`;
+}
+
+export async function listRoleActions(
+  token: string,
+  eventId: number | string,
+  opts?: { phase?: string; role?: string },
+) {
+  const q = new URLSearchParams();
+  if (opts?.phase) q.set("phase", opts.phase);
+  if (opts?.role) q.set("role", opts.role);
+  const qs = q.toString();
+  const payload = await apiFetch<{ items: RoleActionOut[]; total: number }>(
+    `/api/v1/events/${eventId}/role-actions${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
 }
 
 export type EventListResponse = {
