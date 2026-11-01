@@ -1,0 +1,19 @@
+# Optional override: attach API to existing Ollama Docker network.
+# Prerequisites: network exists (e.g. ai-team_default) and Ollama container is running.
+# Env tip:
+#   OPENAI_BASE_URL=http://ai-team-ollama-1:11434/v1
+#   OPENAI_API_KEY=ollama
+#   OPENAI_MODEL=llama3.2:3b
+#
+# docker compose -f docker-compose.staging.yml -f docker-compose.staging.ollama.yml --env-file .env.staging up -d
+
+services:
+  api:
+    networks:
+      - default
+      - ollama_net
+
+networks:
+  ollama_net:
+    name: ${OLLAMA_DOCKER_NETWORK:-ai-team_default}
+    external: true

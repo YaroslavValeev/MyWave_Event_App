@@ -2,6 +2,10 @@
 # Usage:
 #   copy .env.staging.example → .env.staging
 #   docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d
+# With Ollama on host (external network):
+#   bash scripts/staging_up.sh
+#   # or:
+#   docker compose -f docker-compose.staging.yml -f docker-compose.staging.ollama.yml --env-file .env.staging up -d --build
 #
 # Ports: API 8001, Web 3001 (avoid clash with local npm run dev).
 
@@ -17,6 +21,7 @@ services:
       APP_ENV: staging
       API_HOST: 0.0.0.0
       API_PORT: 8000
+      DATA_DIR: /data
       DATABASE_URL: ${DATABASE_URL:-sqlite:////data/mywave_event_staging.db}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:3001,http://localhost:3001}
       ENABLE_AUDIT_LOG: "1"

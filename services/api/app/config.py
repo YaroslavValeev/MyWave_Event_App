@@ -77,6 +77,8 @@ class Settings(BaseSettings):
         default=300.0,
         alias="OPENAI_TIMEOUT_SECONDS",
     )
+    # Override data root (Docker volume): DATA_DIR=/data so mail_outbox lives with SQLite.
+    data_dir_override: str | None = Field(default=None, alias="DATA_DIR")
     jwt_access_token_expire_minutes: int = Field(
         default=1440,
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
@@ -102,7 +104,7 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, value: object) -> list[str]:
         return _split_cors(value)
 
-    @field_validator("redis_url", "openai_api_key", mode="before")
+    @field_validator("redis_url", "openai_api_key", "data_dir_override", mode="before")
     @classmethod
     def empty_optional_to_none(cls, value: object) -> object:
         if value == "":
@@ -142,6 +144,8 @@ class Settings(BaseSettings):
 
     @property
     def data_dir(self) -> Path:
+        if self.data_dir_override:
+            return Path(self.data_dir_override).expanduser().resolve()
         return _REPO_ROOT / "data"
 
 

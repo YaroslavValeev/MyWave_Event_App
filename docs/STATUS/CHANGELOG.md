@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.14 — 2026-11-01
+
+- Staging harden: `DATA_DIR` (mail_outbox на volume `/data`), `/health.version`, FastAPI version = package.
+- `docker-compose.staging.ollama.yml` + `scripts/staging_up.sh`.
+- Runbooks: STAGING.md, NEXT_HARDENING_PLAN.md, nginx example, disk/tunnel/SMTP notes.
+
 ## 0.5.13 — 2026-11-01
 
 - EventReport AI для Ollama/CPU: slim facts, `max_tokens≈700`, timeout default **300с** (после повторных `timed out` на 180с).

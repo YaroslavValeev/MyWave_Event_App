@@ -11,6 +11,7 @@ class HealthResponse(BaseModel):
     env: str
     time: str
     db_ok: bool
+    version: str | None = None
 
 
 class ReadyResponse(BaseModel):

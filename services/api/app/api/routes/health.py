@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
+from app import __version__
 from app.api.errors import error_payload
 from app.config import get_settings
 from app.db import check_db
@@ -25,6 +26,7 @@ def health() -> HealthResponse:
         env=settings.app_env,
         time=datetime.now(timezone.utc).isoformat(),
         db_ok=db_ok,
+        version=__version__,
     )
 
 

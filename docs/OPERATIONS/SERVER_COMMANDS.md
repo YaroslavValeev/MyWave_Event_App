@@ -51,13 +51,20 @@ nano .env.staging
 #   PUBLIC_WEB_URL=http://SERVER_IP:3001
 #   CORS_ORIGINS=http://SERVER_IP:3001
 
+# Предпочтительно (Ollama-сеть, если есть):
+bash scripts/staging_up.sh
+
+# или вручную:
 docker compose -f docker-compose.staging.yml --env-file .env.staging up --build -d
+docker network connect ai-team_default mwe-staging-api 2>/dev/null || true
 docker compose -f docker-compose.staging.yml ps
 curl -fsS http://127.0.0.1:8001/health
 curl -fsSI http://127.0.0.1:3001/ | head -n 1
 ```
 
-Порты снаружи: API **8001**, Web **3001**. Откройте их в firewall/security group.
+Порты снаружи: API **8001**, Web **3001**. Откройте в UFW **и** firewall панели хостинга.  
+Пока снаружи глухо — SSH-туннель: см. [STAGING.md](./STAGING.md).  
+Диск ≥85%: `docker system df` → `docker system prune -af` (без `--volumes`, если нужен staging DB).
 
 ### Путь B — Bare metal (создать user + systemd с нуля)
 

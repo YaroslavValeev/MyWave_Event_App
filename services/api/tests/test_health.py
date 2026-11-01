@@ -14,6 +14,8 @@ def test_health_ok(client):
     assert "db_ok" in body
     assert body["db_ok"] is True
     assert body["status"] == "ok"
+    assert body.get("version")
+    assert isinstance(body["version"], str)
 
 
 def test_ready_ok(client):

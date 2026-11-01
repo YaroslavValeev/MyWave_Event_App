@@ -33,6 +33,7 @@
 | Backup | `docs/OPERATIONS/BACKUP_RESTORE.md` | backup | storage |
 | Release | `docs/OPERATIONS/RELEASE.md` | релиз | versioning |
 | Staging | `docs/OPERATIONS/STAGING.md` | staging env | deploy staging |
+| Staging harden plan | `docs/OPERATIONS/NEXT_HARDENING_PLAN.md` | хвост до DoD v1 | owner + ops |
 | Event report cmds | `docs/OPERATIONS/EVENT_REPORT_COMMANDS.md` | AI/Excel/smoke/server | отчётность 0.5.9 |
 | Testing | `docs/QUALITY/TESTING.md` | тесты | coverage |
 | A11y | `docs/QUALITY/ACCESSIBILITY.md` | доступность | UI |
