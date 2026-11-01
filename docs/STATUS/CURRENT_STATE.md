@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
-Дата: 2026-10-31  
-Версия продукта: **0.5.11** (`OPENAI_BASE_URL` для прокси LLM; 0.5.10 — deep-link + dry-run)  
+Дата: 2026-11-01  
+Версия продукта: **0.5.12** (Ollama timeout/max_tokens; 0.5.11 — `OPENAI_BASE_URL`)  
 Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.

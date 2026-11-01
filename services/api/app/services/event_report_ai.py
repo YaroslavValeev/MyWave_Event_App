@@ -131,18 +131,20 @@ def render_ai_openai_markdown(
     api_key: str,
     model: str,
     base_url: str | None = None,
-    timeout_s: float = 45.0,
+    timeout_s: float = 180.0,
+    max_tokens: int = 1800,
+    facts_chars: int = 8000,
 ) -> str:
     """Call OpenAI-compatible chat completions; raises on transport/API errors."""
     system = (
         "Ты помощник секретаря соревнования wakeboard/wakesurf. "
         "Напиши отчёт на русском в Markdown: резюме, призёры, DNS/DNF, коллегия, "
         "краткая хроника, handoff ролей. Не выдумывай спортсменов и места вне JSON. "
-        "Не публикуй отчёт — только черновик. Без эмодзи."
+        "Не публикуй отчёт — только черновик. Без эмодзи. Пиши кратко."
     )
     user = (
         f"Событие: {event_title}\n\nФакты JSON:\n"
-        f"{json.dumps(facts, ensure_ascii=False)[:12000]}"
+        f"{json.dumps(facts, ensure_ascii=False)[: max(1000, facts_chars)]}"
     )
     payload = {
         "model": model,
@@ -151,10 +153,13 @@ def render_ai_openai_markdown(
             {"role": "user", "content": user},
         ],
         "temperature": 0.4,
+        "max_tokens": max(256, max_tokens),
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = openai_chat_completions_url(base_url)
-    with httpx.Client(timeout=timeout_s) as client:
+    # connect/read/write/pool — local Ollama on CPU often needs minutes for full report
+    timeout = httpx.Timeout(timeout_s, connect=30.0)
+    with httpx.Client(timeout=timeout) as client:
         resp = client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -171,6 +176,7 @@ def compose_ai_body(
     openai_api_key: str | None,
     openai_model: str,
     openai_base_url: str | None = None,
+    openai_timeout_s: float = 180.0,
 ) -> tuple[str, str]:
     """Return (body_markdown, provider) where provider is openai|local."""
     key = (openai_api_key or "").strip()
@@ -182,6 +188,7 @@ def compose_ai_body(
                 api_key=key,
                 model=openai_model,
                 base_url=openai_base_url,
+                timeout_s=openai_timeout_s,
             )
             return body, "openai"
         except Exception as exc:  # noqa: BLE001 — fallback to local AI

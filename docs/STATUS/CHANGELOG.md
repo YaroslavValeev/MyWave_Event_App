@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.12 — 2026-11-01
+
+- EventReport AI: таймаут по умолчанию 180с, `max_tokens`, урезанный facts JSON — чтобы Ollama/`llama3.2` на CPU не падала в `local` из‑за 45с timeout.
+- Env `OPENAI_TIMEOUT_SECONDS` (+ staging compose).
+
 ## 0.5.11 — 2026-10-31
 
 - `OPENAI_BASE_URL` — OpenAI-compatible endpoint для EventReport AI (прокси / OpenRouter), если прямой `api.openai.com` даёт 403 territory с VPS.

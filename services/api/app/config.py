@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         default="https://api.openai.com/v1",
         alias="OPENAI_BASE_URL",
     )
+    openai_timeout_seconds: float = Field(
+        default=180.0,
+        alias="OPENAI_TIMEOUT_SECONDS",
+    )
     jwt_access_token_expire_minutes: int = Field(
         default=1440,
         alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",

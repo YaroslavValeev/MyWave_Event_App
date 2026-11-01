@@ -1031,6 +1031,7 @@ def event_report_assemble(
             openai_api_key=settings.openai_api_key,
             openai_model=settings.openai_model,
             openai_base_url=settings.openai_base_url,
+            openai_timeout_s=settings.openai_timeout_seconds,
             audit_enabled=settings.enable_audit_log,
         )
     except EventServiceError as exc:
