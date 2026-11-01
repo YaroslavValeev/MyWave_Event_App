@@ -18,6 +18,33 @@ logger = logging.getLogger(__name__)
 _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
 
 
+def _slim_facts_for_llm(facts: dict[str, Any]) -> dict[str, Any]:
+    """Keep only high-signal fields so local/small models finish within timeout."""
+    podium = facts.get("podium") or []
+    dns = facts.get("dns_dnf") or []
+    officials = facts.get("officials") or []
+    actions = facts.get("role_actions") or []
+    return {
+        "assembled_at": facts.get("assembled_at"),
+        "heats_count": facts.get("heats_count"),
+        "published_results_count": facts.get("published_results_count"),
+        "dns_dnf_count": facts.get("dns_dnf_count"),
+        "podium": podium[:5],
+        "dns_dnf": dns[:8],
+        "officials": officials[:8],
+        "role_actions": [
+            {
+                "phase": a.get("phase"),
+                "role": a.get("role"),
+                "handoff_to": a.get("handoff_to"),
+                "physical_ru": a.get("physical_ru"),
+            }
+            for a in actions
+            if a.get("phase") == "day"
+        ][:6],
+    }
+
+
 def openai_chat_completions_url(base_url: str | None = None) -> str:
     """Build chat/completions URL from OPENAI_BASE_URL (OpenAI-compatible)."""
     base = (base_url or _DEFAULT_OPENAI_BASE).strip().rstrip("/")
@@ -131,20 +158,20 @@ def render_ai_openai_markdown(
     api_key: str,
     model: str,
     base_url: str | None = None,
-    timeout_s: float = 180.0,
-    max_tokens: int = 1800,
-    facts_chars: int = 8000,
+    timeout_s: float = 300.0,
+    max_tokens: int = 700,
+    facts_chars: int = 3500,
 ) -> str:
     """Call OpenAI-compatible chat completions; raises on transport/API errors."""
     system = (
         "Ты помощник секретаря соревнования wakeboard/wakesurf. "
-        "Напиши отчёт на русском в Markdown: резюме, призёры, DNS/DNF, коллегия, "
-        "краткая хроника, handoff ролей. Не выдумывай спортсменов и места вне JSON. "
-        "Не публикуй отчёт — только черновик. Без эмодзи. Пиши кратко."
+        "Короткий отчёт на русском в Markdown: резюме, призёры, DNS/DNF, 1 абзац хроники. "
+        "Не выдумывай факты вне JSON. Без эмодзи. Максимум ~400 слов."
     )
+    slim = _slim_facts_for_llm(facts)
     user = (
         f"Событие: {event_title}\n\nФакты JSON:\n"
-        f"{json.dumps(facts, ensure_ascii=False)[: max(1000, facts_chars)]}"
+        f"{json.dumps(slim, ensure_ascii=False)[: max(800, facts_chars)]}"
     )
     payload = {
         "model": model,
@@ -152,7 +179,7 @@ def render_ai_openai_markdown(
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "temperature": 0.4,
+        "temperature": 0.3,
         "max_tokens": max(256, max_tokens),
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -176,7 +203,7 @@ def compose_ai_body(
     openai_api_key: str | None,
     openai_model: str,
     openai_base_url: str | None = None,
-    openai_timeout_s: float = 180.0,
+    openai_timeout_s: float = 300.0,
 ) -> tuple[str, str]:
     """Return (body_markdown, provider) where provider is openai|local."""
     key = (openai_api_key or "").strip()

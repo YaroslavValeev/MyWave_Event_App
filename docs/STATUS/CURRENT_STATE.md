@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
 Дата: 2026-11-01  
-Версия продукта: **0.5.12** (Ollama timeout/max_tokens; 0.5.11 — `OPENAI_BASE_URL`)  
+Версия продукта: **0.5.13** (Ollama slim prompt + 300с timeout; 0.5.12 — 180с)  
 Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.13 — 2026-11-01
+
+- EventReport AI для Ollama/CPU: slim facts, `max_tokens≈700`, timeout default **300с** (после повторных `timed out` на 180с).
+
 ## 0.5.12 — 2026-11-01
 
 - EventReport AI: таймаут по умолчанию 180с, `max_tokens`, урезанный facts JSON — чтобы Ollama/`llama3.2` на CPU не падала в `local` из‑за 45с timeout.

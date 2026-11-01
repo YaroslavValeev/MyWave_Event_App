@@ -220,7 +220,7 @@ def assemble_event_report(
     openai_api_key: str | None = None,
     openai_model: str = "gpt-4o-mini",
     openai_base_url: str | None = None,
-    openai_timeout_s: float = 180.0,
+    openai_timeout_s: float = 300.0,
     audit_enabled: bool = True,
 ) -> EventReport:
     if not can_edit_event_report(actor):
