@@ -2,7 +2,7 @@
 
 Дата: 2026-11-03  
 Репозиторий: локальный checkout `MyWave_Event_App`  
-Версия после работ этой сессии: **0.5.16** (публикации + лента)
+Версия: **0.5.17** (guidance + scoreboard + protocol revisions; публикации 0.5.16)
 
 Документ фиксирует **факт** аудита и реализации. Не выдаёт симуляцию за тест на Xiaomi 14 и не заявляет APK без артефакта.
 
@@ -40,16 +40,21 @@ Baseline pytest до изменений: **67 passed**.
 | 08 Android | ADR-0014; APK BLOCKED |
 | 09 Security | magic-bytes media; role mismatch 403 |
 | 10 Release | чек-лист Xiaomi 14 |
+| 11 Journey Guidance | DONE MVP 0.5.17 |
+| 12 Workflow Diagrams | DONE Mermaid A–I |
+| 13 Live Scoring | DONE scoreboard/SSE (Result SoT) |
+| 14 Protocol docs | DONE revisions; PDF-native later |
 
 ## Раздел 3. EXECUTION ROADMAP
 
 | Этап | Статус |
 |------|--------|
 | A Аудит | DONE |
-| B Контракты / ADR | DONE |
-| C Разработка публикаций | DONE (MVP) |
+| B Контракты / ADR | DONE (0013–0017) |
+| C Разработка публикаций | DONE (0.5.16) |
+| C2 Guidance/Scoreboard/Revisions | DONE (0.5.17) |
 | D Интеграция | DONE локально |
-| E QA full matrix | PARTIAL |
+| E QA full matrix | PARTIAL (API; E2E NOT RUN) |
 | F Fix | ongoing |
 | G Android APK | BLOCKED |
 | H Xiaomi device | NOT RUN |

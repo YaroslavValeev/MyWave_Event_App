@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.17 — 2026-11-04
+
+- Role guidance: `GET /events/{id}/guidance` + UI «Что делать дальше?» (ADR-0015); journey_phase поверх EventStatus.
+- Live scoreboard: `GET .../scoreboard` + SSE `.../scoreboard/stream` + вкладка «Табло» (ADR-0016); SoT = Result.
+- Protocol revisions: immutable snapshots `POST/GET .../official-protocol/revisions` (ADR-0017).
+- Workflow diagrams: `docs/PRODUCT/WORKFLOW_DIAGRAMS.md` (схемы A–I, матрица Role×Action×State).
+- Agents 11–14 интегрированы в программу модернизации без второго scoring engine.
+
 ## 0.5.16 — 2026-11-03
 
 - Домен **Publications** (лента поста/новости): API + RBAC capabilities, media upload с magic-bytes, Idempotency-Key (ADR-0013).

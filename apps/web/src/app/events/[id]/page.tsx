@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { EventReportPanel } from "@/components/EventReportPanel";
+import { JourneyGuidancePanel } from "@/components/JourneyGuidancePanel";
+import { LiveScoreboardPanel } from "@/components/LiveScoreboardPanel";
 import { PublicationFeedPanel } from "@/components/PublicationFeedPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -17,6 +19,7 @@ import {
   EventRulesProfileOut,
   HeatOut,
   OfficialOut,
+  OfficialProtocolRevision,
   ParticipantOut,
   ProtocolCaptureOut,
   ResultOut,
@@ -25,10 +28,12 @@ import {
   StartListEntryOut,
   TrainingSlotOut,
   addStartListEntry,
+  approveProtocolRevision,
   createHeat,
   decideEventApplication,
   deleteDocument,
   documentDownloadUrl,
+  downloadProtocolRevisionUrl,
   fillStartList,
   getEventDetail,
   getEventRulesProfile,
@@ -46,6 +51,7 @@ import {
   listOfficials,
   listParticipants,
   listProtocolCaptures,
+  listProtocolRevisions,
   listResults,
   listStartList,
   listTrainingSlots,
@@ -90,6 +96,7 @@ type TabId =
   | "scoring"
   | "heats"
   | "results"
+  | "scoreboard"
   | "apps";
 
 const ALL_TABS: TabId[] = [
@@ -104,22 +111,23 @@ const ALL_TABS: TabId[] = [
   "scoring",
   "heats",
   "results",
+  "scoreboard",
   "apps",
 ];
 
 function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
-  if (isGuest) return ["overview", "results", "feed"];
+  if (isGuest) return ["overview", "results", "feed", "scoreboard"];
   if (isStaffRole(role ?? "")) return ALL_TABS;
   if (role === "judge") {
-    return ["overview", "feed", "scoring", "heats", "protocol", "results", "participants"];
+    return ["overview", "feed", "scoring", "heats", "protocol", "results", "scoreboard", "participants"];
   }
   if (isBroadcastRole(role)) {
-    return ["overview", "feed", "heats", "results", "participants", "docs", "report"];
+    return ["overview", "feed", "heats", "results", "scoreboard", "participants", "docs", "report"];
   }
   if (role === "support") {
-    return ["overview", "feed", "participants", "docs", "results", "apps"];
+    return ["overview", "feed", "participants", "docs", "results", "scoreboard", "apps"];
   }
-  return ["overview", "feed", "apps", "participants", "slots", "docs", "results"];
+  return ["overview", "feed", "apps", "participants", "slots", "docs", "results", "scoreboard"];
 }
 
 export default function EventDetailPage() {
@@ -147,6 +155,9 @@ export default function EventDetailPage() {
   const [protocolTitle, setProtocolTitle] = useState("");
   const [protocolKind, setProtocolKind] = useState("judge_sheet");
   const [protocolBusy, setProtocolBusy] = useState(false);
+  const [protocolRevisions, setProtocolRevisions] = useState<OfficialProtocolRevision[]>([]);
+  const [revisionNote, setRevisionNote] = useState("");
+  const [revisionBusy, setRevisionBusy] = useState(false);
   const [protocolReadiness, setProtocolReadiness] = useState<OfficialProtocolReadiness | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [scoringEngine, setScoringEngine] = useState<ScoringEngineMeta | null>(null);
@@ -470,6 +481,56 @@ export default function EventDetailPage() {
       setProtocolReadiness(bundle.readiness);
     } catch {
       setProtocolReadiness(null);
+    }
+  }
+
+  const refreshProtocolRevisions = useCallback(async () => {
+    const token = getStoredToken();
+    if (!token || !canOrganize) return;
+    try {
+      setProtocolRevisions(await listProtocolRevisions(token, eventId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить ревизии протокола");
+    }
+  }, [canOrganize, eventId]);
+
+  useEffect(() => {
+    void refreshProtocolRevisions();
+  }, [refreshProtocolRevisions]);
+
+  async function onApproveProtocolRevision() {
+    const token = getStoredToken();
+    if (!token || !canModerate) return;
+    setRevisionBusy(true);
+    setError(null);
+    try {
+      await approveProtocolRevision(token, eventId, revisionNote);
+      setRevisionNote("");
+      await refreshProtocolRevisions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось утвердить ревизию протокола");
+    } finally {
+      setRevisionBusy(false);
+    }
+  }
+
+  async function downloadProtocolRevision(revision: OfficialProtocolRevision) {
+    const token = getStoredToken();
+    if (!token) return;
+    try {
+      const response = await fetch(downloadProtocolRevisionUrl(eventId, revision.id), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new ApiError("Не удалось скачать ревизию", response.status);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${detail?.slug || `event-${eventId}`}-protocol-r${revision.revision_no}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось скачать ревизию");
     }
   }
 
@@ -797,6 +858,7 @@ export default function EventDetailPage() {
     { id: "scoring", label: "Судейство" },
     { id: "heats", label: `Заезды (${heats.length})` },
     { id: "results", label: "Результаты" },
+    { id: "scoreboard", label: "Табло" },
     {
       id: "apps",
       label: canModerate ? `Заявки (${pendingApps.length})` : "Заявка",
@@ -880,6 +942,8 @@ export default function EventDetailPage() {
                 </dd>
               </div>
             </dl>
+
+            <JourneyGuidancePanel eventId={String(eventId)} />
 
             {liveHeat ? (
               <div className={styles.liveBar} role="status">
@@ -996,6 +1060,13 @@ export default function EventDetailPage() {
 
             {tab === "feed" ? (
               <PublicationFeedPanel eventId={String(eventId)} isArchived={isArchived} />
+            ) : null}
+
+            {tab === "scoreboard" ? (
+              <LiveScoreboardPanel
+                eventId={String(eventId)}
+                includeUnofficial={canOrganize || user?.role === "judge"}
+              />
             ) : null}
 
             {tab === "apps" ? (
@@ -1315,6 +1386,64 @@ export default function EventDetailPage() {
                     >
                       Открыть для печати
                     </button>
+                  </div>
+                ) : null}
+                {canOrganize ? (
+                  <div className={styles.panel}>
+                    <div className={styles.itemHead}>
+                      <strong>Утверждённые ревизии</strong>
+                      <span className={styles.muted}>{protocolRevisions.length}</span>
+                    </div>
+                    {canModerate ? (
+                      <div className={styles.fieldRow}>
+                        <label className={styles.muted}>
+                          Примечание{" "}
+                          <input
+                            className={styles.fieldControl}
+                            value={revisionNote}
+                            maxLength={512}
+                            onChange={(event) => setRevisionNote(event.target.value)}
+                            placeholder="Например, итоги первого дня"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="btn btnPrimary btnSm"
+                          disabled={revisionBusy}
+                          onClick={() => void onApproveProtocolRevision()}
+                        >
+                          {revisionBusy ? "Утверждаем…" : "Утвердить ревизию протокола"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {protocolRevisions.length ? (
+                      <ul className={styles.list}>
+                        {protocolRevisions.map((revision) => (
+                          <li key={revision.id} className={styles.item}>
+                            <div className={styles.itemHead}>
+                              <strong>Ревизия {revision.revision_no}</strong>
+                              <button
+                                type="button"
+                                className="btn btnSecondary btnSm"
+                                onClick={() => void downloadProtocolRevision(revision)}
+                              >
+                                Скачать
+                              </button>
+                            </div>
+                            <div className={styles.muted}>
+                              {new Date(revision.created_at).toLocaleString("ru-RU")}
+                              {" · SHA-256 "}
+                              <code title={revision.content_sha256}>
+                                {revision.content_sha256.slice(0, 8)}
+                              </code>
+                              {revision.note ? ` · ${revision.note}` : ""}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className={styles.muted}>Утверждённых ревизий пока нет.</p>
+                    )}
                   </div>
                 ) : null}
                 {canUploadProtocol ? (

@@ -23,6 +23,10 @@
 | Android delivery ADR | `docs/ARCHITECTURE/decisions/ADR-0014-android-delivery.md` | PWA → Capacitor | mobile |
 | Champ program | `docs/STATUS/CHAMP_MODERNIZATION_PROGRAM.md` | оркестрация модернизации | релизы Champ |
 | Xiaomi 14 checklist | `docs/OPERATIONS/XIAOMI14_TEST_CHECKLIST.md` | полевой тест Mi 14 | device QA |
+| Workflow diagrams | `docs/PRODUCT/WORKFLOW_DIAGRAMS.md` | Mermaid A–I + матрица | journeys |
+| Guidance ADR | `docs/ARCHITECTURE/decisions/ADR-0015-journey-guidance.md` | ролевые подсказки | UX |
+| Scoreboard ADR | `docs/ARCHITECTURE/decisions/ADR-0016-live-scoreboard.md` | SSE табло | live |
+| Protocol revisions ADR | `docs/ARCHITECTURE/decisions/ADR-0017-protocol-revisions.md` | снимки протоколов | docs |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
 | Analytics | `docs/API/ANALYTICS_EVENTS.md` | события аналитики | новые сценарии |
 | Security | `docs/SECURITY/SECURITY.md` | безопасность | auth/uploads |

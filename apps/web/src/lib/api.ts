@@ -660,6 +660,127 @@ export function officialProtocolHtmlUrl(eventId: number | string): string {
   return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/html`;
 }
 
+export type GuidanceTask = {
+  id: string;
+  title: string;
+  kind: string;
+  required: boolean;
+  requires_online?: boolean;
+  href?: string;
+  urgency?: string;
+};
+
+export type GuidanceTip = {
+  code: string;
+  title: string;
+  app_action?: string | null;
+  required: boolean;
+};
+
+export type EventGuidance = {
+  event_id: number | string;
+  event_status: string;
+  journey_phase: string;
+  role: string;
+  progress: {
+    checklist_done: number;
+    checklist_total: number;
+    published_results: number;
+    pending_results: number;
+  };
+  next_step: GuidanceTask | null;
+  tasks: GuidanceTask[];
+  completed: GuidanceTask[];
+  tips: GuidanceTip[];
+  offline_note: string;
+};
+
+export type ScoreboardEntry = {
+  result_id: number;
+  participant_id: number;
+  display_name: string;
+  status: string;
+  score: number | null;
+  place: number | null;
+  category_id: number | null;
+  updated_at: string | null;
+  official: boolean;
+};
+
+export type Scoreboard = {
+  event_id: number | string;
+  revision: string;
+  include_unofficial: boolean;
+  entries: ScoreboardEntry[];
+  total: number;
+};
+
+export type OfficialProtocolRevision = {
+  id: number;
+  event_id: number;
+  revision_no: number;
+  status: string;
+  note: string | null;
+  content_sha256: string;
+  created_by_user_id: number | null;
+  created_at: string;
+};
+
+export function getEventGuidance(
+  eventId: number | string,
+  token?: string | null,
+): Promise<EventGuidance> {
+  return apiFetch<EventGuidance>(
+    `/api/v1/events/${eventId}/guidance`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function getScoreboard(
+  eventId: number | string,
+  includeUnofficial = false,
+  token?: string | null,
+): Promise<Scoreboard> {
+  const query = includeUnofficial ? "?include_unofficial=true" : "";
+  return apiFetch<Scoreboard>(
+    `/api/v1/events/${eventId}/scoreboard${query}`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export function approveProtocolRevision(
+  token: string,
+  eventId: number | string,
+  note?: string,
+): Promise<OfficialProtocolRevision> {
+  return apiFetch<OfficialProtocolRevision>(
+    `/api/v1/events/${eventId}/official-protocol/revisions`,
+    { method: "POST", body: JSON.stringify({ note: note?.trim() || null }) },
+    token,
+  );
+}
+
+export async function listProtocolRevisions(
+  token: string,
+  eventId: number | string,
+): Promise<OfficialProtocolRevision[]> {
+  const payload = await apiFetch<{ items: OfficialProtocolRevision[]; total: number }>(
+    `/api/v1/events/${eventId}/official-protocol/revisions`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export function downloadProtocolRevisionUrl(
+  eventId: number | string,
+  revisionId: number,
+): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/revisions/${revisionId}/download`;
+}
+
 export function getOfficialProtocol(token: string, eventId: number | string) {
   return apiFetch<OfficialProtocolBundle>(
     `/api/v1/events/${eventId}/official-protocol`,

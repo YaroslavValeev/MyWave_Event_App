@@ -127,6 +127,30 @@ AI draft (default) из published results + DNS/DNF + officials + role handoffs.
 
 Статусы: `draft` \| `published` \| `void`. Один отчёт на событие.
 
+## Guidance (0.5.17, ADR-0015)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/guidance` | Optional | `journey_phase`, задачи, next_step, tips |
+
+## Scoreboard (0.5.17, ADR-0016)
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/scoreboard` | Optional | снимок; гость — только published; `?include_unofficial=true` для staff/judge |
+| GET | `/api/v1/events/{id}/scoreboard/stream` | Optional | SSE `event: scoreboard` при смене `revision` |
+
+## Official protocol revisions (0.5.17, ADR-0017)
+
+Live `GET .../official-protocol` остаётся рабочим просмотром. Утверждённые снимки:
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/official-protocol/revisions` | Bearer | список ревизий |
+| POST | `/api/v1/events/{id}/official-protocol/revisions` | Bearer organizer+ | утвердить snapshot (readiness required) |
+| GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}` | Bearer | мета + snapshot_json |
+| GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}/download` | Bearer | JSON attachment |
+
 ## Publications / лента (0.5.16, ADR-0013)
 
 Отдельный домен постов/новостей (не EventReport и не ProtocolCapture).

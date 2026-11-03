@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
-Дата: 2026-11-03
-Версия продукта: **0.5.16** (лента публикаций + RBAC; roster 0.5.15 сохранён)
+Дата: 2026-11-04
+Версия продукта: **0.5.17** (guidance + live scoreboard SSE + protocol revisions; 0.5.16 лента сохранена)
 Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 План дожима: [NEXT_HARDENING_PLAN.md](../OPERATIONS/NEXT_HARDENING_PLAN.md).
 Программа Champ modernization: [CHAMP_MODERNIZATION_PROGRAM.md](./CHAMP_MODERNIZATION_PROGRAM.md).
@@ -23,10 +23,12 @@
 - **Staging ops 0.5.14:** `DATA_DIR=/data`, `/health.version`, `scripts/staging_up.sh`, compose ollama override, nginx example, SMTP/tunnel runbooks.
 - **Roster 0.5.15:** `name_latin` + оба написания на карточке; скрипт слияния RU/EN-дублей.
 - **Publications 0.5.16:** лента post/news, серверный RBAC, media JPG/PNG/WebP, Idempotency-Key, UI вкладка «Лента», локальные offline-черновики (не полный offline MVP).
+- **Guidance / Scoreboard / Protocol revisions 0.5.17:** ролевые подсказки; табло + SSE; immutable protocol revisions; workflow Mermaid A–I.
 
 ## Частично / нет
 
-- Live board / polish DNS-DNF UX (базовые лейблы есть)
+- Live board polish / DNS-DNF UX (базовый scoreboard 0.5.17 есть; polish остаётся)
+- Offline scoring queue с конфликтами версий JudgeScore — нет (только черновики публикаций)
 - Field moments / STT — flags off; ParserNews только published report
 - Media / Photographer Mode Stage 5 (EXIF ↔ heat) — ещё нет; лента публикаций — первый слой
 - Broadcast Stage 8 — нет
