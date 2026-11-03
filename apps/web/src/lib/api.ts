@@ -781,6 +781,22 @@ export function downloadProtocolRevisionUrl(
   return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/revisions/${revisionId}/download`;
 }
 
+export function downloadProtocolRevisionPdfUrl(eventId: string | number, revisionId: number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/revisions/${revisionId}/pdf`;
+}
+
+export function downloadProtocolRevisionDocxUrl(eventId: string | number, revisionId: number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/revisions/${revisionId}/docx`;
+}
+
+export function officialProtocolPdfUrl(eventId: string | number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/pdf`;
+}
+
+export function officialProtocolDocxUrl(eventId: string | number): string {
+  return `${getApiBaseUrl()}/api/v1/events/${eventId}/official-protocol/docx`;
+}
+
 export function getOfficialProtocol(token: string, eventId: number | string) {
   return apiFetch<OfficialProtocolBundle>(
     `/api/v1/events/${eventId}/official-protocol`,

@@ -150,6 +150,10 @@ Live `GET .../official-protocol` остаётся рабочим просмот�
 | POST | `/api/v1/events/{id}/official-protocol/revisions` | Bearer organizer+ | утвердить snapshot (readiness required) |
 | GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}` | Bearer | мета + snapshot_json |
 | GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}/download` | Bearer | JSON attachment |
+| GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}/pdf` | Bearer | PDF (reportlab) |
+| GET | `/api/v1/events/{id}/official-protocol/revisions/{rid}/docx` | Bearer | DOCX (python-docx) |
+| GET | `/api/v1/events/{id}/official-protocol/pdf` | Bearer | live PDF preview (не ревизия) |
+| GET | `/api/v1/events/{id}/official-protocol/docx` | Bearer | live DOCX preview (не ревизия) |
 
 ## Publications / лента (0.5.16, ADR-0013)
 

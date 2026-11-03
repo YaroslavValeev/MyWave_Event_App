@@ -33,8 +33,12 @@ import {
   decideEventApplication,
   deleteDocument,
   documentDownloadUrl,
+  downloadProtocolRevisionDocxUrl,
+  downloadProtocolRevisionPdfUrl,
   downloadProtocolRevisionUrl,
   fillStartList,
+  officialProtocolDocxUrl,
+  officialProtocolPdfUrl,
   getEventDetail,
   getEventRulesProfile,
   getMyApplication,
@@ -514,23 +518,53 @@ export default function EventDetailPage() {
     }
   }
 
-  async function downloadProtocolRevision(revision: OfficialProtocolRevision) {
+  async function downloadAuthorizedFile(url: string, filename: string) {
     const token = getStoredToken();
     if (!token) return;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new ApiError("Не удалось скачать файл", response.status);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  async function downloadProtocolRevision(
+    revision: OfficialProtocolRevision,
+    format: "json" | "pdf" | "docx" = "json",
+  ) {
     try {
-      const response = await fetch(downloadProtocolRevisionUrl(eventId, revision.id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new ApiError("Не удалось скачать ревизию", response.status);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${detail?.slug || `event-${eventId}`}-protocol-r${revision.revision_no}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const slug = detail?.slug || `event-${eventId}`;
+      const base = `${slug}-protocol-r${revision.revision_no}`;
+      if (format === "pdf") {
+        await downloadAuthorizedFile(downloadProtocolRevisionPdfUrl(eventId, revision.id), `${base}.pdf`);
+      } else if (format === "docx") {
+        await downloadAuthorizedFile(downloadProtocolRevisionDocxUrl(eventId, revision.id), `${base}.docx`);
+      } else {
+        await downloadAuthorizedFile(downloadProtocolRevisionUrl(eventId, revision.id), `${base}.json`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось скачать ревизию");
+    }
+  }
+
+  async function downloadLiveProtocolDoc(format: "pdf" | "docx") {
+    if (!canOrganize) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      const slug = detail?.slug || `event-${eventId}`;
+      const url = format === "pdf" ? officialProtocolPdfUrl(eventId) : officialProtocolDocxUrl(eventId);
+      await downloadAuthorizedFile(url, `${slug}-protocol-live.${format}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось скачать протокол");
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -1385,6 +1419,22 @@ export default function EventDetailPage() {
                       onClick={() => void openOfficialProtocolHtml()}
                     >
                       Открыть для печати
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="btn btnSecondary btnSm"
+                      disabled={exportBusy}
+                      onClick={() => void downloadLiveProtocolDoc("pdf")}
+                    >
+                      PDF (live)
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="btn btnSecondary btnSm"
+                      disabled={exportBusy}
+                      onClick={() => void downloadLiveProtocolDoc("docx")}
+                    >
+                      DOCX (live)
                     </button>
                   </div>
                 ) : null}
@@ -1422,13 +1472,29 @@ export default function EventDetailPage() {
                           <li key={revision.id} className={styles.item}>
                             <div className={styles.itemHead}>
                               <strong>Ревизия {revision.revision_no}</strong>
-                              <button
-                                type="button"
-                                className="btn btnSecondary btnSm"
-                                onClick={() => void downloadProtocolRevision(revision)}
-                              >
-                                Скачать
-                              </button>
+                              <span className={styles.fieldRow}>
+                                <button
+                                  type="button"
+                                  className="btn btnSecondary btnSm"
+                                  onClick={() => void downloadProtocolRevision(revision, "json")}
+                                >
+                                  JSON
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btnSecondary btnSm"
+                                  onClick={() => void downloadProtocolRevision(revision, "pdf")}
+                                >
+                                  PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btnSecondary btnSm"
+                                  onClick={() => void downloadProtocolRevision(revision, "docx")}
+                                >
+                                  DOCX
+                                </button>
+                              </span>
                             </div>
                             <div className={styles.muted}>
                               {new Date(revision.created_at).toLocaleString("ru-RU")}

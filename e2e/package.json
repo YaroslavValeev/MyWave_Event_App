@@ -1,0 +1,14 @@
+{
+  "name": "@mywave/event-app-e2e",
+  "private": true,
+  "version": "0.5.18",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

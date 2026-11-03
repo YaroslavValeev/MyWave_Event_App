@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.18 — 2026-11-04
+
+- Native protocol PDF (reportlab) + DOCX (python-docx): live + revision downloads (JSON/HTML live остаются).
+- Capacitor mobile shell scaffold `apps/mobile` + ANDROID_BUILD doctor (APK **BLOCKED**: нет JDK/SDK).
+- Playwright E2E `e2e/`: API SC01–SC09 **PASS**; SC10 Xiaomi manual/NOT RUN.
+- Xiaomi 14 checklist: X14-13…20 (guidance/scoreboard/PDF/DOCX); device NOT RUN.
+- UI: кнопки PDF/DOCX для live и утверждённых ревизий.
+
 ## 0.5.17 — 2026-11-04
 
 - Role guidance: `GET /events/{id}/guidance` + UI «Что делать дальше?» (ADR-0015); journey_phase поверх EventStatus.

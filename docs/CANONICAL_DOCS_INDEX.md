@@ -27,6 +27,8 @@
 | Guidance ADR | `docs/ARCHITECTURE/decisions/ADR-0015-journey-guidance.md` | ролевые подсказки | UX |
 | Scoreboard ADR | `docs/ARCHITECTURE/decisions/ADR-0016-live-scoreboard.md` | SSE табло | live |
 | Protocol revisions ADR | `docs/ARCHITECTURE/decisions/ADR-0017-protocol-revisions.md` | снимки протоколов | docs |
+| Android build | `docs/OPERATIONS/ANDROID_BUILD.md` | Capacitor / APK blockers | mobile |
+| Playwright E2E | `e2e/README.md` | SC01–SC10 | QA |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
 | Analytics | `docs/API/ANALYTICS_EVENTS.md` | события аналитики | новые сценарии |
 | Security | `docs/SECURITY/SECURITY.md` | безопасность | auth/uploads |
