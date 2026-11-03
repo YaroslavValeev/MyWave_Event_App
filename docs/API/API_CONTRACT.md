@@ -112,7 +112,7 @@ Kinds протокола: `judge_sheet`, `chief_protocol`, `photo_result`, `othe
 
 ## EventReport (0.5.8→0.5.9, ADR-0012)
 
-AI draft (default) из published results + DNS/DNF + officials + role handoffs.  
+AI draft (default) из published results + DNS/DNF + officials + role handoffs.
 `ENABLE_EVENT_REPORT_LLM=1` по умолчанию; без `OPENAI_API_KEY` — local AI. STT — flag off.
 
 | Method | Path | Auth | Описание |
@@ -127,6 +127,27 @@ AI draft (default) из published results + DNS/DNF + officials + role handoffs.
 
 Статусы: `draft` \| `published` \| `void`. Один отчёт на событие.
 
+## Publications / лента (0.5.16, ADR-0013)
+
+Отдельный домен постов/новостей (не EventReport и не ProtocolCapture).
+Policy: `packages/shared-policy/content_publish.yaml`.
+
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/api/v1/events/{id}/publications` | Optional | лента; гость видит только `published` |
+| GET | `/api/v1/events/{id}/publications/author-roles` | Bearer | роли, от имени которых можно публиковать (сейчас — только текущая) |
+| POST | `/api/v1/events/{id}/publications` | Bearer | создать (`type` post\|news, `intent` draft\|publish, `author_role`, опц. `idempotency_key` / заголовок `Idempotency-Key`) |
+| GET | `/api/v1/events/{id}/publications/{pid}` | Optional | одна публикация |
+| PATCH | `/api/v1/events/{id}/publications/{pid}` | Bearer | правка title/body/type |
+| POST | `/api/v1/events/{id}/publications/{pid}/moderate` | Bearer organizer+ | `publish` \| `reject` \| `void` |
+| DELETE | `/api/v1/events/{id}/publications/{pid}` | Bearer | удаление (автор черновика или модератор) |
+| POST | `/api/v1/events/{id}/publications/{pid}/media` | Bearer | upload JPG/PNG/WebP ≤10MB (magic-bytes) |
+| GET | `/api/v1/events/{id}/publications/{pid}/media/{mid}/file` | Optional | скачать изображение |
+
+Статусы сервера: `draft` \| `pending_moderation` \| `published` \| `rejected` \| `void`.
+`author_role` обязан совпадать с текущей ролью пользователя.
+`media`/`commentator` при `intent=publish` → `pending_moderation`; organizer+ → `published`.
+
 ## Athlete ID & archive (0.5.5)
 
 - `User.athlete_id` — opaque `MW-XXXXXXXX` (без PII); в `TokenResponse` / `MeResponse` / roster `ParticipantOut.athlete_id`.
@@ -140,5 +161,5 @@ AI draft (default) из published results + DNS/DNF + officials + role handoffs.
 { "error": { "code": "forbidden", "message": "..." } }
 ```
 
-Подробности auth: `docs/OPERATIONS/AUTH_PHONE.md`  
+Подробности auth: `docs/OPERATIONS/AUTH_PHONE.md`
 Команды владельца: `docs/OPERATIONS/OWNER_COMMANDS.md`

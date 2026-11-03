@@ -1,0 +1,174 @@
+.layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.composer,
+.publication,
+.localDraft,
+.preview {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.composer {
+  border-top: 3px solid var(--teal-mid);
+}
+
+.heading,
+.publicationHead,
+.draftHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.heading h2,
+.heading h3,
+.publication h3,
+.preview h3 {
+  margin: 0;
+}
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--mist);
+  font-weight: 600;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: var(--touch);
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--teal-mid) 8%, transparent);
+}
+
+.textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.selectRow,
+.fileRow,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.selectRow > * {
+  flex: 1 1 12rem;
+}
+
+.fileButton {
+  position: relative;
+  overflow: hidden;
+}
+
+.fileButton input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.imagePreview,
+.publicationImage {
+  display: block;
+  width: 100%;
+  max-height: 28rem;
+  margin-top: 0.75rem;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--teal-mid) 8%, white);
+}
+
+.publicationList,
+.draftList {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.publicationMeta,
+.muted {
+  color: var(--mist);
+  font-size: 0.9rem;
+}
+
+.publicationBody {
+  margin: 0.75rem 0 0;
+  white-space: pre-wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--status-pending);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--status-pending) 12%, white);
+  color: #8a4b08;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.banner,
+.success,
+.error {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+}
+
+.banner {
+  border: 1px solid var(--status-pending);
+  background: color-mix(in srgb, var(--status-pending) 12%, white);
+}
+
+.success {
+  border: 1px solid var(--success);
+  background: color-mix(in srgb, var(--success) 9%, white);
+  color: #08724f;
+}
+
+.error {
+  border: 1px solid color-mix(in srgb, var(--danger) 50%, white);
+  background: color-mix(in srgb, var(--danger) 7%, white);
+  color: var(--danger);
+}
+
+.empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--mist);
+}
+
+@media (max-width: 560px) {
+  .actions > button,
+  .fileRow > label {
+    flex: 1 1 100%;
+  }
+}

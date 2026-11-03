@@ -163,6 +163,7 @@ export type ParticipantOut = {
   user_id?: number | null;
   athlete_id?: string | null;
   full_name: string;
+  name_latin?: string | null;
   gender: string | null;
   birth_year: number | null;
   club: string | null;
@@ -1262,6 +1263,161 @@ export function updateMyProfile(
 
 export function documentDownloadUrl(eventId: number | string, documentId: number): string {
   return `${getApiBaseUrl()}/api/v1/events/${eventId}/documents/${documentId}/file`;
+}
+
+export type PublicationType = "post" | "news";
+export type PublicationStatus =
+  | "draft"
+  | "pending_moderation"
+  | "published"
+  | "rejected"
+  | "void";
+
+export type PublicationMediaOut = {
+  id: number;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  sort_order: number;
+  download_path: string;
+};
+
+export type PublicationOut = {
+  id: number;
+  event_id: number;
+  author_user_id: number | null;
+  author_role: string;
+  author_display_name: string;
+  type: PublicationType;
+  title: string;
+  body: string;
+  status: PublicationStatus;
+  version: number;
+  moderation_note: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  media: PublicationMediaOut[];
+};
+
+export type PublicationCreatePayload = {
+  type: PublicationType;
+  title: string;
+  body: string;
+  author_role: string;
+  intent: "draft" | "publish";
+  idempotency_key?: string;
+};
+
+export async function listPublications(
+  token: string | null | undefined,
+  eventId: number | string,
+): Promise<PublicationOut[]> {
+  const payload = await apiFetch<{ items: PublicationOut[]; total: number }>(
+    `/api/v1/events/${eventId}/publications`,
+    { method: "GET" },
+    token,
+  );
+  return payload.items;
+}
+
+export async function listPublicationAuthorRoles(
+  token: string,
+  eventId: number | string,
+): Promise<string[]> {
+  const payload = await apiFetch<{ roles: string[] }>(
+    `/api/v1/events/${eventId}/publications/author-roles`,
+    { method: "GET" },
+    token,
+  );
+  return payload.roles;
+}
+
+export function createPublication(
+  token: string,
+  eventId: number | string,
+  payload: PublicationCreatePayload,
+) {
+  const headers = payload.idempotency_key
+    ? { "Idempotency-Key": payload.idempotency_key }
+    : undefined;
+  return apiFetch<PublicationOut>(
+    `/api/v1/events/${eventId}/publications`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}
+
+export function updatePublication(
+  token: string,
+  eventId: number | string,
+  publicationId: number,
+  payload: Partial<Pick<PublicationCreatePayload, "title" | "body" | "type">>,
+) {
+  return apiFetch<PublicationOut>(
+    `/api/v1/events/${eventId}/publications/${publicationId}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function moderatePublication(
+  token: string,
+  eventId: number | string,
+  publicationId: number,
+  payload: { action: "publish" | "reject" | "void"; note?: string },
+) {
+  return apiFetch<PublicationOut>(
+    `/api/v1/events/${eventId}/publications/${publicationId}/moderate`,
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export function deletePublication(
+  token: string,
+  eventId: number | string,
+  publicationId: number,
+) {
+  return apiFetch<void>(
+    `/api/v1/events/${eventId}/publications/${publicationId}`,
+    { method: "DELETE" },
+    token,
+  );
+}
+
+export async function uploadPublicationMedia(
+  token: string,
+  eventId: number | string,
+  publicationId: number,
+  file: File,
+): Promise<PublicationOut> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(
+    `${getApiBaseUrl()}/api/v1/events/${eventId}/publications/${publicationId}/media`,
+    {
+      method: "POST",
+      headers,
+      body: form,
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as PublicationOut;
+}
+
+export function publicationMediaUrl(path: string): string {
+  return `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 export function saveSession(token: string, user: UserOut): void {

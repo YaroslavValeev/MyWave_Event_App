@@ -28,6 +28,8 @@ class Participant(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    # IWWF / start-list Latin spelling; optional companion to Cyrillic full_name.
+    name_latin: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     club: Mapped[str | None] = mapped_column(String(255), nullable=True)

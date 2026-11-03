@@ -10,6 +10,7 @@
   --focus: #14b8a6;
   --danger: #b42318;
   --success: #0f9f6e;
+  --status-pending: #d97706;
   --surface: #ffffff;
   --border: color-mix(in srgb, var(--teal-mid) 38%, white);
   --line: var(--border);

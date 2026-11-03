@@ -45,7 +45,9 @@ Thumbs.db
 # Local PII / analysis artifacts
 data/seed_analysis.json
 data/documents/
+data/publications/
 data/mail_outbox/
+data/downloads/
 !data/mail_outbox/.gitkeep
 **/mywave_event.db
 services/api/data/*.db

@@ -56,6 +56,8 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
             )
         if "medical_cert_url" not in cols:
             conn.execute(text("ALTER TABLE participants ADD COLUMN medical_cert_url VARCHAR(1024)"))
+        if "name_latin" not in cols:
+            conn.execute(text("ALTER TABLE participants ADD COLUMN name_latin VARCHAR(255)"))
 
         user_cols = {
             row[1]

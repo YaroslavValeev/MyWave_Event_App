@@ -1,9 +1,10 @@
 # CURRENT_STATE
 
-Дата: 2026-11-01  
-Версия продукта: **0.5.14** (staging harden: DATA_DIR, health.version, ollama compose override, runbooks)  
-Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.  
+Дата: 2026-11-03
+Версия продукта: **0.5.16** (лента публикаций + RBAC; roster 0.5.15 сохранён)
+Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 План дожима: [NEXT_HARDENING_PLAN.md](../OPERATIONS/NEXT_HARDENING_PLAN.md).
+Программа Champ modernization: [CHAMP_MODERNIZATION_PROGRAM.md](./CHAMP_MODERNIZATION_PROGRAM.md).
 
 Сверка с прикреплёнными DOCX: [GAP_VS_ATTACHED_DOCS.md](./GAP_VS_ATTACHED_DOCS.md) — **не всё из экосистемы/Hub относится к этому репо**.
 
@@ -20,20 +21,25 @@
 - **UX 0.5.7:** светлая тема, бирюзовые обводки и тени кнопок. Просроченный токен не тупик: гостевой просмотр + «Войти снова» с возвратом. Ролевые пути закрыты CTA. GET heats публичный на витрине (start list по-прежнему с входом).
 - **Отчётность 0.5.8–0.5.13:** Dual-track; AI assemble (local / OpenAI-compatible / Ollama); Excel; role handoffs. VPS РФ: `api.openai.com` → 403 territory; staging использует Ollama.
 - **Staging ops 0.5.14:** `DATA_DIR=/data`, `/health.version`, `scripts/staging_up.sh`, compose ollama override, nginx example, SMTP/tunnel runbooks.
+- **Roster 0.5.15:** `name_latin` + оба написания на карточке; скрипт слияния RU/EN-дублей.
+- **Publications 0.5.16:** лента post/news, серверный RBAC, media JPG/PNG/WebP, Idempotency-Key, UI вкладка «Лента», локальные offline-черновики (не полный offline MVP).
 
 ## Частично / нет
 
 - Live board / polish DNS-DNF UX (базовые лейблы есть)
 - Field moments / STT — flags off; ParserNews только published report
-- Media / broadcast — этапы 5–8
+- Media / Photographer Mode Stage 5 (EXIF ↔ heat) — ещё нет; лента публикаций — первый слой
+- Broadcast Stage 8 — нет
+- Offline sync Stage 3 (IndexedDB queue auto-flush) — нет; только localStorage drafts ленты
 - Score-now / Excel import adapters (seed Excel есть; live-import — нет)
 - PDF protocol export (HTML → Print пока достаточно)
 - **SMTP на staging** — код готов, ключи/пароль — **owner**
 - **Публичный HTTPS URL** — пример nginx есть; DNS/certs — **owner**
 - Диск VPS / prune — **owner**
-- Telegram/MAX/native — не Stage 1 этого репо
-- Native iOS/Android — нет (PWA)
+- Telegram/MAX — не Stage 1 этого репо
+- Native iOS/Android APK — **нет** (PWA / ADR-0014)
 - Полевой dry-run судья+организатор на площадке — **не выполнен** (главный блокер DoD v1)
+- Проверка на Xiaomi 14 — **не выполнена** (чек-лист готов)
 
 ## Следующий P0
 
@@ -57,4 +63,5 @@
 
 - Последний продуктовый merge: PR #1 `ux-0.5.7-light-theme-journeys`.
 - Незакоммичено локально: `data/downloads/` (служебные файлы; в git не коммитить без необходимости).
-- Не заявлять: mobile APK/IPA, prod deploy, offline MVP — этого нет.
+- Не заявлять: mobile APK/IPA, prod deploy, полный offline MVP — этого нет.
+- Publications 0.5.16: pytest `test_publications.py` (8) + регрессия authz; Xiaomi 14 / APK — не проверены.

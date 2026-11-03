@@ -1,0 +1,60 @@
+# Content publishing policy — Champ App / MyWave Event App
+# Source of truth for capabilities; enforce in services/api (not UI-only).
+version: 1
+date: 2026-11-03
+
+publication_types:
+  - post
+  - news
+
+server_statuses:
+  - draft
+  - pending_moderation
+  - published
+  - rejected
+  - void
+
+client_only_statuses:
+  - queued
+  - error
+
+capabilities:
+  create_post:
+    roles:
+      - media
+      - commentator
+      - organizer
+      - federation_manager
+      - event_admin
+      - platform_admin
+  create_news:
+    roles:
+      - organizer
+      - federation_manager
+      - event_admin
+      - platform_admin
+  publish_direct:
+    roles:
+      - organizer
+      - federation_manager
+      - event_admin
+      - platform_admin
+  moderate:
+    roles:
+      - organizer
+      - federation_manager
+      - event_admin
+      - platform_admin
+
+rules:
+  - author_role_must_match_actor_role: true
+  - guest_sees_only_published: true
+  - do_not_claim_published_until_server_ack: true
+  - idempotency_scope: event_id + author_user_id + idempotency_key
+  - media_whitelist: [image/jpeg, image/png, image/webp]
+  - media_max_bytes: 10485760  # 10 MiB
+  - magic_bytes_check: recommended
+
+critical_actions_require_human_ack:
+  - void_published_publication
+  - moderate_reject

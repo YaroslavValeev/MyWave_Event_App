@@ -19,6 +19,10 @@
 | Offline | `docs/ARCHITECTURE/OFFLINE_SYNC.md` | offline (этап 3+) | sync |
 | Integrations | `docs/ARCHITECTURE/INTEGRATIONS.md` | адаптеры | Telegram/MAX и др. |
 | ADR | `docs/ARCHITECTURE/decisions/` | решения | любое существенное |
+| Publications ADR | `docs/ARCHITECTURE/decisions/ADR-0013-event-publications.md` | лента post/news | контент |
+| Android delivery ADR | `docs/ARCHITECTURE/decisions/ADR-0014-android-delivery.md` | PWA → Capacitor | mobile |
+| Champ program | `docs/STATUS/CHAMP_MODERNIZATION_PROGRAM.md` | оркестрация модернизации | релизы Champ |
+| Xiaomi 14 checklist | `docs/OPERATIONS/XIAOMI14_TEST_CHECKLIST.md` | полевой тест Mi 14 | device QA |
 | API | `docs/API/API_CONTRACT.md` | контракт | endpoint |
 | Analytics | `docs/API/ANALYTICS_EVENTS.md` | события аналитики | новые сценарии |
 | Security | `docs/SECURITY/SECURITY.md` | безопасность | auth/uploads |

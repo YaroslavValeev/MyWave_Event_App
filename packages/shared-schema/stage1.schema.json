@@ -93,6 +93,47 @@
         "granted_at": { "type": "string", "format": "date-time" },
         "revoked_at": { "type": ["string", "null"], "format": "date-time" }
       }
+    },
+    "PublicationType": {
+      "type": "string",
+      "enum": ["post", "news"]
+    },
+    "PublicationStatus": {
+      "type": "string",
+      "enum": ["draft", "pending_moderation", "published", "rejected", "void"]
+    },
+    "Publication": {
+      "type": "object",
+      "required": [
+        "id",
+        "event_id",
+        "author_role",
+        "author_display_name",
+        "type",
+        "title",
+        "body",
+        "status",
+        "version",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": { "type": "integer" },
+        "event_id": { "type": "integer" },
+        "author_user_id": { "type": ["integer", "null"] },
+        "author_role": { "$ref": "#/definitions/Role" },
+        "author_display_name": { "type": "string" },
+        "type": { "$ref": "#/definitions/PublicationType" },
+        "title": { "type": "string", "maxLength": 255 },
+        "body": { "type": "string" },
+        "status": { "$ref": "#/definitions/PublicationStatus" },
+        "version": { "type": "integer", "minimum": 1 },
+        "idempotency_key": { "type": ["string", "null"], "maxLength": 128 },
+        "moderation_note": { "type": ["string", "null"] },
+        "published_at": { "type": ["string", "null"], "format": "date-time" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
     }
   }
 }

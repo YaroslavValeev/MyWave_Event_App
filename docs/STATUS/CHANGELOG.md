@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.16 — 2026-11-03
+
+- Домен **Publications** (лента поста/новости): API + RBAC capabilities, media upload с magic-bytes, Idempotency-Key (ADR-0013).
+- UI: вкладка «Лента», камера/галерея, предпросмотр, локальные offline-черновики, модерация staff.
+- Policy: `packages/shared-policy/content_publish.yaml`; схема в `shared-schema`.
+- Android: ADR-0014 — PWA сейчас, Capacitor/APK позже; чек-лист Xiaomi 14.
+- Программа оркестрации: `docs/STATUS/CHAMP_MODERNIZATION_PROGRAM.md`.
+
+## 0.5.15 — 2026-11-03
+
+- Participant: поле `name_latin` (RU + латиница в одной карточке состава).
+- Seed Казани: импорт колонки «на латинице»; кириллица остаётся `full_name`.
+- `scripts/fix_ru_en_participant_dupes.py` — диагностика/слияние RU/EN-дублей.
+
 ## 0.5.14 — 2026-11-01
 
 - Staging harden: `DATA_DIR` (mail_outbox на volume `/data`), `/health.version`, FastAPI version = package.

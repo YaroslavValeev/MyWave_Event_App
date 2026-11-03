@@ -118,7 +118,9 @@ FORM_DISCIPLINE_MAP = {
 }
 
 HEADER_ALIASES = {
-    "fio": {"фио", "ф.и.о.", "русск", "fullname"},
+    # Prefer Russian FIO; Latin has its own key (do not match "лат" as fio).
+    "fio": {"фио", "ф.и.о.", "fullname"},
+    "name_latin": {"латин", "лат.", "latin", "translit"},
     "gender": {"пол"},
     "category": {"категория"},
     "region": {"регион"},
@@ -127,6 +129,40 @@ HEADER_ALIASES = {
     "discipline": {"дисциплина"},
     "medical": {"медицин", "справка", "скан-копия"},
 }
+
+_CYR = re.compile(r"[А-Яа-яЁё]")
+_LAT = re.compile(r"[A-Za-z]")
+
+
+def _looks_cyrillic(value: str | None) -> bool:
+    return bool(value and _CYR.search(value))
+
+
+def _looks_latin_only(value: str | None) -> bool:
+    return bool(value and _LAT.search(value) and not _CYR.search(value))
+
+
+def _cell_str(values: list, headers: dict[str, int], key: str) -> str | None:
+    if key not in headers or headers[key] >= len(values):
+        return None
+    raw = values[headers[key]]
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def _resolve_names(fio: str, name_latin: str | None) -> tuple[str, str | None]:
+    """Keep Cyrillic as primary full_name; Latin as companion. Never drop either."""
+    latin = name_latin.strip() if name_latin else None
+    if _looks_cyrillic(fio):
+        return fio, latin
+    if latin and _looks_cyrillic(latin):
+        # Swapped columns in a dirty export
+        return latin, fio if _looks_latin_only(fio) else None
+    if latin and _looks_latin_only(fio) and not _looks_latin_only(latin):
+        return latin, fio
+    return fio, latin
 
 
 def _slugify(value: str) -> str:
@@ -157,8 +193,17 @@ def _parse_headers(row: list) -> dict[str, int]:
         if cell is None:
             continue
         label = str(cell).strip().lower()
+        # Latin column first so "ФИО … русском" does not steal "лат" rows.
+        if any(a in label for a in HEADER_ALIASES["name_latin"]):
+            mapping["name_latin"] = idx
+            continue
         for key, aliases in HEADER_ALIASES.items():
+            if key == "name_latin":
+                continue
             if label in aliases or any(a in label for a in aliases):
+                # Prefer first Russian FIO column; do not overwrite with later hits.
+                if key == "fio" and "fio" in mapping:
+                    continue
                 mapping[key] = idx
     return mapping
 
@@ -347,25 +392,18 @@ def import_participants_from_form(db, event: Event, xlsx: Path) -> tuple[int, in
                 headers = maybe
             continue
 
-        fio_idx = headers.get("fio")
-        if fio_idx is None or fio_idx >= len(values) or not values[fio_idx]:
+        fio_raw = _cell_str(values, headers, "fio")
+        if not fio_raw or fio_raw.lower() in {"фио", "№"}:
             continue
-        fio = str(values[fio_idx]).strip()
-        if not fio or fio.lower() in {"фио", "№"}:
-            continue
+        name_latin_raw = _cell_str(values, headers, "name_latin")
+        fio, name_latin = _resolve_names(fio_raw, name_latin_raw)
 
-        disc_raw = None
-        if "discipline" in headers and headers["discipline"] < len(values):
-            disc_raw = values[headers["discipline"]]
-        discipline = _map_form_discipline(str(disc_raw) if disc_raw else None)
+        disc_raw = _cell_str(values, headers, "discipline")
+        discipline = _map_form_discipline(disc_raw)
         if not discipline:
             continue
 
-        cat_title = "Без категории"
-        if "category" in headers and headers["category"] < len(values):
-            raw = values[headers["category"]]
-            if raw:
-                cat_title = str(raw).strip()
+        cat_title = _cell_str(values, headers, "category") or "Без категории"
 
         cat = _get_or_create_category(db, event, category_map, discipline, cat_title)
         dedupe_key = (cat.id, fio.casefold())
@@ -373,17 +411,11 @@ def import_participants_from_form(db, event: Event, xlsx: Path) -> tuple[int, in
             continue
         seen.add(dedupe_key)
 
-        region = None
-        if "region" in headers and headers["region"] < len(values) and values[headers["region"]]:
-            region = str(values[headers["region"]]).strip()
-
+        region = _cell_str(values, headers, "region")
         birth_year = None
         if "birth" in headers and headers["birth"] < len(values):
             birth_year = _birth_year(values[headers["birth"]])
-
-        phone = None
-        if "phone" in headers and headers["phone"] < len(values):
-            phone = normalize_phone(values[headers["phone"]])
+        phone = normalize_phone(_cell_str(values, headers, "phone"))
 
         has_med, med_url = False, None
         if "medical" in headers and headers["medical"] < len(values):
@@ -396,6 +428,7 @@ def import_participants_from_form(db, event: Event, xlsx: Path) -> tuple[int, in
                 event_id=event.id,
                 category_id=cat.id,
                 full_name=fio,
+                name_latin=name_latin,
                 gender=_infer_gender(cat_title),
                 birth_year=birth_year,
                 region=region,
@@ -433,22 +466,15 @@ def import_participants(db, event: Event, xlsx: Path) -> tuple[int, int]:
                 continue
             if _is_section_row(values):
                 continue
-            fio_idx = headers.get("fio")
-            if fio_idx is None or fio_idx >= len(values) or not values[fio_idx]:
+            fio_raw = _cell_str(values, headers, "fio")
+            if not fio_raw or fio_raw.lower() in {"фио", "№"}:
                 continue
-            fio = str(values[fio_idx]).strip()
-            if not fio or fio.lower() in {"фио", "№"}:
+            if re.fullmatch(r"\d+", fio_raw):
                 continue
-            if re.fullmatch(r"\d+", fio):
-                continue
+            name_latin_raw = _cell_str(values, headers, "name_latin")
+            fio, name_latin = _resolve_names(fio_raw, name_latin_raw)
 
-            cat_title = None
-            if "category" in headers and headers["category"] < len(values):
-                raw = values[headers["category"]]
-                if raw:
-                    cat_title = str(raw).strip()
-            if not cat_title:
-                cat_title = "Без категории"
+            cat_title = _cell_str(values, headers, "category") or "Без категории"
 
             cat = _get_or_create_category(db, event, category_map, discipline, cat_title)
 
@@ -457,27 +483,19 @@ def import_participants(db, event: Event, xlsx: Path) -> tuple[int, int]:
                 continue
             seen.add(dedupe_key)
 
-            gender = None
-            if "gender" in headers and headers["gender"] < len(values) and values[headers["gender"]]:
-                gender = str(values[headers["gender"]]).strip()
-
-            region = None
-            if "region" in headers and headers["region"] < len(values) and values[headers["region"]]:
-                region = str(values[headers["region"]]).strip()
-
+            gender = _cell_str(values, headers, "gender")
+            region = _cell_str(values, headers, "region")
             birth_year = None
             if "birth" in headers and headers["birth"] < len(values):
                 birth_year = _birth_year(values[headers["birth"]])
-
-            phone = None
-            if "phone" in headers and headers["phone"] < len(values):
-                phone = normalize_phone(values[headers["phone"]])
+            phone = normalize_phone(_cell_str(values, headers, "phone"))
 
             db.add(
                 Participant(
                     event_id=event.id,
                     category_id=cat.id,
                     full_name=fio,
+                    name_latin=name_latin,
                     gender=gender,
                     birth_year=birth_year,
                     region=region,

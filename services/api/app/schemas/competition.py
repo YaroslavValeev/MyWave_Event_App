@@ -29,6 +29,7 @@ class ParticipantOut(BaseModel):
     user_id: int | None = None
     athlete_id: str | None = None
     full_name: str
+    name_latin: str | None = None
     gender: str | None = None
     birth_year: int | None = None
     club: str | None = None

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { EventReportPanel } from "@/components/EventReportPanel";
+import { PublicationFeedPanel } from "@/components/PublicationFeedPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   ApiError,
@@ -79,6 +80,7 @@ import styles from "../events.module.css";
 
 type TabId =
   | "overview"
+  | "feed"
   | "checklist"
   | "participants"
   | "slots"
@@ -92,6 +94,7 @@ type TabId =
 
 const ALL_TABS: TabId[] = [
   "overview",
+  "feed",
   "checklist",
   "participants",
   "slots",
@@ -105,18 +108,18 @@ const ALL_TABS: TabId[] = [
 ];
 
 function visibleTabs(role: string | undefined, isGuest: boolean): TabId[] {
-  if (isGuest) return ["overview", "results"];
+  if (isGuest) return ["overview", "results", "feed"];
   if (isStaffRole(role ?? "")) return ALL_TABS;
   if (role === "judge") {
-    return ["overview", "scoring", "heats", "protocol", "results", "participants"];
+    return ["overview", "feed", "scoring", "heats", "protocol", "results", "participants"];
   }
   if (isBroadcastRole(role)) {
-    return ["overview", "heats", "results", "participants", "docs", "report"];
+    return ["overview", "feed", "heats", "results", "participants", "docs", "report"];
   }
   if (role === "support") {
-    return ["overview", "participants", "docs", "results", "apps"];
+    return ["overview", "feed", "participants", "docs", "results", "apps"];
   }
-  return ["overview", "apps", "participants", "slots", "docs", "results"];
+  return ["overview", "feed", "apps", "participants", "slots", "docs", "results"];
 }
 
 export default function EventDetailPage() {
@@ -316,7 +319,7 @@ export default function EventDetailPage() {
     const q = filter.trim().toLowerCase();
     if (!q) return participants;
     return participants.filter((p) => {
-      const hay = `${p.full_name} ${p.region || ""} ${p.city || ""}`.toLowerCase();
+      const hay = `${p.full_name} ${p.name_latin || ""} ${p.region || ""} ${p.city || ""}`.toLowerCase();
       return hay.includes(q);
     });
   }, [filter, participants]);
@@ -784,6 +787,7 @@ export default function EventDetailPage() {
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "overview", label: "Обзор" },
+    { id: "feed", label: "Лента" },
     { id: "checklist", label: `Подготовка (${checklistDone}/${checklist.length || 7})` },
     { id: "participants", label: `Состав (${participants.length})` },
     { id: "slots", label: "Слоты" },
@@ -988,6 +992,10 @@ export default function EventDetailPage() {
                   ))}
                 </ul>
               </>
+            ) : null}
+
+            {tab === "feed" ? (
+              <PublicationFeedPanel eventId={String(eventId)} isArchived={isArchived} />
             ) : null}
 
             {tab === "apps" ? (
@@ -1878,6 +1886,9 @@ export default function EventDetailPage() {
                             {p.has_medical_cert ? "Справка есть" : "Справки нет"}
                           </span>
                         </div>
+                        {p.name_latin ? (
+                          <div className={styles.muted}>{p.name_latin}</div>
+                        ) : null}
                         <div className={styles.muted}>
                           {[
                             p.athlete_id,

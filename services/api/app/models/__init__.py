@@ -9,6 +9,7 @@ from app.models.event import Event, EventStatus
 from app.models.event_report import EventReport
 from app.models.event_rules import EventRulesProfile
 from app.models.protocol_capture import ProtocolCapture
+from app.models.publication import Publication, PublicationMedia
 from app.models.judge_score import JudgeScore
 from app.models.heat import Heat, Run, StartListEntry
 from app.models.notification import Notification
@@ -43,4 +44,6 @@ __all__ = [
     "ProtocolCapture",
     "JudgeScore",
     "EventReport",
+    "Publication",
+    "PublicationMedia",
 ]
