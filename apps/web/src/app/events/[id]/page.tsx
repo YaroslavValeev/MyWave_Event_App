@@ -86,6 +86,13 @@ import {
   labelOf,
 } from "@/lib/labels";
 import { isBroadcastRole, isJudgeRole, isStaffRole } from "@/lib/roles";
+import {
+  listScoreDrafts,
+  markScoreDraftConflict,
+  removeScoreDraft,
+  saveScoreDraft,
+  type LocalScoreDraft,
+} from "@/lib/scoreDrafts";
 import styles from "../events.module.css";
 
 type TabId =
@@ -171,6 +178,7 @@ export default function EventDetailPage() {
   const [scoreParticipantId, setScoreParticipantId] = useState("");
   const [criteriaValues, setCriteriaValues] = useState<Record<string, string>>({});
   const [scoreBusy, setScoreBusy] = useState(false);
+  const [scoreDrafts, setScoreDrafts] = useState<LocalScoreDraft[]>([]);
   const [results, setResults] = useState<ResultOut[]>([]);
   const [resultParticipantId, setResultParticipantId] = useState("");
   const [resultScore, setResultScore] = useState("");
@@ -253,6 +261,7 @@ export default function EventDetailPage() {
         setProtocols(protoItems);
         setScoringEngine(engine);
         setJudgeScores(scores);
+        setScoreDrafts(listScoreDrafts(eventId));
         if (engine?.criteria?.length) {
           setCriteriaValues(Object.fromEntries(engine.criteria.map((c) => [c, ""])));
         }
@@ -622,6 +631,10 @@ export default function EventDetailPage() {
     }
   }
 
+  function refreshScoreDrafts() {
+    setScoreDrafts(listScoreDrafts(eventId));
+  }
+
   async function onSubmitJudgeScore() {
     const token = getStoredToken();
     if (!token || !canJudge || !scoringEngine) return;
@@ -640,18 +653,95 @@ export default function EventDetailPage() {
       }
       criteria[key] = num;
     }
+    const existingMine = judgeScores.find(
+      (s) =>
+        s.participant_id === pid &&
+        s.attempt_no === 1 &&
+        user &&
+        String(s.judge_user_id) === String(user.id),
+    );
+    const idempotencyKey = crypto.randomUUID();
+    const payload = {
+      participant_id: pid,
+      heat_id: selectedHeatId,
+      attempt_no: 1,
+      criteria,
+      expected_version: existingMine?.version ?? null,
+      idempotency_key: idempotencyKey,
+    };
     setScoreBusy(true);
     setError(null);
     try {
-      await submitJudgeScore(token, eventId, {
-        participant_id: pid,
-        heat_id: selectedHeatId,
-        attempt_no: 1,
-        criteria,
-      });
+      await submitJudgeScore(token, eventId, payload);
       setJudgeScores(await listJudgeScores(token, eventId));
+      refreshScoreDrafts();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось сохранить оценку судьи");
+      const offline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      const networkish =
+        !(err instanceof ApiError) ||
+        err.status === 0 ||
+        err.status >= 500 ||
+        /Failed to fetch|NetworkError|network/i.test(err.message);
+      if (offline || networkish) {
+        saveScoreDraft(eventId, {
+          participant_id: pid,
+          heat_id: selectedHeatId,
+          attempt_no: 1,
+          criteria,
+          expected_version: existingMine?.version ?? null,
+          idempotency_key: idempotencyKey,
+          status: "queued",
+          lastError: err instanceof Error ? err.message : "offline",
+        });
+        refreshScoreDrafts();
+        setAppMessage("Нет сети: оценка сохранена локально. Отправьте очередь, когда связь вернётся.");
+      } else if (err instanceof ApiError && err.status === 409) {
+        setError(err.message);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось сохранить оценку судьи");
+      }
+    } finally {
+      setScoreBusy(false);
+    }
+  }
+
+  async function flushScoreDrafts() {
+    const token = getStoredToken();
+    if (!token || !canJudge) return;
+    setScoreBusy(true);
+    setError(null);
+    try {
+      const drafts = listScoreDrafts(eventId);
+      for (const draft of drafts) {
+        if (draft.status === "conflict") continue;
+        try {
+          await submitJudgeScore(token, eventId, {
+            participant_id: draft.participant_id,
+            heat_id: draft.heat_id,
+            attempt_no: draft.attempt_no,
+            criteria: draft.criteria,
+            notes: draft.notes,
+            expected_version: draft.expected_version,
+            idempotency_key: draft.idempotency_key,
+          });
+          removeScoreDraft(eventId, draft.id);
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 409) {
+            markScoreDraftConflict(eventId, draft.id, err.message);
+            setError(err.message);
+          } else if (err instanceof ApiError && err.status === 403) {
+            markScoreDraftConflict(eventId, draft.id, err.message);
+          } else {
+            throw err;
+          }
+        }
+      }
+      setJudgeScores(await listJudgeScores(token, eventId));
+      refreshScoreDrafts();
+      setAppMessage("Очередь оценок синхронизирована.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось отправить очередь оценок");
     } finally {
       setScoreBusy(false);
     }
@@ -1708,7 +1798,28 @@ export default function EventDetailPage() {
                           Посчитать итог
                         </button>
                       ) : null}
+                      {scoreDrafts.length > 0 ? (
+                        <button
+                          type="button"
+                          className="btn btnSecondary"
+                          style={{ marginLeft: "0.75rem" }}
+                          disabled={scoreBusy}
+                          onClick={() => void flushScoreDrafts()}
+                        >
+                          Отправить очередь ({scoreDrafts.length})
+                        </button>
+                      ) : null}
                     </div>
+                    {scoreDrafts.length > 0 ? (
+                      <p className={styles.muted} style={{ marginTop: "0.5rem" }}>
+                        Локальная очередь оценок: {scoreDrafts.filter((d) => d.status === "queued").length}{" "}
+                        к отправке
+                        {scoreDrafts.some((d) => d.status === "conflict")
+                          ? `, ${scoreDrafts.filter((d) => d.status === "conflict").length} конфликт(ов) 409`
+                          : ""}
+                        . Официальный publish offline недоступен.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
                 <ul className={styles.list}>

@@ -83,6 +83,18 @@ def submit_judge_score(
     if part is None or part.event_id != event_id:
         raise EventServiceError("invalid_participant", "Participant not found for event", 400)
 
+    idem = (data.idempotency_key or "").strip() or None
+    if idem:
+        by_key = db.scalar(
+            select(JudgeScore).where(
+                JudgeScore.event_id == event_id,
+                JudgeScore.judge_user_id == actor.id,
+                JudgeScore.idempotency_key == idem,
+            )
+        )
+        if by_key is not None:
+            return by_key
+
     engine = data.engine or resolve_engine_for_event(db, event_id=event_id, actor=actor)
     if engine == "MANUAL_PLACE":
         raise EventServiceError(
@@ -106,11 +118,28 @@ def submit_judge_score(
         )
     )
     if existing is not None:
+        server_version = int(existing.version or 1)
+        if data.expected_version is not None and data.expected_version != server_version:
+            raise EventServiceError(
+                "version_conflict",
+                (
+                    f"Конфликт версии оценки: сервер v{server_version}, "
+                    f"клиент ожидал v{data.expected_version}. "
+                    "Обновите лист и повторите без silent overwrite."
+                ),
+                409,
+            )
+        if data.expected_version is None:
+            # Legacy clients without lock: allow update but still bump version.
+            pass
         existing.engine = engine
         existing.heat_id = data.heat_id
         existing.criteria_json = json.dumps(criteria_norm, ensure_ascii=False)
         existing.total = total
         existing.notes = data.notes
+        existing.version = server_version + 1
+        if idem and not existing.idempotency_key:
+            existing.idempotency_key = idem
         row = existing
     else:
         row = JudgeScore(
@@ -123,6 +152,8 @@ def submit_judge_score(
             criteria_json=json.dumps(criteria_norm, ensure_ascii=False),
             total=total,
             notes=data.notes,
+            version=1,
+            idempotency_key=idem,
         )
         db.add(row)
     db.flush()
@@ -139,6 +170,8 @@ def submit_judge_score(
             "engine": engine,
             "total": total,
             "attempt_no": data.attempt_no,
+            "version": row.version,
+            "idempotency_key": idem,
         },
         enabled=audit_enabled,
     )
@@ -234,6 +267,8 @@ def score_out(row: JudgeScore) -> dict:
         "criteria": criteria,
         "total": row.total,
         "notes": row.notes,
+        "version": int(getattr(row, "version", 1) or 1),
+        "idempotency_key": getattr(row, "idempotency_key", None),
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }

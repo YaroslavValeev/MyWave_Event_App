@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.roles import EVENT_WRITE_ROLES, Role
+from app.models.heat import StartListEntry
 from app.models.participant import Participant
 from app.models.result import Result
 from app.models.user import User
@@ -50,7 +51,17 @@ def build_scoreboard(
         ).all()
     )
 
-    participant_ids = {r.participant_id for r in rows if r.participant_id}
+    # Latest DNS/DNF flags from start lists (no second scoring SoT).
+    dns_dnf: dict[int, str] = {}
+    for sle in db.scalars(
+        select(StartListEntry).where(
+            StartListEntry.event_id == event_id,
+            StartListEntry.status.in_(("dns", "dnf")),
+        )
+    ).all():
+        dns_dnf[sle.participant_id] = sle.status.upper()
+
+    participant_ids = {r.participant_id for r in rows if r.participant_id} | set(dns_dnf)
     names: dict[int, str] = {}
     if participant_ids:
         for p in db.scalars(select(Participant).where(Participant.id.in_(participant_ids))).all():
@@ -58,6 +69,7 @@ def build_scoreboard(
 
     entries: list[dict[str, Any]] = []
     for r in rows:
+        flag = dns_dnf.get(r.participant_id or -1)
         entries.append(
             {
                 "result_id": r.id,
@@ -69,12 +81,42 @@ def build_scoreboard(
                 "category_id": r.category_id,
                 "updated_at": r.updated_at.isoformat() if isinstance(r.updated_at, datetime) else None,
                 "official": r.status == "published",
+                "run_flag": flag,
+            }
+        )
+
+    # Also surface DNS/DNF without a Result row (spectator sees no-shows).
+    result_pids = {e["participant_id"] for e in entries}
+    for pid, flag in dns_dnf.items():
+        if pid in result_pids:
+            continue
+        entries.append(
+            {
+                "result_id": -pid,
+                "participant_id": pid,
+                "display_name": names.get(pid) or _participant_name(db, pid),
+                "status": flag.lower(),
+                "score": None,
+                "place": None,
+                "category_id": None,
+                "updated_at": None,
+                "official": False,
+                "run_flag": flag,
             }
         )
 
     fingerprint = hashlib.sha256(
         json.dumps(
-            [{"id": e["result_id"], "s": e["status"], "sc": e["score"], "p": e["place"]} for e in entries],
+            [
+                {
+                    "id": e["result_id"],
+                    "s": e["status"],
+                    "sc": e["score"],
+                    "p": e["place"],
+                    "f": e.get("run_flag"),
+                }
+                for e in entries
+            ],
             sort_keys=True,
             ensure_ascii=False,
         ).encode("utf-8")
@@ -87,3 +129,10 @@ def build_scoreboard(
         "entries": entries,
         "total": len(entries),
     }
+
+
+def _participant_name(db: Session, participant_id: int) -> str:
+    p = db.get(Participant, participant_id)
+    if p is None:
+        return f"#{participant_id}"
+    return p.full_name or p.name_latin or f"#{participant_id}"

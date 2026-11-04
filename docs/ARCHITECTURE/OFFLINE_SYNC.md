@@ -1,7 +1,7 @@
 # Offline Sync — целевая модель
 
 **Дата:** 2026-08-04  
-**Статус Stage 1:** online-only (документ — контракт будущего Stage 3)
+**Статус Stage 1 / 0.5.19:** online SoT; локальная очередь **judge-score drafts** (SCORE-13C) + publication drafts. Полный IndexedDB Stage 3 — ещё нет.
 
 ## 1. Зачем
 

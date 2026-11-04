@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Query, UploadFile
+from fastapi import APIRouter, File, Form, Header, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
@@ -877,7 +878,10 @@ def post_judge_score(
     db: DbSession,
     user: CurrentUser,
     settings: AppSettings,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> JudgeScoreOut:
+    if idempotency_key and not body.idempotency_key:
+        body = body.model_copy(update={"idempotency_key": idempotency_key})
     try:
         row = submit_judge_score(
             db,
