@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.19 — 2026-11-04
+
+- SCORE-13C: `JudgeScore.version` + `Idempotency-Key` / `expected_version` → 409 без silent overwrite.
+- Offline queue оценок судьи в localStorage (`scoreDrafts`) + кнопка «Отправить очередь».
+- Табло: флаги DNS/DNF из start list (`run_flag`).
+- Docs/program: статусы QA SC01–09 и backlog синхронизированы.
+
 ## 0.5.18 — 2026-11-04
 
 - Native protocol PDF (reportlab) + DOCX (python-docx): live + revision downloads (JSON/HTML live остаются).

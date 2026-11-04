@@ -705,6 +705,7 @@ export type ScoreboardEntry = {
   category_id: number | null;
   updated_at: string | null;
   official: boolean;
+  run_flag?: string | null;
 };
 
 export type Scoreboard = {
@@ -1208,6 +1209,8 @@ export type JudgeScoreOut = {
   criteria: Record<string, number>;
   total: number;
   notes: string | null;
+  version: number;
+  idempotency_key?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1243,11 +1246,17 @@ export function submitJudgeScore(
     attempt_no?: number;
     criteria: Record<string, number>;
     notes?: string;
+    expected_version?: number | null;
+    idempotency_key?: string;
   },
 ) {
+  const headers: HeadersInit = {};
+  if (payload.idempotency_key) {
+    headers["Idempotency-Key"] = payload.idempotency_key;
+  }
   return apiFetch<JudgeScoreOut>(
     `/api/v1/events/${eventId}/judge-scores`,
-    { method: "POST", body: JSON.stringify(payload) },
+    { method: "POST", headers, body: JSON.stringify(payload) },
     token,
   );
 }

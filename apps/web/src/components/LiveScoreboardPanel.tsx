@@ -105,9 +105,13 @@ export function LiveScoreboardPanel({
                     <td>{entry.display_name}</td>
                     <td className={styles.score}>{entry.score ?? "—"}</td>
                     <td>
-                      <span className={entry.official ? styles.official : styles.unofficial}>
-                        {entry.official ? "официальный" : "предварительный"}
-                      </span>
+                      {entry.run_flag ? (
+                        <span className={styles.unofficial}>{entry.run_flag}</span>
+                      ) : (
+                        <span className={entry.official ? styles.official : styles.unofficial}>
+                          {entry.official ? "официальный" : "предварительный"}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

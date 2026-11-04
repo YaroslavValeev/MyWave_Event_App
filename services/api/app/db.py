@@ -69,6 +69,26 @@ def _ensure_sqlite_columns(engine, database_url: str) -> None:
                 text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_athlete_id ON users (athlete_id)")
             )
 
+        judge_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(judge_scores)")).fetchall()
+        }
+        if judge_cols:
+            if "version" not in judge_cols:
+                conn.execute(
+                    text("ALTER TABLE judge_scores ADD COLUMN version INTEGER DEFAULT 1 NOT NULL")
+                )
+            if "idempotency_key" not in judge_cols:
+                conn.execute(
+                    text("ALTER TABLE judge_scores ADD COLUMN idempotency_key VARCHAR(128)")
+                )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_judge_score_idempotency "
+                    "ON judge_scores (event_id, judge_user_id, idempotency_key)"
+                )
+            )
+
 
 def get_engine():
     if _engine is None:

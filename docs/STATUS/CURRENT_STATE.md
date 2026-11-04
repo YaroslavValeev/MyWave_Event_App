@@ -1,7 +1,7 @@
 # CURRENT_STATE
 
 Дата: 2026-11-04
-Версия продукта: **0.5.18** (PDF/DOCX + Playwright API SC01–09 PASS; Android APK BLOCKED)
+Версия продукта: **0.5.19** (SCORE-13C offline judge drafts + version/409; PDF/DOCX 0.5.18; APK BLOCKED)
 Путь до DoD v1 (аудит): ~**80%** — остаток почти целиком **пилот на площадке**, не «дыры» ядра Stage 1.
 План дожима: [NEXT_HARDENING_PLAN.md](../OPERATIONS/NEXT_HARDENING_PLAN.md).
 Программа Champ modernization: [CHAMP_MODERNIZATION_PROGRAM.md](./CHAMP_MODERNIZATION_PROGRAM.md).
@@ -25,12 +25,13 @@
 - **Publications 0.5.16:** лента post/news, серверный RBAC, media JPG/PNG/WebP, Idempotency-Key, UI вкладка «Лента», локальные offline-черновики (не полный offline MVP).
 - **Guidance / Scoreboard / Protocol revisions 0.5.17:** ролевые подсказки; табло + SSE; immutable protocol revisions; workflow Mermaid A–I.
 - **Protocol PDF/DOCX 0.5.18:** native export (reportlab/python-docx) для live и утверждённых ревизий.
-- **E2E 0.5.18:** Playwright `e2e/` — API SC01–SC09 **PASS** (2026-11-04, local API :8020); SC10 Xiaomi — manual/NOT RUN; UI smoke — при поднятом web.
+- **JudgeScore offline/idempotency 0.5.19:** version lock, Idempotency-Key, local score queue, DNS/DNF на табло.
+- **E2E 0.5.18+:** Playwright API SC01–SC09 **PASS**; SC10 Xiaomi — manual/NOT RUN; UI smoke — при поднятом web.
 
 ## Частично / нет
 
 - Live board polish / DNS-DNF UX (базовый scoreboard 0.5.17 есть; polish остаётся)
-- Offline scoring queue с конфликтами версий JudgeScore — нет (только черновики публикаций)
+- ~~Offline scoring queue~~ — локальная очередь JudgeScore + 409 version (0.5.19); полный IndexedDB Stage 3 — нет
 - Field moments / STT — flags off; ParserNews только published report
 - Media / Photographer Mode Stage 5 (EXIF ↔ heat) — ещё нет; лента публикаций — первый слой
 - Broadcast Stage 8 — нет
@@ -63,6 +64,7 @@
 - pytest 0.5.7: public events + invalid bearer as guest + guest heats
 - pytest 0.5.9: `test_event_report.py` — AI assemble / excel / role-actions / flags / authz
 - pytest 0.5.18: `test_protocol_documents.py` — PDF/DOCX live + revision (2 passed)
+- pytest 0.5.19: `test_judge_score_idempotency.py` + scoring/guidance (8 passed)
 - Playwright 0.5.18: API SC01–SC09 passed; SC10 skipped (device manual)
 - Android: `apps/mobile` Capacitor scaffold; doctor — Java/ANDROID_HOME **MISSING** → APK **BLOCKED**
 - Xiaomi 14: чек-лист X14-01…20 готов; device **NOT RUN**

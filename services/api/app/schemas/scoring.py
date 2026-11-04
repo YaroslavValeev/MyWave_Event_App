@@ -15,6 +15,12 @@ class JudgeScoreSubmit(BaseModel):
     criteria: dict[str, float]
     notes: str | None = Field(default=None, max_length=2000)
     engine: str | None = Field(default=None, max_length=64)
+    expected_version: int | None = Field(
+        default=None,
+        ge=1,
+        description="Optimistic lock: required when updating an existing sheet",
+    )
+    idempotency_key: str | None = Field(default=None, max_length=128)
 
 
 class JudgeScoreOut(BaseModel):
@@ -30,6 +36,8 @@ class JudgeScoreOut(BaseModel):
     criteria: dict[str, float]
     total: float
     notes: str | None = None
+    version: int = 1
+    idempotency_key: str | None = None
     created_at: datetime
     updated_at: datetime
 
