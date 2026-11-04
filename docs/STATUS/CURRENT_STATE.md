@@ -26,6 +26,7 @@
 - **Guidance / Scoreboard / Protocol revisions 0.5.17:** ролевые подсказки; табло + SSE; immutable protocol revisions; workflow Mermaid A–I.
 - **Protocol PDF/DOCX 0.5.18:** native export (reportlab/python-docx) для live и утверждённых ревизий.
 - **JudgeScore offline/idempotency 0.5.19:** version lock, Idempotency-Key, local score queue, DNS/DNF на табло.
+- **Guided Welcome (ветка `cursor/guided-welcome-v1`):** goal-first главная (5 задач → событие → next step); не выдаёт роли; API SoT без изменений.
 - **E2E 0.5.18+:** Playwright API SC01–SC09 **PASS**; SC10 Xiaomi — manual/NOT RUN; UI smoke — при поднятом web.
 
 ## Частично / нет
