@@ -1,0 +1,92 @@
+.wrap {
+  margin: 1.25rem 0 0.75rem;
+}
+
+.phases {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.phase {
+  min-height: var(--touch);
+  padding: 0.45rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--mist);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.phase:hover {
+  color: var(--teal-deep);
+  background: color-mix(in srgb, var(--teal-mid) 8%, white);
+}
+
+.phaseActive {
+  color: var(--teal-deep);
+  border-color: var(--teal-mid);
+  background: color-mix(in srgb, var(--sand-bright) 22%, white);
+  box-shadow: var(--shadow-sm);
+}
+
+.phaseFull {
+  display: inline;
+}
+
+.phaseShort {
+  display: none;
+}
+
+.secondary {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+}
+
+.subTab {
+  min-height: 2.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mist);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.subTab:hover {
+  color: var(--teal-deep);
+  background: color-mix(in srgb, var(--teal-mid) 8%, white);
+}
+
+.subTabActive {
+  color: var(--teal-deep);
+  border-color: var(--teal-mid);
+  background: color-mix(in srgb, var(--teal-mid) 12%, white);
+  font-weight: 600;
+}
+
+@media (max-width: 620px) {
+  .phaseFull {
+    display: none;
+  }
+  .phaseShort {
+    display: inline;
+  }
+}

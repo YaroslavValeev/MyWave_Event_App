@@ -42,6 +42,9 @@ yarn-error.log*
 Thumbs.db
 *.swp
 
+# Local extract / scratch (zip bundles, one-off scripts)
+.tmp/
+
 # Local PII / analysis artifacts
 data/seed_analysis.json
 data/documents/

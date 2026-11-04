@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { EventReportPanel } from "@/components/EventReportPanel";
+import { EventSectionNav } from "@/components/EventSectionNav";
 import { JourneyGuidancePanel } from "@/components/JourneyGuidancePanel";
 import { LiveScoreboardPanel } from "@/components/LiveScoreboardPanel";
+import { PreparationActionList } from "@/components/PreparationActionList";
 import { PublicationFeedPanel } from "@/components/PublicationFeedPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -1115,24 +1117,11 @@ export default function EventDetailPage() {
               </div>
             ) : null}
 
-            <div className={styles.tabs} role="tablist" aria-label="Разделы события">
-              {tabs
-                .filter((t) => allowedTabs.includes(t.id))
-                .map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    id={`tab-${t.id}`}
-                    aria-selected={tab === t.id}
-                    aria-controls={`panel-${t.id}`}
-                    className={`${styles.tab} ${tab === t.id ? styles.tabActive : ""}`}
-                    onClick={() => selectTab(t.id)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-            </div>
+            <EventSectionNav
+              activeTab={tab}
+              tabs={tabs.filter((t) => allowedTabs.includes(t.id))}
+              onSelect={(id) => selectTab(id as TabId)}
+            />
 
             {tab === "overview" ? (
               <>
@@ -1342,37 +1331,13 @@ export default function EventDetailPage() {
             ) : null}
 
             {tab === "checklist" ? (
-              <>
-                <h2 className={styles.itemTitle}>
-                  Подготовка события ({checklistDone}/{checklist.length})
-                </h2>
-                <p className={styles.muted}>
-                  Чеклист живёт в Event App (сайт — только витрина). Часть пунктов отмечается
-                  автоматически по данным события.
-                </p>
-                <ul className={styles.list}>
-                  {checklist.map((item) => (
-                    <li key={item.id} className={styles.item}>
-                      <div className={styles.itemHead}>
-                        <strong>
-                          {item.is_done ? "✓ " : "○ "}
-                          {item.title}
-                        </strong>
-                        {canModerate ? (
-                          <button
-                            type="button"
-                            className="btn btnPrimary btnSm"
-                            onClick={() => void onToggleChecklist(item)}
-                          >
-                            {item.is_done ? "Снять" : "Отметить"}
-                          </button>
-                        ) : null}
-                      </div>
-                      {canModerate ? <div className={styles.muted}>{item.code}</div> : null}
-                    </li>
-                  ))}
-                </ul>
-              </>
+              <PreparationActionList
+                items={checklist}
+                doneCount={checklistDone}
+                canModerate={canModerate}
+                onToggle={(item) => void onToggleChecklist(item)}
+                onOpenTab={(id) => selectTab(id as TabId)}
+              />
             ) : null}
 
             {tab === "docs" ? (
@@ -1387,14 +1352,7 @@ export default function EventDetailPage() {
                         value={uploadTitle}
                         onChange={(e) => setUploadTitle(e.target.value)}
                         placeholder="Бюллетень №1"
-                        style={{
-                          marginLeft: "0.5rem",
-                          padding: "0.45rem 0.7rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
+                        className={styles.fieldControl} style={{marginLeft: "0.5rem"}}
                       />
                     </label>{" "}
                     <label className={styles.muted}>
@@ -1402,14 +1360,7 @@ export default function EventDetailPage() {
                       <select
                         value={uploadKind}
                         onChange={(e) => setUploadKind(e.target.value)}
-                        style={{
-                          marginLeft: "0.35rem",
-                          padding: "0.45rem 0.5rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
+                        className={styles.fieldControl} style={{marginLeft: "0.35rem"}}
                       >
                         <option value="bulletin">Бюллетень</option>
                         <option value="protocol">Протокол</option>
@@ -1454,6 +1405,7 @@ export default function EventDetailPage() {
                                 type="button"
                                 className="btn btnDanger btnSm"
                                 style={{ marginLeft: "0.5rem" }}
+                                onClick={() => void onDeleteDoc(d)}
                               >
                                 Удалить
                               </button>
@@ -1610,14 +1562,7 @@ export default function EventDetailPage() {
                         value={protocolTitle}
                         onChange={(e) => setProtocolTitle(e.target.value)}
                         placeholder="Лист судьи 1 · Heat A"
-                        style={{
-                          marginLeft: "0.5rem",
-                          padding: "0.45rem 0.7rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
+                        className={styles.fieldControl} style={{marginLeft: "0.5rem"}}
                       />
                     </label>{" "}
                     <label className={styles.muted}>
@@ -1625,14 +1570,7 @@ export default function EventDetailPage() {
                       <select
                         value={protocolKind}
                         onChange={(e) => setProtocolKind(e.target.value)}
-                        style={{
-                          marginLeft: "0.35rem",
-                          padding: "0.45rem 0.5rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
+                        className={styles.fieldControl} style={{marginLeft: "0.35rem"}}
                       >
                         <option value="judge_sheet">Лист судьи</option>
                         <option value="chief_protocol">Протокол главного судьи</option>
@@ -1735,14 +1673,7 @@ export default function EventDetailPage() {
                       <select
                         value={scoreParticipantId}
                         onChange={(e) => setScoreParticipantId(e.target.value)}
-                        style={{
-                          marginLeft: "0.35rem",
-                          padding: "0.45rem 0.5rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--line)",
-                          background: "rgba(0,0,0,0.25)",
-                          color: "inherit",
-                        }}
+                        className={styles.fieldControl} style={{marginLeft: "0.35rem"}}
                       >
                         <option value="">— выберите —</option>
                         {participants.map((p) => (
@@ -1765,15 +1696,7 @@ export default function EventDetailPage() {
                             onChange={(e) =>
                               setCriteriaValues((prev) => ({ ...prev, [key]: e.target.value }))
                             }
-                            style={{
-                              marginLeft: "0.35rem",
-                              width: "6rem",
-                              padding: "0.35rem 0.5rem",
-                              borderRadius: "8px",
-                              border: "1px solid var(--line)",
-                              background: "rgba(0,0,0,0.25)",
-                              color: "inherit",
-                            }}
+                            className={styles.fieldControl} style={{width: "6rem", marginLeft: "0.35rem"}}
                           />
                         </label>
                       ))}
@@ -1866,27 +1789,13 @@ export default function EventDetailPage() {
                       value={heatCode}
                       onChange={(e) => setHeatCode(e.target.value)}
                       placeholder="Код (Q1)"
-                      style={{
-                        marginRight: "0.5rem",
-                        padding: "0.45rem 0.7rem",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
-                      }}
+                      className={styles.fieldControl} style={{marginRight: "0.5rem"}}
                     />
                     <input
                       value={heatTitle}
                       onChange={(e) => setHeatTitle(e.target.value)}
                       placeholder="Название заезда"
-                      style={{
-                        marginRight: "0.5rem",
-                        padding: "0.45rem 0.7rem",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
-                      }}
+                      className={styles.fieldControl} style={{marginRight: "0.5rem"}}
                     />
                     <button type="button" className="btn btnPrimary btnSm" onClick={() => void onCreateHeat()}>
                       Создать заезд
@@ -1949,14 +1858,7 @@ export default function EventDetailPage() {
                         <select
                           value={addParticipantId}
                           onChange={(e) => setAddParticipantId(e.target.value)}
-                          style={{
-                            marginRight: "0.5rem",
-                            padding: "0.45rem 0.5rem",
-                            borderRadius: "8px",
-                            border: "1px solid var(--line)",
-                            background: "rgba(0,0,0,0.25)",
-                            color: "inherit",
-                          }}
+                          className={styles.fieldControl} style={{marginRight: "0.5rem"}}
                         >
                           <option value="">Участник…</option>
                           {participants.map((p) => (
@@ -2039,14 +1941,7 @@ export default function EventDetailPage() {
                     <select
                       value={resultParticipantId}
                       onChange={(e) => setResultParticipantId(e.target.value)}
-                      style={{
-                        marginRight: "0.5rem",
-                        padding: "0.45rem 0.5rem",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
-                      }}
+                      className={styles.fieldControl} style={{marginRight: "0.5rem"}}
                     >
                       <option value="">Участник…</option>
                       {participants.map((p) => (
@@ -2059,29 +1954,13 @@ export default function EventDetailPage() {
                       value={resultScore}
                       onChange={(e) => setResultScore(e.target.value)}
                       placeholder="Балл"
-                      style={{
-                        width: "5rem",
-                        marginRight: "0.5rem",
-                        padding: "0.45rem 0.5rem",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
-                      }}
+                      className={styles.fieldControl} style={{width: "5rem", marginRight: "0.5rem"}}
                     />
                     <input
                       value={resultPlace}
                       onChange={(e) => setResultPlace(e.target.value)}
                       placeholder="Место"
-                      style={{
-                        width: "5rem",
-                        marginRight: "0.5rem",
-                        padding: "0.45rem 0.5rem",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "inherit",
-                      }}
+                      className={styles.fieldControl} style={{width: "5rem", marginRight: "0.5rem"}}
                     />
                     <button
                       type="button"
@@ -2171,14 +2050,7 @@ export default function EventDetailPage() {
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder="ФИО или регион"
-                    style={{
-                      marginLeft: "0.5rem",
-                      padding: "0.45rem 0.7rem",
-                      borderRadius: "8px",
-                      border: "1px solid var(--line)",
-                      background: "rgba(0,0,0,0.25)",
-                      color: "inherit",
-                    }}
+                    className={styles.fieldControl} style={{marginLeft: "0.5rem"}}
                   />
                 </label>
                 <ul className={styles.list}>
